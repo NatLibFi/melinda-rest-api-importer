@@ -23,10 +23,9 @@ export async function consumeQueue(queue) {
 		if (record) {
 			// TODO: 2-part ack?
 			const content = JSON.parse(record.content.toString());
-			// Logger.log('debug', `Record has consumed from queue id: ${content.QUEUEID}`);
 			const res = await load(content);
-			// TODO: Send message back to rest-api when done
 			console.log(res);
+			// TODO: Send message back to rest-api when done
 			res.queue = queue;
 			await channel.sendToQueue(
 				NAME_QUEUE_REPLY,

@@ -1,4 +1,4 @@
-// THIS HAS BEEN MOVED TO REST-API
+// NOT IN USE: THIS HAS BEEN MOVED TO REST-API
 
 import amqplib from 'amqplib';
 import {AMQP_URL} from '../config';
@@ -7,7 +7,7 @@ import {logError} from '../utils';
 
 const {createLogger} = Utils;
 
-export async function pushToQueue({type, QUEUEID, format, data, operation}) {
+export async function pushToQueue({type, format, data, operation}) {
 	const logger = createLogger();
 	let connection;
 	let channel;
@@ -27,7 +27,6 @@ export async function pushToQueue({type, QUEUEID, format, data, operation}) {
 				format,
 				type,
 				operation,
-				QUEUEID,
 				record
 			});
 

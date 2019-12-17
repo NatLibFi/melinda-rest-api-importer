@@ -44,17 +44,25 @@ export function createService() {
 
 	return {createJSON, createALEPH, updateJSON, updateALEPH};
 
-	async function createALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
-		return loadRecord({record: records, cataloger, indexingPriority, QUEUEID});
+	async function createALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+		const record = records.map(record => {
+			return record.join('\n');
+		}).join('\n');
+
+		return loadRecord({record, cataloger, indexingPriority});
 	}
 
-	async function createJSON({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
+	async function createJSON({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		record = AlephSequential.to(record);
-		return loadRecord({record, cataloger, indexingPriority, QUEUEID});
+		return loadRecord({record, cataloger, indexingPriority});
 	}
 
-	async function updateALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
-		return loadRecord({record: records, isUpdate: true, cataloger, indexingPriority, QUEUEID});
+	async function updateALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+		const record = records.map(record => {
+			return record.join('\n');
+		}).join('\n');
+
+		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
 		/* Problem => this returns before validated
 		try {
 			let failed = [];
@@ -65,7 +73,7 @@ export function createService() {
 				return record.join('\n');
 			}).join('\n');
 			if (records !== '') {
-				return {records: await loadRecord({record: records, isUpdate: true, cataloger, indexingPriority, QUEUEID}), failed};
+				return {records: await loadRecord({record: records, isUpdate: true, cataloger, indexingPriority}), failed};
 			}
 
 			return {error: new Error('No valid records'), failed};
@@ -102,12 +110,12 @@ export function createService() {
 		} */
 	}
 
-	async function updateJSON({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
+	async function updateJSON({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		const existingRecord = await fetchRecord(id);
 		updateField001ToParamId(id, record);
 		await validateRecordState(record, existingRecord);
 		record = AlephSequential.to(record);
-		await loadRecord({record, isUpdate: true, cataloger, indexingPriority, QUEUEID});
+		await loadRecord({record, isUpdate: true, cataloger, indexingPriority});
 	}
 
 	async function fetchRecord(id) {
@@ -135,18 +143,16 @@ export function createService() {
 		});
 	}
 
-	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, retriesCount = 0, QUEUEID}) {
+	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
-		// TODO add QUEUEID
 		const params = new URLSearchParams([
 			['library', RECORD_LOAD_LIBRARY],
 			['method', isUpdate === false ? 'NEW' : 'OLD'],
 			['fixRoutine', FIX_ROUTINE],
 			['updateAction', UPDATE_ACTION],
 			['cataloger', cataloger],
-			['indexingPriority', generateIndexingPriority(indexingPriority, isUpdate === false)],
-			['QUEUEID', QUEUEID]
+			['indexingPriority', generateIndexingPriority(indexingPriority, isUpdate === false)]
 		]);
 
 		console.log(url + params.toString());
@@ -162,7 +168,7 @@ export function createService() {
 			const idList = json.ids.map(id => {
 				return formatRecordId(id);
 			});
-			return {QUEUEID: json.QUEUEID, ids: idList};
+			return {ids: idList};
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {

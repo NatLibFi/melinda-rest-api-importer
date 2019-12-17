@@ -16,7 +16,6 @@ export function toRecordLoadApi() {
 		// TODO Catalogger indetification
 		// Logger.log('info', `Has record ${records}`);
 		// Logger.log('info', `Has data ${JSON.stringify(data)}`);
-		logger.log('info', `Has QUEUEID ${data.QUEUEID}`);
 		logger.log('info', `Has format ${data.format}`);
 		logger.log('info', `Has operation ${data.operation}`);
 		logger.log('info', `Has cataloger: ${data.cataloger}`);
@@ -25,17 +24,17 @@ export function toRecordLoadApi() {
 		if (data.records) {
 			if (data.operation === 'update') {
 				// Async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-				const {QUEUEID, ids, error} = await DatastoreService.updateALEPH({records: data.records, cataloger: data.cataloger, QUEUEID: data.QUEUEID});
+				const {ids, error} = await DatastoreService.updateALEPH({records: data.records, cataloger: data.cataloger});
 				if (error === undefined) {
 					logger.log('info', `Updated records ${ids}`);
-					return {status: RECORD_STATE.UPDATED, metadata: {QUEUEID, ids}};
+					return {status: RECORD_STATE.UPDATED, metadata: {ids}};
 				}
 
-				return {status: RECORD_STATE.ERROR, metadata: {QUEUEID, ids, error}};
+				return {status: RECORD_STATE.ERROR, metadata: {ids, error}};
 			}
 
 			if (data.operation === 'create') {
-				const ids = await DatastoreService.createALEPH({records: data.records, cataloger: data.cataloger, QUEUEID: data.QUEUEID});
+				const ids = await DatastoreService.createALEPH({records: data.records, cataloger: data.cataloger});
 				logger.log('info', `Created new records ${ids}`);
 				return {status: RECORD_STATE.CREATED, metadata: {ids}};
 			}
