@@ -1,5 +1,5 @@
 import {URL} from 'url';
-import {promisify} from 'util';
+import {promisify, isArray} from 'util';
 import HttpStatus from 'http-status';
 import fetch from 'node-fetch';
 import createSruClient from '@natlibfi/sru-client';
@@ -9,7 +9,8 @@ import moment from 'moment';
 import {Utils} from '@natlibfi/melinda-commons';
 
 import {SRU_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
-const {createLogger, toAlephId, generateAuthorizationHeader} = Utils;
+import {seqLineToMarcField} from '../utils'; // eslint-disable-line no-unused-vars
+const {createLogger, toAlephId, fromAlephId, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
 
@@ -36,32 +37,77 @@ export function createService() {
 	const logger = createLogger();
 	const requestOptions = {
 		headers: {
-			Accept: 'application/json',
+			Accept: 'text/plain',
 			Authorization: generateAuthorizationHeader(RECORD_LOAD_API_KEY)
 		}
 	};
 
 	return {createJSON, createALEPH, updateJSON, updateALEPH};
 
-	async function createALEPH({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		return loadRecord({record, cataloger, indexingPriority});
+	async function createALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
+		return loadRecord({record: records, cataloger, indexingPriority, QUEUEID});
 	}
 
-	async function createJSON({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+	async function createJSON({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
 		record = AlephSequential.to(record);
-		return loadRecord({record, cataloger, indexingPriority});
+		return loadRecord({record, cataloger, indexingPriority, QUEUEID});
 	}
 
-	async function updateALEPH({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		await loadRecord({record, id, cataloger, indexingPriority});
+	async function updateALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
+		return loadRecord({record: records, isUpdate: true, cataloger, indexingPriority, QUEUEID});
+		/* Problem => this returns before validated
+		try {
+			let failed = [];
+			let valids = records.filter(async record => validateRecord(record));
+
+			// Join arrays to one big string
+			records = valids.map(record => {
+				return record.join('\n');
+			}).join('\n');
+			if (records !== '') {
+				return {records: await loadRecord({record: records, isUpdate: true, cataloger, indexingPriority, QUEUEID}), failed};
+			}
+
+			return {error: new Error('No valid records'), failed};
+		} catch (err) {
+			return err;
+		}
+
+		async function validateRecord(record) {
+			let id;
+			try {
+				// Get cat fields and transform them to marc style
+				const cats = getCatFields(record);
+
+				// Get record id
+				id = fromAlephId(record[0].substr(0, 9));
+				// Check if exists?
+				const existingRecord = await fetchRecord(id);
+				// Validate record state
+				validateRecordState(cats, existingRecord);
+				return true;
+			} catch (err) {
+				console.log(err);
+				failed.push({id: toAlephId(id), error: err});
+				return false;
+			}
+		}
+
+		function getCatFields(record) {
+			return record.filter(line => {
+				return line.substr(10, 3) === 'CAT';
+			}).map(line => {
+				return seqLineToMarcField(line);
+			});
+		} */
 	}
 
-	async function updateJSON({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+	async function updateJSON({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH, QUEUEID = ''}) {
 		const existingRecord = await fetchRecord(id);
 		updateField001ToParamId(id, record);
 		await validateRecordState(record, existingRecord);
 		record = AlephSequential.to(record);
-		await loadRecord({record, id, cataloger, indexingPriority});
+		await loadRecord({record, isUpdate: true, cataloger, indexingPriority, QUEUEID});
 	}
 
 	async function fetchRecord(id) {
@@ -89,24 +135,34 @@ export function createService() {
 		});
 	}
 
-	async function loadRecord({record, id, cataloger, indexingPriority, retriesCount = 0}) {
+	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, retriesCount = 0, QUEUEID}) {
 		const url = new URL(RECORD_LOAD_URL);
 
-		url.searchParams.set('library', RECORD_LOAD_LIBRARY);
-		url.searchParams.set('method', id === undefined ? 'NEW' : 'OLD');
-		url.searchParams.set('fixRoutine', FIX_ROUTINE);
-		url.searchParams.set('updateAction', UPDATE_ACTION);
-		url.searchParams.set('cataloger', cataloger);
-		url.searchParams.set('indexingPriority', generateIndexingPriority(indexingPriority, id === undefined));
+		// TODO add QUEUEID
+		const params = new URLSearchParams([
+			['library', RECORD_LOAD_LIBRARY],
+			['method', isUpdate === false ? 'NEW' : 'OLD'],
+			['fixRoutine', FIX_ROUTINE],
+			['updateAction', UPDATE_ACTION],
+			['cataloger', cataloger],
+			['indexingPriority', generateIndexingPriority(indexingPriority, isUpdate === false)],
+			['QUEUEID', QUEUEID]
+		]);
 
-		const response = await fetch(url, Object.assign({
+		console.log(url + params.toString());
+
+		const response = await fetch(url + params.toString(), Object.assign({
 			method: 'POST',
-			body: record
+			body: record,
+			headers: {'Content-Type': 'text/plain'}
 		}, requestOptions));
 
 		if (response.status === HttpStatus.OK) {
-			const idList = await response.json();
-			return formatRecordId(idList.shift());
+			const json = await response.json();
+			const idList = json.ids.map(id => {
+				return formatRecordId(id);
+			});
+			return {QUEUEID: json.QUEUEID, ids: idList};
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
@@ -120,7 +176,7 @@ export function createService() {
 
 			logger.log('info', 'Got conflict response. Retrying...');
 			await setTimeoutPromise(RETRY_WAIT_TIME_ON_CONFLICT);
-			return loadRecord({record, id, cataloger, indexingPriority, retriesCount: retriesCount + 1});
+			return loadRecord({record, isUpdate, cataloger, indexingPriority, retriesCount: retriesCount + 1});
 		}
 
 		throw new Error(`Unexpected response: ${response.status}: ${await response.text()}`);
@@ -142,9 +198,14 @@ export function createService() {
 
 	// Checks that the modification history is identical
 	function validateRecordState(incomingRecord, existingRecord) {
-		const incomingModificationHistory = incomingRecord.get(/^CAT$/);
-		const existingModificationHistory = existingRecord.get(/^CAT$/);
+		let incomingModificationHistory;
+		if (isArray(incomingRecord)) {
+			incomingModificationHistory = incomingRecord;
+		} else {
+			incomingModificationHistory = incomingRecord.get(/^CAT$/);
+		}
 
+		const existingModificationHistory = existingRecord.get(/^CAT$/);
 		if (!deepEqual(incomingModificationHistory, existingModificationHistory)) {
 			throw new DatastoreError(HttpStatus.CONFLICT);
 		}

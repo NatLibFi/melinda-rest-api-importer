@@ -4,56 +4,40 @@ import {Utils} from '@natlibfi/melinda-commons';
 import {validateLine} from '../utils';
 import MarcRecord from '@natlibfi/marc-record';
 import {RECORD_STATE} from '../config';
+import {createService} from './datastoreService';
 
 const {createLogger} = Utils;
-// Const {createService} = Datastore;
 
 export function toRecordLoadApi() {
 	const logger = createLogger();
-	// Const DatastoreService = createService();
+	const DatastoreService = createService();
 
 	return async data => {
-		let record;
-		let id = 0;
-
+		// TODO Catalogger indetification
+		// Logger.log('info', `Has record ${records}`);
+		// Logger.log('info', `Has data ${JSON.stringify(data)}`);
+		logger.log('info', `Has QUEUEID ${data.QUEUEID}`);
 		logger.log('info', `Has format ${data.format}`);
-
-		if (data.format === 'application/json') {
-			record = new MarcRecord(JSON.parse(data.record));
-		} else if (data.format === 'alephseq') {
-			record = data.record.join('\n');
-		}
-
-		logger.log('info', `Has record ${record}`);
 		logger.log('info', `Has operation ${data.operation}`);
+		logger.log('info', `Has cataloger: ${data.cataloger}`);
 
 		// TODO if record type Alephsequental = needs changes in commons
-		// TODO Catalogger indetification
-		if (record) {
+		if (data.records) {
 			if (data.operation === 'update') {
 				// Async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-				if (data.format === 'application/json') {
-					id = record.id;
-					// Await DatastoreService.updateJSON({record, id, cataloger: 'IMP_HELMET'});
-				} else if (data.format === 'alephseq') {
-					const validation = await validateLine(record);
-					id = validation.id;
-					// Await DatastoreService.updateALEPH({record, id, cataloger: 'IMP_HELMET'});
+				const {QUEUEID, ids, error} = await DatastoreService.updateALEPH({records: data.records, cataloger: data.cataloger, QUEUEID: data.QUEUEID});
+				if (error === undefined) {
+					logger.log('info', `Updated records ${ids}`);
+					return {status: RECORD_STATE.UPDATED, metadata: {QUEUEID, ids}};
 				}
 
-				logger.log('info', `Updated record ${id}`);
-				return {status: RECORD_STATE.UPDATED, metadata: {id}};
+				return {status: RECORD_STATE.ERROR, metadata: {QUEUEID, ids, error}};
 			}
 
 			if (data.operation === 'create') {
-				if (data.format === 'application/json') {
-					// Id = await DatastoreService.createJSON({record, cataloger: 'IMP_HELMET'});
-				} else if (data.format === 'alephseq') {
-					// Id = await DatastoreService.createALEPH({record, cataloger: 'IMP_HELMET'});
-				}
-
-				logger.log('info', `Created new record ${id}`);
-				return {status: RECORD_STATE.CREATED, metadata: {id}};
+				const ids = await DatastoreService.createALEPH({records: data.records, cataloger: data.cataloger, QUEUEID: data.QUEUEID});
+				logger.log('info', `Created new records ${ids}`);
+				return {status: RECORD_STATE.CREATED, metadata: {ids}};
 			}
 		}
 

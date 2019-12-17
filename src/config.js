@@ -17,10 +17,11 @@ export const AMQP_URL = {
 
 export const NAME_QUEUE_PRIORITY = 'PRIORITY';
 export const NAME_QUEUE_BULK = 'BULK';
+export const NAME_QUEUE_REPLY = 'REPLY';
 export const PURGE_QUEUE_ON_LOAD = readEnvironmentVariable('PURGE_QUEUE_ON_LOAD', {defaultValue: false, format: parseBoolean});
 
 export const EMITTER_JOB_CONSUME = 'EMITTER_JOB_CONSUME';
-export const EMITTER_CONSUM_ANNOUNSE = 'RECORD_CONSUMED';
+export const EMITTER_JOB_CHECK_QUEUE = 'EMITTER_JOB_CHECK_QUEUE';
 
 export const RECORD_STATE = {
 	CREATED: 'CREATED',

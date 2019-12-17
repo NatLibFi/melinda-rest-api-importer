@@ -3,16 +3,24 @@
 import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
 import {logError} from './utils';
+import {EventEmitter} from 'events';
+import {consumeQueue} from './services/fromQueueService';
 
 import {
 	AMQP_URL,
 	NAME_QUEUE_BULK,
 	NAME_QUEUE_PRIORITY,
-	PURGE_QUEUE_ON_LOAD
+	PURGE_QUEUE_ON_LOAD,
+	EMITTER_JOB_CHECK_QUEUE,
+	EMITTER_JOB_CONSUME,
+	NAME_QUEUE_REPLY
 } from './config';
 
+class QueueEmitter extends EventEmitter {}
+export const EMITTER = new QueueEmitter();
+
 const {createLogger} = Utils;
-const logger = createLogger();
+const logger = createLogger(); // eslint-disable-line no-console
 
 process.on('UnhandledPromiseRejectionWarning', err => {
 	logError(err);
@@ -24,12 +32,33 @@ run();
 async function run() {
 	logger.log('info', 'Melinda-rest-import-queue has been started');
 	await operateRabbitQueues(true, PURGE_QUEUE_ON_LOAD, true);
-	checkQueues();
+	setEmitterListeners();
+}
+
+async function setEmitterListeners() {
+	await new Promise(res => {
+		EMITTER
+			.on('SHUTDOWN', () => res())
+			.on(EMITTER_JOB_CONSUME, queue => {
+				logger.log('debug', `Emitter job - Consume: ${queue}`);
+				consumeQueue(queue);
+			})
+			.on(EMITTER_JOB_CHECK_QUEUE, () => {
+				checkQueues();
+			});
+		checkQueues();
+	});
 }
 
 async function checkQueues() {
-	const queueLenght = await operateRabbitQueues(false, false, true);
-	setTimeout(checkQueues, 3000);
+	const queueLenghts = await operateRabbitQueues(false, false, true);
+	if (queueLenghts.PRIORITY > 0) {
+		EMITTER.emit(EMITTER_JOB_CONSUME, NAME_QUEUE_PRIORITY);
+	} else if (queueLenghts.BULK > 0) {
+		EMITTER.emit(EMITTER_JOB_CONSUME, NAME_QUEUE_BULK);
+	} else {
+		setTimeout(checkQueues, 3000);
+	}
 }
 
 async function operateRabbitQueues(initQueues, purge, checkQueues) {
@@ -45,22 +74,26 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 		if (initQueues) {
 			await channel.assertQueue(NAME_QUEUE_PRIORITY, {durable: true, autoDelete: false});
 			await channel.assertQueue(NAME_QUEUE_BULK, {durable: true, autoDelete: false});
+			await channel.assertQueue(NAME_QUEUE_REPLY, {durable: true, autoDelete: false});
 			logger.log('info', 'Rabbitmq queues has been initiated');
 		}
 
 		if (purge) {
 			await channel.purgeQueue(NAME_QUEUE_PRIORITY);
 			await channel.purgeQueue(NAME_QUEUE_BULK);
+			await channel.purgeQueue(NAME_QUEUE_REPLY);
 			logger.log('info', 'Rabbitmq queues have been purged');
 		}
 
 		if (checkQueues) {
 			const infoChannelPrio = await channel.checkQueue(NAME_QUEUE_PRIORITY);
 			prioQueueCount = infoChannelPrio.messageCount;
-			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${prioQueueCount} records`);
+			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${prioQueueCount} blobs`);
 			const infoChannel = await channel.checkQueue(NAME_QUEUE_BULK);
 			bulkQueueCount = infoChannel.messageCount;
-			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${bulkQueueCount} records`);
+			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${bulkQueueCount} blobs`);
+			const replyChannel = await channel.checkQueue(NAME_QUEUE_REPLY);
+			logger.log('debug', `${NAME_QUEUE_REPLY} queue: ${replyChannel.messageCount} blobs`);
 		}
 	} catch (err) {
 		logError(err);

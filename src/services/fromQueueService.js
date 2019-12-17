@@ -1,29 +1,45 @@
 import amqplib from 'amqplib';
-import {AMQP_URL} from '../config';
 import {Utils} from '@natlibfi/melinda-commons';
-import {EMITTER_CONSUM_ANNOUNSE} from '../config';
+import {toRecordLoadApi} from './toRecordLoadApiService';
 import {logError} from '../utils';
 
+import {EMITTER} from '../app';
+import {AMQP_URL, EMITTER_JOB_CHECK_QUEUE, NAME_QUEUE_REPLY} from '../config';
+
+const load = toRecordLoadApi();
 const {createLogger} = Utils;
 
-export async function consumeQueue(type, EMITTER) {
+export async function consumeQueue(queue) {
 	const logger = createLogger();
 	let connection;
 	let channel;
-	// Logger.log('debug', `Prepared to consume from queue: ${type}`);
+	// Logger.log('debug', `Prepared to consume from queue: ${queue}`);
 
 	try {
 		connection = await amqplib.connect(AMQP_URL);
 		channel = await connection.createChannel();
 		channel.prefetch(1); // Per consumer limit
-		const record = await channel.get(type);
+		const record = await channel.get(queue);
 		if (record) {
-			channel.ack(record);
+			// TODO: 2-part ack?
 			const content = JSON.parse(record.content.toString());
 			// Logger.log('debug', `Record has consumed from queue id: ${content.QUEUEID}`);
-			EMITTER.emit(EMITTER_CONSUM_ANNOUNSE, content);
+			const res = await load(content);
+			// TODO: Send message back to rest-api when done
+			console.log(res);
+			res.queue = queue;
+			await channel.sendToQueue(
+				NAME_QUEUE_REPLY,
+				Buffer.from(JSON.stringify(res)),
+				{
+					persistent: true,
+					correlationId: record.properties.correlationId
+				}
+			);
+			channel.ack(record); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH
+			EMITTER.emit(EMITTER_JOB_CHECK_QUEUE);
 		} else {
-			throw Error(`no records in ${type} queue`);
+			throw Error(`no records in ${queue} queue`);
 		}
 	} catch (err) {
 		logger.log('error', 'from queue service');

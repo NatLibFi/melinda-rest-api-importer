@@ -1,3 +1,5 @@
+// THIS HAS BEEN MOVED TO REST-API
+
 import amqplib from 'amqplib';
 import {AMQP_URL} from '../config';
 import {Utils} from '@natlibfi/melinda-commons';
