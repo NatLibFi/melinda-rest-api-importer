@@ -9,7 +9,7 @@ import moment from 'moment';
 import {Utils} from '@natlibfi/melinda-commons';
 
 import {SRU_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
-import {seqLineToMarcField} from '../utils'; // eslint-disable-line no-unused-vars
+import {seqLineToMarcCATField} from '../utils'; // eslint-disable-line no-unused-vars
 const {createLogger, toAlephId, fromAlephId, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
@@ -105,7 +105,7 @@ export function createService() {
 			return record.filter(line => {
 				return line.substr(10, 3) === 'CAT';
 			}).map(line => {
-				return seqLineToMarcField(line);
+				return seqLineToMarcCATField(line);
 			});
 		} */
 	}
@@ -146,7 +146,7 @@ export function createService() {
 	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
-		const params = new URLSearchParams([
+		url.search = new URLSearchParams([
 			['library', RECORD_LOAD_LIBRARY],
 			['method', isUpdate === false ? 'NEW' : 'OLD'],
 			['fixRoutine', FIX_ROUTINE],
@@ -155,9 +155,7 @@ export function createService() {
 			['indexingPriority', generateIndexingPriority(indexingPriority, isUpdate === false)]
 		]);
 
-		console.log(url + params.toString());
-
-		const response = await fetch(url + params.toString(), Object.assign({
+		const response = await fetch(url, Object.assign({
 			method: 'POST',
 			body: record,
 			headers: {'Content-Type': 'text/plain'}
@@ -165,10 +163,10 @@ export function createService() {
 
 		if (response.status === HttpStatus.OK) {
 			const json = await response.json();
-			const idList = json.ids.map(id => {
+			const idList = json.map(id => {
 				return formatRecordId(id);
 			});
-			return {ids: idList};
+			return idList;
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {

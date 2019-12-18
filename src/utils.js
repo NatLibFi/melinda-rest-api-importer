@@ -25,7 +25,7 @@ export async function validateLine(line, index, operation) {
 	return {valid, old, id: lineId};
 }
 
-export function seqLineToMarcField(line) {
+export function seqLineToMarcCATField(line) {
 	// From '000606145 CAT   L $$aUEF4122$$b30$$c20191105$$lFIN01$$h1315'
 	// To { tag: '100', ind1: '1', ind2: ' ', subfields: [ [Object] ] }
 	const field = {

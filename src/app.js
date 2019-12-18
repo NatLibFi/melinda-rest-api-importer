@@ -3,7 +3,6 @@
 import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
 import {logError} from './utils';
-import {EventEmitter} from 'events';
 import {consumeQueue} from './services/fromQueueService';
 
 import {
@@ -11,13 +10,8 @@ import {
 	NAME_QUEUE_BULK,
 	NAME_QUEUE_PRIORITY,
 	PURGE_QUEUE_ON_LOAD,
-	EMITTER_JOB_CHECK_QUEUE,
-	EMITTER_JOB_CONSUME,
 	NAME_QUEUE_REPLY
 } from './config';
-
-class QueueEmitter extends EventEmitter {}
-export const EMITTER = new QueueEmitter();
 
 const {createLogger} = Utils;
 const logger = createLogger(); // eslint-disable-line no-console
@@ -31,31 +25,16 @@ run();
 
 async function run() {
 	logger.log('info', 'Melinda-rest-import-queue has been started');
-	await operateRabbitQueues(true, PURGE_QUEUE_ON_LOAD, true);
-	setEmitterListeners();
+	await operateRabbitQueues(true, PURGE_QUEUE_ON_LOAD, false);
+	checkQueues();
 }
 
-async function setEmitterListeners() {
-	await new Promise(res => {
-		EMITTER
-			.on('SHUTDOWN', () => res())
-			.on(EMITTER_JOB_CONSUME, queue => {
-				logger.log('debug', `Emitter job - Consume: ${queue}`);
-				consumeQueue(queue);
-			})
-			.on(EMITTER_JOB_CHECK_QUEUE, () => {
-				checkQueues();
-			});
-		checkQueues();
-	});
-}
-
-async function checkQueues() {
+export async function checkQueues() {
 	const queueLenghts = await operateRabbitQueues(false, false, true);
 	if (queueLenghts.PRIORITY > 0) {
-		EMITTER.emit(EMITTER_JOB_CONSUME, NAME_QUEUE_PRIORITY);
+		consumeQueue(NAME_QUEUE_PRIORITY);
 	} else if (queueLenghts.BULK > 0) {
-		EMITTER.emit(EMITTER_JOB_CONSUME, NAME_QUEUE_BULK);
+		consumeQueue(NAME_QUEUE_BULK);
 	} else {
 		setTimeout(checkQueues, 3000);
 	}
