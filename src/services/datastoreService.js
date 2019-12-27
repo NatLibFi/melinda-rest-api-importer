@@ -9,7 +9,6 @@ import moment from 'moment';
 import {Utils} from '@natlibfi/melinda-commons';
 
 import {SRU_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
-import {seqLineToMarcCATField} from '../utils'; // eslint-disable-line no-unused-vars
 const {createLogger, toAlephId, fromAlephId, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
@@ -42,80 +41,34 @@ export function createService() {
 		}
 	};
 
-	return {createJSON, createALEPH, updateJSON, updateALEPH};
+	return {create, update, bulk};
 
-	async function createALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const record = records.map(record => {
-			return record.join('\n');
-		}).join('\n');
-
-		return loadRecord({record, cataloger, indexingPriority});
-	}
-
-	async function createJSON({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+	async function create({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		record = AlephSequential.to(record);
 		return loadRecord({record, cataloger, indexingPriority});
 	}
 
-	async function updateALEPH({records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const record = records.map(record => {
-			return record.join('\n');
-		}).join('\n');
-
-		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
-		/* Problem => this returns before validated
-		try {
-			let failed = [];
-			let valids = records.filter(async record => validateRecord(record));
-
-			// Join arrays to one big string
-			records = valids.map(record => {
-				return record.join('\n');
-			}).join('\n');
-			if (records !== '') {
-				return {records: await loadRecord({record: records, isUpdate: true, cataloger, indexingPriority}), failed};
-			}
-
-			return {error: new Error('No valid records'), failed};
-		} catch (err) {
-			return err;
+	async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+		// Bulk updates have pre set valid ids?
+		if (!id) { // TODO if !id pick value from field 001
+			id = record.get(/$001^/)[0].value;
 		}
-
-		async function validateRecord(record) {
-			let id;
-			try {
-				// Get cat fields and transform them to marc style
-				const cats = getCatFields(record);
-
-				// Get record id
-				id = fromAlephId(record[0].substr(0, 9));
-				// Check if exists?
-				const existingRecord = await fetchRecord(id);
-				// Validate record state
-				validateRecordState(cats, existingRecord);
-				return true;
-			} catch (err) {
-				console.log(err);
-				failed.push({id: toAlephId(id), error: err});
-				return false;
-			}
-		}
-
-		function getCatFields(record) {
-			return record.filter(line => {
-				return line.substr(10, 3) === 'CAT';
-			}).map(line => {
-				return seqLineToMarcCATField(line);
-			});
-		} */
-	}
-
-	async function updateJSON({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		const existingRecord = await fetchRecord(id);
-		updateField001ToParamId(id, record);
-		await validateRecordState(record, existingRecord);
+		validateRecordState(record, existingRecord);
 		record = AlephSequential.to(record);
-		await loadRecord({record, isUpdate: true, cataloger, indexingPriority});
+		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
+	}
+
+	async function bulk({operation, records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+		const op = (operation === 'update');
+		records = records.map(record => {
+			// TODO if op -> Validate record state!
+			// const id = record.get(/$001^/)[0].value;
+			// const existingRecord = await fetchRecord(id);
+			// validateRecordState(record, existingRecord);
+			return AlephSequential.to(record);
+		});
+		return loadRecord({record: records, isUpdate: op, cataloger, indexingPriority});
 	}
 
 	async function fetchRecord(id) {
@@ -162,11 +115,9 @@ export function createService() {
 		}, requestOptions));
 
 		if (response.status === HttpStatus.OK) {
-			const json = await response.json();
-			const idList = json.map(id => {
-				return formatRecordId(id);
-			});
-			return idList;
+			const array = await response.json();
+			const idList = array.map(id => formatRecordId(id));
+			return {ids: idList};
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
@@ -215,6 +166,7 @@ export function createService() {
 		}
 	}
 
+	/* Has been moved to rest api
 	function updateField001ToParamId(id, record) {
 		const fields = record.get(/^001$/);
 
@@ -227,5 +179,5 @@ export function createService() {
 			field.value = toAlephId(id);
 			return field;
 		});
-	}
+	} */
 }

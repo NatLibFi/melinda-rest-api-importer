@@ -20,25 +20,30 @@ export async function consumeQueue(queue) {
 		connection = await amqplib.connect(AMQP_URL);
 		channel = await connection.createChannel();
 		channel.prefetch(1); // Per consumer limit
-		const record = await channel.get(queue);
-		if (record) {
-			correlationId = record.properties.correlationId;
-			const content = JSON.parse(record.content.toString()); // Add correlationId?*
-			const res = await load(content);
-			logger.log('debug', `Response from record-load-api ${JSON.stringify(res)}`);
+		const queData = await channel.get(queue);
+		if (queData) {
+			correlationId = queData.properties.correlationId;
+			const content = JSON.parse(queData.content.toString()); // Add correlationId?*
+			const res = await load(queue, content);
+			if (res) {
+				logger.log('debug', `Response from record-load-api ${JSON.stringify(res)}`);
 
-			// Send message back to rest-api when done
-			res.queue = queue;
-			await channel.sendToQueue(
-				NAME_QUEUE_REPLY,
-				Buffer.from(JSON.stringify(res)), // *) or return inputfile name
-				{
-					persistent: true,
-					correlationId: correlationId
-				}
-			);
+				// Send message back to rest-api when done
+				res.queue = queue;
+				res.blobNumber = content.blobNumber;
+				await channel.sendToQueue(
+					NAME_QUEUE_REPLY,
+					Buffer.from(JSON.stringify(res)), // *) or return inputfile name
+					{
+						persistent: true,
+						correlationId: correlationId
+					}
+				);
 
-			channel.ack(record); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH
+				channel.ack(queData); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH
+			} else {
+				throw new Error('Queued data did not contain records!');
+			}
 
 			// Back to the loop
 			checkQueues();
@@ -48,6 +53,7 @@ export async function consumeQueue(queue) {
 	} catch (err) {
 		logger.log('error', 'from queue service');
 		logError(err);
+		// Send reply in case of failure
 		await channel.sendToQueue(
 			NAME_QUEUE_REPLY,
 			Buffer.from(JSON.stringify(err)),

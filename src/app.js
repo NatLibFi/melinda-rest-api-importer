@@ -13,13 +13,11 @@ import {
 	NAME_QUEUE_REPLY
 } from './config';
 
-const {createLogger} = Utils;
+const {createLogger, handleSignal} = Utils;
 const logger = createLogger(); // eslint-disable-line no-console
 
-process.on('UnhandledPromiseRejectionWarning', err => {
-	logError(err);
-	process.exit(1);
-});
+// process.on('SIGTERM', handleSignal);
+// Process.on('SIGINT', handleSignal);
 
 run();
 
@@ -30,6 +28,7 @@ async function run() {
 }
 
 export async function checkQueues() {
+	// TODO if 503 => do not crash it is down time
 	const queueLenghts = await operateRabbitQueues(false, false, true);
 	if (queueLenghts.PRIORITY > 0) {
 		consumeQueue(NAME_QUEUE_PRIORITY);
