@@ -14,7 +14,7 @@ export const NAME_QUEUE_REPLY_PRIO = 'REPLY_PRIO';
 export const PURGE_QUEUE_ON_LOAD = readEnvironmentVariable('PURGE_QUEUE_ON_LOAD', {defaultValue: 0}); // ParseBoolean works?
 
 // About same as in Rest-Api -> Move to melinda-record-import-commons constants?
-export const BLOB_STATE = {
+export const CHUNK_STATE = {
 	CREATED: 'CREATED',
 	UPDATED: 'UPDATED',
 	ACTION_NEEDED: 'ACTION_NEEDED',

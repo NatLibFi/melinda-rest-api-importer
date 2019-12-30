@@ -49,6 +49,7 @@ export function createService() {
 	}
 
 	async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+		console.log(record);
 		const failedRecords = [];
 		if (!id) { // If !id pick value from field 001
 			id = record.get(/$001^/)[0].value;

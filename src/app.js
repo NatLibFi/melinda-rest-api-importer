@@ -36,7 +36,7 @@ export async function checkQueues() {
 	} else if (queueLenghts.BULK > 0) {
 		consumeQueue(NAME_QUEUE_BULK);
 	} else {
-		setTimeout(checkQueues, 3000);
+		setTimeout(checkQueues, 1000);
 	}
 }
 
@@ -67,13 +67,13 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 
 		if (checkQueues) {
 			channelInfos.prio = await channel.checkQueue(NAME_QUEUE_PRIORITY);
-			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${channelInfos.prio.messageCount} blobs`);
+			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${channelInfos.prio.messageCount} chunks`);
 			channelInfos.bulk = await channel.checkQueue(NAME_QUEUE_BULK);
-			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${channelInfos.bulk.messageCount} blobs`);
+			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${channelInfos.bulk.messageCount} chunks`);
 			channelInfos.replyPrio = await channel.checkQueue(NAME_QUEUE_REPLY_PRIO);
-			logger.log('debug', `${NAME_QUEUE_REPLY_PRIO} queue: ${channelInfos.replyPrio.messageCount} blobs`);
+			logger.log('debug', `${NAME_QUEUE_REPLY_PRIO} queue: ${channelInfos.replyPrio.messageCount} chunks`);
 			channelInfos.replyBulk = await channel.checkQueue(NAME_QUEUE_REPLY_BULK);
-			logger.log('debug', `${NAME_QUEUE_REPLY_BULK} queue: ${channelInfos.replyBulk.messageCount} blobs`);
+			logger.log('debug', `${NAME_QUEUE_REPLY_BULK} queue: ${channelInfos.replyBulk.messageCount} chunks`);
 		}
 	} catch (err) {
 		logError(err);

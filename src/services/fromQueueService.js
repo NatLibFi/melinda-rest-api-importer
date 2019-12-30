@@ -4,7 +4,7 @@ import {toRecordLoadApi} from './toRecordLoadApiService';
 import {logError} from '../utils';
 
 import {checkQueues} from '../app';
-import {AMQP_URL, NAME_QUEUE_REPLY_BULK, NAME_QUEUE_REPLY_PRIO, BLOB_STATE, NAME_QUEUE_PRIORITY} from '../config';
+import {AMQP_URL, NAME_QUEUE_REPLY_BULK, NAME_QUEUE_REPLY_PRIO, CHUNK_STATE, NAME_QUEUE_PRIORITY} from '../config';
 
 const load = toRecordLoadApi();
 const {createLogger} = Utils;
@@ -31,7 +31,7 @@ export async function consumeQueue(queue) {
 
 				// Send message back to rest-api when done
 				result.queue = queue;
-				result.blobNumber = data.blobNumber;
+				result.chunkNumber = data.chunkNumber;
 				await channel.sendToQueue(
 					replyQueue,
 					Buffer.from(JSON.stringify(result)),
@@ -55,7 +55,7 @@ export async function consumeQueue(queue) {
 		// Send reply in case of failure
 		await channel.sendToQueue(
 			replyQueue,
-			Buffer.from(JSON.stringify({status: BLOB_STATE.ERROR, metadata: err})),
+			Buffer.from(JSON.stringify({status: CHUNK_STATE.ERROR, metadata: err})),
 			{
 				persistent: true,
 				correlationId: correlationId

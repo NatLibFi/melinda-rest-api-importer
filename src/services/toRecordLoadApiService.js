@@ -2,7 +2,7 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
-import {BLOB_STATE, NAME_QUEUE_BULK, NAME_QUEUE_PRIORITY} from '../config';
+import {CHUNK_STATE, NAME_QUEUE_BULK, NAME_QUEUE_PRIORITY} from '../config';
 import {createService} from './datastoreService';
 
 const {createLogger} = Utils;
@@ -51,7 +51,7 @@ export function toRecordLoadApi() {
 			}
 		}
 
-		return {status: BLOB_STATE.ERROR, metadata: 'No records parsed from blob data'};
+		return {status: CHUNK_STATE.ERROR, metadata: 'No records parsed from chunk data'};
 	};
 
 	function getRecordId(record) {
@@ -61,21 +61,21 @@ export function toRecordLoadApi() {
 
 	function generateStatus(operation, records, failedRecords) {
 		if (records === undefined || records.length === 0) {
-			return BLOB_STATE.ERROR;
+			return CHUNK_STATE.ERROR;
 		}
 
 		if (failedRecords.length > 0) {
-			return BLOB_STATE.ACTION_NEEDED;
+			return CHUNK_STATE.ACTION_NEEDED;
 		}
 
 		if (operation === 'update') {
-			return BLOB_STATE.UPDATED;
+			return CHUNK_STATE.UPDATED;
 		}
 
 		if (operation === 'create') {
-			return BLOB_STATE.CREATED;
+			return CHUNK_STATE.CREATED;
 		}
 
-		return BLOB_STATE.INVALID;
+		return CHUNK_STATE.INVALID;
 	}
 }
