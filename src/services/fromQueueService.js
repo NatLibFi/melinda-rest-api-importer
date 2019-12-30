@@ -4,7 +4,7 @@ import {toRecordLoadApi} from './toRecordLoadApiService';
 import {logError} from '../utils';
 
 import {checkQueues} from '../app';
-import {AMQP_URL, NAME_QUEUE_REPLY} from '../config';
+import {AMQP_URL, NAME_QUEUE_REPLY_BULK, NAME_QUEUE_REPLY_PRIO, BLOB_STATE, NAME_QUEUE_PRIORITY} from '../config';
 
 const load = toRecordLoadApi();
 const {createLogger} = Utils;
@@ -14,6 +14,7 @@ export async function consumeQueue(queue) {
 	let connection;
 	let channel;
 	let correlationId;
+	const replyQueue = (queue === NAME_QUEUE_PRIORITY) ? NAME_QUEUE_REPLY_PRIO : NAME_QUEUE_REPLY_BULK;
 	// Logger.log('debug', `Prepared to consume from queue: ${queue}`);
 
 	try {
@@ -23,26 +24,24 @@ export async function consumeQueue(queue) {
 		const queData = await channel.get(queue);
 		if (queData) {
 			correlationId = queData.properties.correlationId;
-			const content = JSON.parse(queData.content.toString()); // Add correlationId?*
-			const res = await load(queue, content);
-			if (res) {
-				logger.log('debug', `Response from record-load-api ${JSON.stringify(res)}`);
+			const data = JSON.parse(queData.content.toString());
+			const result = await load(queue, data);
+			if (result) {
+				logger.log('debug', `Response from record-load-api ${JSON.stringify(result)}`);
 
 				// Send message back to rest-api when done
-				res.queue = queue;
-				res.blobNumber = content.blobNumber;
+				result.queue = queue;
+				result.blobNumber = data.blobNumber;
 				await channel.sendToQueue(
-					NAME_QUEUE_REPLY,
-					Buffer.from(JSON.stringify(res)), // *) or return inputfile name
+					replyQueue,
+					Buffer.from(JSON.stringify(result)),
 					{
 						persistent: true,
 						correlationId: correlationId
 					}
 				);
 
-				channel.ack(queData); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH
-			} else {
-				throw new Error('Queued data did not contain records!');
+				channel.ack(queData); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH & Reply is send
 			}
 
 			// Back to the loop
@@ -55,8 +54,8 @@ export async function consumeQueue(queue) {
 		logError(err);
 		// Send reply in case of failure
 		await channel.sendToQueue(
-			NAME_QUEUE_REPLY,
-			Buffer.from(JSON.stringify(err)),
+			replyQueue,
+			Buffer.from(JSON.stringify({status: BLOB_STATE.ERROR, metadata: err})),
 			{
 				persistent: true,
 				correlationId: correlationId

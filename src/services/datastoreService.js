@@ -9,7 +9,7 @@ import moment from 'moment';
 import {Utils} from '@natlibfi/melinda-commons';
 
 import {SRU_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
-const {createLogger, toAlephId, fromAlephId, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
+const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
 
@@ -49,18 +49,22 @@ export function createService() {
 	}
 
 	async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		// Bulk updates have pre set valid ids?
-		if (!id) { // TODO if !id pick value from field 001
+		const failedRecords = [];
+		if (!id) { // If !id pick value from field 001
 			id = record.get(/$001^/)[0].value;
 		}
+
 		const existingRecord = await fetchRecord(id);
+		// TODO if !valid -> add record to failedRecords
 		validateRecordState(record, existingRecord);
+
 		record = AlephSequential.to(record);
-		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
+		return loadRecord({record, isUpdate: true, cataloger, indexingPriority, failedRecords});
 	}
 
 	async function bulk({operation, records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const op = (operation === 'update');
+		const isUpdate = (operation === 'update');
+		const failedRecords = [];
 		records = records.map(record => {
 			// TODO if op -> Validate record state!
 			// const id = record.get(/$001^/)[0].value;
@@ -68,7 +72,8 @@ export function createService() {
 			// validateRecordState(record, existingRecord);
 			return AlephSequential.to(record);
 		});
-		return loadRecord({record: records, isUpdate: op, cataloger, indexingPriority});
+		const record = records.join('');
+		return loadRecord({record, isUpdate, cataloger, indexingPriority, failedRecords});
 	}
 
 	async function fetchRecord(id) {
@@ -96,7 +101,7 @@ export function createService() {
 		});
 	}
 
-	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, retriesCount = 0}) {
+	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, failedRecords = [], retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
 		url.search = new URLSearchParams([
@@ -117,7 +122,7 @@ export function createService() {
 		if (response.status === HttpStatus.OK) {
 			const array = await response.json();
 			const idList = array.map(id => formatRecordId(id));
-			return {ids: idList};
+			return {ids: idList, failedRecords};
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
@@ -163,21 +168,7 @@ export function createService() {
 		const existingModificationHistory = existingRecord.get(/^CAT$/);
 		if (!deepEqual(incomingModificationHistory, existingModificationHistory)) {
 			throw new DatastoreError(HttpStatus.CONFLICT);
+			// TODO Return false
 		}
 	}
-
-	/* Has been moved to rest api
-	function updateField001ToParamId(id, record) {
-		const fields = record.get(/^001$/);
-
-		if (fields.length === 0) {
-			// Return to break out of function
-			return record.insertField({tag: '001', value: toAlephId(id)});
-		}
-
-		fields.map(field => {
-			field.value = toAlephId(id);
-			return field;
-		});
-	} */
 }

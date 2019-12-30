@@ -7,10 +7,11 @@ import {consumeQueue} from './services/fromQueueService';
 
 import {
 	AMQP_URL,
+	PURGE_QUEUE_ON_LOAD,
 	NAME_QUEUE_BULK,
 	NAME_QUEUE_PRIORITY,
-	PURGE_QUEUE_ON_LOAD,
-	NAME_QUEUE_REPLY
+	NAME_QUEUE_REPLY_PRIO,
+	NAME_QUEUE_REPLY_BULK
 } from './config';
 
 const {createLogger, handleSignal} = Utils;
@@ -42,8 +43,7 @@ export async function checkQueues() {
 async function operateRabbitQueues(initQueues, purge, checkQueues) {
 	let connection;
 	let channel;
-	let prioQueueCount;
-	let bulkQueueCount;
+	const channelInfos = {};
 
 	try {
 		connection = await amqplib.connect(AMQP_URL);
@@ -52,26 +52,28 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 		if (initQueues) {
 			await channel.assertQueue(NAME_QUEUE_PRIORITY, {durable: true, autoDelete: false});
 			await channel.assertQueue(NAME_QUEUE_BULK, {durable: true, autoDelete: false});
-			await channel.assertQueue(NAME_QUEUE_REPLY, {durable: true, autoDelete: false});
+			await channel.assertQueue(NAME_QUEUE_REPLY_BULK, {durable: true, autoDelete: false});
+			await channel.assertQueue(NAME_QUEUE_REPLY_PRIO, {durable: true, autoDelete: false});
 			logger.log('info', 'Rabbitmq queues has been initiated');
 		}
 
 		if (purge) {
 			await channel.purgeQueue(NAME_QUEUE_PRIORITY);
 			await channel.purgeQueue(NAME_QUEUE_BULK);
-			await channel.purgeQueue(NAME_QUEUE_REPLY);
+			await channel.purgeQueue(NAME_QUEUE_REPLY_BULK);
+			await channel.purgeQueue(NAME_QUEUE_REPLY_PRIO);
 			logger.log('info', 'Rabbitmq queues have been purged');
 		}
 
 		if (checkQueues) {
-			const infoChannelPrio = await channel.checkQueue(NAME_QUEUE_PRIORITY);
-			prioQueueCount = infoChannelPrio.messageCount;
-			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${prioQueueCount} blobs`);
-			const infoChannel = await channel.checkQueue(NAME_QUEUE_BULK);
-			bulkQueueCount = infoChannel.messageCount;
-			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${bulkQueueCount} blobs`);
-			const replyChannel = await channel.checkQueue(NAME_QUEUE_REPLY);
-			logger.log('debug', `${NAME_QUEUE_REPLY} queue: ${replyChannel.messageCount} blobs`);
+			channelInfos.prio = await channel.checkQueue(NAME_QUEUE_PRIORITY);
+			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${channelInfos.prio.messageCount} blobs`);
+			channelInfos.bulk = await channel.checkQueue(NAME_QUEUE_BULK);
+			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${channelInfos.bulk.messageCount} blobs`);
+			channelInfos.replyPrio = await channel.checkQueue(NAME_QUEUE_REPLY_PRIO);
+			logger.log('debug', `${NAME_QUEUE_REPLY_PRIO} queue: ${channelInfos.replyPrio.messageCount} blobs`);
+			channelInfos.replyBulk = await channel.checkQueue(NAME_QUEUE_REPLY_BULK);
+			logger.log('debug', `${NAME_QUEUE_REPLY_BULK} queue: ${channelInfos.replyBulk.messageCount} blobs`);
 		}
 	} catch (err) {
 		logError(err);
@@ -85,7 +87,7 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 		}
 
 		if (checkQueues) {
-			return {PRIORITY: prioQueueCount, BULK: bulkQueueCount};
+			return {PRIORITY: channelInfos.prio.messageCount, BULK: channelInfos.bulk.messageCount};
 		}
 	}
 }

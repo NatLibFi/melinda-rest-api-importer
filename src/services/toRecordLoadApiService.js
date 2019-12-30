@@ -2,7 +2,7 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
-import {RECORD_STATE, NAME_QUEUE_BULK, NAME_QUEUE_PRIORITY} from '../config';
+import {BLOB_STATE, NAME_QUEUE_BULK, NAME_QUEUE_PRIORITY} from '../config';
 import {createService} from './datastoreService';
 
 const {createLogger} = Utils;
@@ -25,41 +25,57 @@ export function toRecordLoadApi() {
 				return new MarcRecord(record);
 			});
 			if (queue === NAME_QUEUE_BULK) {
-				const {ids, error} = await DatastoreService.bulk({operation: data.operation, records, cataloger: data.cataloger});
-				if (error === undefined) {
-					logger.log('debug', `Updated records ${ids}`);
-					return {status: RECORD_STATE.UPDATED, metadata: {ids}};
-				}
-
-				return {status: RECORD_STATE.ERROR, metadata: {ids, error}};
+				const metadata = await DatastoreService.bulk({operation: data.operation, records, cataloger: data.cataloger});
+				const status = generateStatus(data.operation, metadata.ids, metadata.failedRecords);
+				logger.log('debug', `${data.operation} records ${metadata.ids}`);
+				return {status, metadata};
 			}
 
 			if (queue === NAME_QUEUE_PRIORITY) {
 				if (data.operation === 'update') {
 					const record = new MarcRecord(data.records[0]);
 					const id = getRecordId(record);
-					const {ids, error} = await DatastoreService.update({record, id, cataloger: data.cataloger});
-					if (error === undefined) {
-						logger.log('debug', `Updated records ${ids}`);
-						return {status: RECORD_STATE.UPDATED, metadata: {ids}};
-					}
-
-					return {status: RECORD_STATE.ERROR, metadata: {ids, error}};
+					const metadata = await DatastoreService.update({record, id, cataloger: data.cataloger});
+					const status = generateStatus(data.operation, metadata.ids, metadata.failedRecords);
+					logger.log('debug', `Updated records ${metadata.ids}`);
+					return {status, metadata};
 				}
 
 				if (data.operation === 'create') {
-					const ids = await DatastoreService.create({records, cataloger: data.cataloger});
-					logger.log('debug', `Created new records ${ids}`);
-					return {status: RECORD_STATE.CREATED, metadata: {ids}};
+					const record = new MarcRecord(data.records[0]);
+					const metadata = await DatastoreService.create({record, cataloger: data.cataloger});
+					const status = generateStatus(data.operation, metadata.ids, data.failedRecords);
+					logger.log('debug', `Created new records ${metadata.ids}`);
+					return {status, metadata};
 				}
 			}
 		}
 
-		return false;
+		return {status: BLOB_STATE.ERROR, metadata: 'No records parsed from blob data'};
 	};
 
 	function getRecordId(record) {
 		const f001 = record.get(/^001$/)[0];
 		return f001.value;
+	}
+
+	function generateStatus(operation, records, failedRecords) {
+		if (records === undefined || records.length === 0) {
+			return BLOB_STATE.ERROR;
+		}
+
+		if (failedRecords.length > 0) {
+			return BLOB_STATE.ACTION_NEEDED;
+		}
+
+		if (operation === 'update') {
+			return BLOB_STATE.UPDATED;
+		}
+
+		if (operation === 'create') {
+			return BLOB_STATE.CREATED;
+		}
+
+		return BLOB_STATE.INVALID;
 	}
 }
