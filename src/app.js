@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, no-unsafe-finally */
+/* eslint-disable no-unused-vars */
 
 import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
@@ -30,13 +30,13 @@ async function run() {
 
 export async function checkQueues() {
 	// TODO if 503 => do not crash it is down time
-	const queueLenghts = await operateRabbitQueues(false, false, true);
-	if (queueLenghts.PRIORITY > 0) {
+	const {prio, bulk} = await operateRabbitQueues(false, false, true);
+	if (prio > 0) {
 		consumeQueue(NAME_QUEUE_PRIORITY);
-	} else if (queueLenghts.BULK > 0) {
+	} else if (bulk > 0) {
 		consumeQueue(NAME_QUEUE_BULK);
 	} else {
-		setTimeout(checkQueues, 1000);
+		setTimeout(checkQueues, 1000); // TODO Affects consume speed...
 	}
 }
 
@@ -85,9 +85,9 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 		if (connection) {
 			await connection.close();
 		}
+	}
 
-		if (checkQueues) {
-			return {PRIORITY: channelInfos.prio.messageCount, BULK: channelInfos.bulk.messageCount};
-		}
+	if (checkQueues) {
+		return {prio: channelInfos.prio.messageCount, bulk: channelInfos.bulk.messageCount};
 	}
 }

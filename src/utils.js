@@ -4,9 +4,9 @@ const {createLogger} = Utils;
 
 export function logError(err) {
 	const logger = createLogger();
-	if (err !== 'SIGINT') {
+	if (err === 'SIGINT') {
+		logger.log('error', err);
+	} else {
 		logger.log('error', 'stack' in err ? err.stack : err);
 	}
-
-	logger.log('error', err);
 }

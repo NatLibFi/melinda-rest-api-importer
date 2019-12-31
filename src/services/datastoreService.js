@@ -49,30 +49,47 @@ export function createService() {
 	}
 
 	async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		console.log(record);
 		const failedRecords = [];
 		if (!id) { // If !id pick value from field 001
 			id = record.get(/$001^/)[0].value;
 		}
 
 		const existingRecord = await fetchRecord(id);
-		// TODO if !valid -> add record to failedRecords
-		validateRecordState(record, existingRecord);
+		// If !valid -> add record to failedRecords
+		const valid = validateRecordState(record, existingRecord);
+		if (!(valid instanceof DatastoreError)) {
+			failedRecords.push({record: id, error: 'Invalid modification history!'});
+			return {ids: [], failedRecords};
+		}
 
 		record = AlephSequential.to(record);
-		return loadRecord({record, isUpdate: true, cataloger, indexingPriority, failedRecords});
+		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
 	}
 
 	async function bulk({operation, records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		const isUpdate = (operation === 'update');
 		const failedRecords = [];
 		records = records.map(record => {
-			// TODO if op -> Validate record state!
-			// const id = record.get(/$001^/)[0].value;
-			// const existingRecord = await fetchRecord(id);
-			// validateRecordState(record, existingRecord);
 			return AlephSequential.to(record);
 		});
+		/* TODO if op -> Validate record state!
+		records = records.map(record => {
+			const id = record.get(/$001^/)[0].value;
+			const existingRecord = await fetchRecord(id);
+			const valid = validateRecordState(record, existingRecord);
+			if (valid instanceof DatastoreError) {
+				failedRecords.push({record, error: 'Invalid modification history!'});
+				return valid;
+			}
+
+			return record;
+		}).filter(record => {
+			return !(record instanceof DatastoreError)
+		}).map(record => {
+			return AlephSequential.to(record);
+		});
+		*/
+
 		const record = records.join('');
 		return loadRecord({record, isUpdate, cataloger, indexingPriority, failedRecords});
 	}
@@ -168,8 +185,9 @@ export function createService() {
 
 		const existingModificationHistory = existingRecord.get(/^CAT$/);
 		if (!deepEqual(incomingModificationHistory, existingModificationHistory)) {
-			throw new DatastoreError(HttpStatus.CONFLICT);
-			// TODO Return false
+			return new DatastoreError(HttpStatus.CONFLICT);
 		}
+
+		return true;
 	}
 }

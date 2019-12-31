@@ -12,14 +12,13 @@ export function toRecordLoadApi() {
 	const DatastoreService = createService();
 
 	return async (queue, data) => {
-		// Logger.log('info', `Has record ${records}`);
+		// Debug:
+		// logger.log('info', `Has record ${records}`);
 		// logger.log('info', `Has data ${JSON.stringify(data)}`);
 		// logger.log('info', `Has format ${data.format}`);
 		// logger.log('info', `Has operation ${data.operation}`);
 		// logger.log('info', `Has cataloger: ${data.cataloger}`);
 
-		// TODO if record type Alephsequental = needs changes in commons
-		// TODO Json type record
 		if (data.records) {
 			const records = data.records.map(record => {
 				return new MarcRecord(record);
