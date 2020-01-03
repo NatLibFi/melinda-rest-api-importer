@@ -2,7 +2,7 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
-import {logError} from './utils';
+import {logError, checkIfOfflineHours} from './utils';
 import {consumeQueue} from './services/fromQueueService';
 import {
 	QUEUE_NAME_BULK,
@@ -30,11 +30,11 @@ async function run() {
 }
 
 export async function checkQueues() {
-	// TODO if 503 => do not crash it is down time
+	const offlineHours = checkIfOfflineHours();
 	const {prio, bulk} = await operateRabbitQueues(false, false, true);
 	if (prio > 0) {
 		consumeQueue(QUEUE_NAME_PRIO);
-	} else if (bulk > 0) {
+	} else if (bulk > 0 && !offlineHours) {
 		consumeQueue(QUEUE_NAME_BULK);
 	} else {
 		setTimeout(checkQueues, 1000); // TODO Affects consume speed...

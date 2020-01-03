@@ -1,10 +1,12 @@
 import amqplib from 'amqplib';
 import {Utils} from '@natlibfi/melinda-commons';
 import {toRecordLoadApi} from './toRecordLoadApiService';
-import {logError} from '../utils';
+import {logError, checkIfOfflineHours} from '../utils';
+import ServiceError from './error';
+import HttpStatus from 'http-status';
 
 import {checkQueues} from '../app';
-import {AMQP_URL} from '../config';
+import {AMQP_URL, OFFLINE_BEGIN, OFFLINE_DURATION} from '../config';
 import {CHUNK_STATE, QUEUE_NAME_REPLY_BULK, QUEUE_NAME_REPLY_PRIO, QUEUE_NAME_PRIO} from '@natlibfi/melinda-record-import-commons';
 
 const load = toRecordLoadApi();
@@ -26,6 +28,10 @@ export async function consumeQueue(queue) {
 		if (chunkInfo.queData) {
 			const data = JSON.parse(chunkInfo.queData.content.toString());
 			chunkInfo.chunkNumber = data.chunkNumber;
+			if (queue === QUEUE_NAME_PRIO && checkIfOfflineHours) {
+				throw new ServiceError(HttpStatus.SERVICE_UNAVAILABLE, `${HttpStatus['503_MESSAGE']} Offline hours begin at ${OFFLINE_BEGIN} and will last next ${OFFLINE_DURATION} hours.`);
+			}
+
 			const result = await load(queue, data);
 			if (result) {
 				logger.log('debug', `Response from record-load-api ${JSON.stringify(result)}`);
@@ -65,15 +71,19 @@ export async function consumeQueue(queue) {
 			}
 		);
 
-		// Do not ack if service is offline
+		// Do not ack bulks if service is offline
 		if (error.status === 503 && queue === QUEUE_NAME_REPLY_BULK) {
-			// TODO Weit
-			setTimeout(checkQueues, 10000);
+			/* Nack(message, [allUpTo, [requeue]])
+			   If requeue is truthy, the server will try to put the message or messages back on the queue or queues from which they came.
+			   Defaults to true if not given, so if you want to make sure messages are dead-lettered or discarded, supply false here. */
+			await channel.nack(chunkInfo.queData);
 		} else {
-			channel.ack(chunkInfo.queData);
-			// Back to the loop
-			checkQueues();
+			// Priority requests get priority responses, no need to keep messages after user is notified
+			await channel.ack(chunkInfo.queData);
 		}
+
+		// Back to the loop
+		checkQueues();
 	} finally {
 		if (channel) {
 			await channel.close();

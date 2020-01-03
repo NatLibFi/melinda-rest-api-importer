@@ -32,13 +32,15 @@
     "prod": "NODE_ENV=production npm-run-all clean build app"
   },
   "dependencies": {
-    "@natlibfi/melinda-commons": "^7.0.0",
     "@natlibfi/marc-record": "^4.0.1",
+    "@natlibfi/melinda-commons": "^7.0.0",
     "@natlibfi/melinda-record-import-commons": "git+https://github.com/NatLibFi/melinda-record-import-commons.git#melkehitys-1054-1117",
     "amqplib": "^0.5.5",
+    "esm": "^3.2.25",
+    "http-status": "^1.4.2",
+    "moment": "^2.24.0",
     "npm-run-all": "^4.1.5",
-    "rimraf": "^3.0.0",
-    "esm": "^3.2.25"
+    "rimraf": "^3.0.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.7.0",
