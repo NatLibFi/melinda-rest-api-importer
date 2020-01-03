@@ -116,6 +116,7 @@ export function createService() {
 	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, failedRecords = [], retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
+		// TODO: Pass correlationId to record-load-api so it can use same name in log files?
 		url.search = new URLSearchParams([
 			['library', RECORD_LOAD_LIBRARY],
 			['method', isUpdate === false ? 'NEW' : 'OLD'],

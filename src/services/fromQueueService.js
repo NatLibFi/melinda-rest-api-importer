@@ -25,7 +25,6 @@ export async function consumeQueue(queue) {
 		connection = await amqplib.connect(AMQP_URL);
 		channel = await connection.createChannel();
 		channel.prefetch(1); // Per consumer limit
-		// TODO: Deconstruct to operation, chunknumber, cataloger, records???
 		queData = await channel.get(queue);
 		chunkInfo = JSON.parse(queData.content.toString());
 		if (chunkInfo) {

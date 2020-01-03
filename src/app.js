@@ -37,7 +37,7 @@ export async function checkQueues() {
 	} else if (bulk > 0 && !offlineHours) {
 		consumeQueue(QUEUE_NAME_BULK);
 	} else {
-		setTimeout(checkQueues, 1000); // TODO Affects consume speed...
+		setTimeout(checkQueues, 1000); // TODO: Think better way, this affects consume speed...
 	}
 }
 

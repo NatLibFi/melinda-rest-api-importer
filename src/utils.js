@@ -23,7 +23,6 @@ export function checkIfOfflineHours() {
 	}
 
 	if (now.format('x') >= start.format('x') && now.format('x') < end.format('x')) {
-		// TODO: logger.log('info', `Offline hours begin at ${OFFLINE_BEGIN} and will last next ${OFFLINE_DURATION} hours. Time is now ${moment().format('HH:mm')}`);
 		return true;
 	}
 

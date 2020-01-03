@@ -25,6 +25,7 @@ export function toRecordLoadApi() {
 			const records = data.records.map(record => {
 				return new MarcRecord(record);
 			});
+
 			if (queue === QUEUE_NAME_BULK) {
 				const metadata = await DatastoreService.bulk({operation, records, cataloger});
 				const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
@@ -33,22 +34,18 @@ export function toRecordLoadApi() {
 			}
 
 			if (queue === QUEUE_NAME_PRIO) {
+				const record = data.records[0];
+				let metadata;
 				if (data.operation === 'update') {
-					const record = new MarcRecord(data.records[0]);
 					const id = getRecordId(record);
-					const metadata = await DatastoreService.update({record, id, cataloger: data.cataloger});
-					const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
-					logger.log('debug', `Updated records ${metadata.ids}`);
-					return {status, operation, cataloger, chunkNumber, metadata};
+					metadata = await DatastoreService.update({record, id, cataloger});
+				} else {
+					metadata = await DatastoreService.create({record, cataloger});
 				}
 
-				if (data.operation === 'create') {
-					const record = new MarcRecord(data.records[0]);
-					const metadata = await DatastoreService.create({record, cataloger: data.cataloger});
-					const status = await generateStatus(operation, metadata.ids, data.failedRecords);
-					logger.log('debug', `Created new records ${metadata.ids}`);
-					return {status, operation, cataloger, chunkNumber, metadata};
-				}
+				const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
+				logger.log('debug', `Operation ${operation} performed to records ${metadata.ids}`);
+				return {status, operation, cataloger, chunkNumber, metadata};
 			}
 		}
 
