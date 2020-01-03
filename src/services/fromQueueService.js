@@ -4,7 +4,8 @@ import {toRecordLoadApi} from './toRecordLoadApiService';
 import {logError} from '../utils';
 
 import {checkQueues} from '../app';
-import {AMQP_URL, NAME_QUEUE_REPLY_BULK, NAME_QUEUE_REPLY_PRIO, CHUNK_STATE, NAME_QUEUE_PRIORITY} from '../config';
+import {AMQP_URL} from '../config';
+import {CHUNK_STATE, QUEUE_NAME_REPLY_BULK, QUEUE_NAME_REPLY_PRIO, QUEUE_NAME_PRIO} from '@natlibfi/melinda-record-import-commons';
 
 const load = toRecordLoadApi();
 const {createLogger} = Utils;
@@ -14,7 +15,7 @@ export async function consumeQueue(queue) {
 	let connection;
 	let channel;
 	const chunkInfo = {};
-	const replyQueue = (queue === NAME_QUEUE_PRIORITY) ? NAME_QUEUE_REPLY_PRIO : NAME_QUEUE_REPLY_BULK;
+	const replyQueue = (queue === QUEUE_NAME_PRIO) ? QUEUE_NAME_REPLY_PRIO : QUEUE_NAME_REPLY_BULK;
 	// Debug: logger.log('debug', `Prepared to consume from queue: ${queue}`);
 
 	try {
@@ -51,21 +52,28 @@ export async function consumeQueue(queue) {
 		} else {
 			throw new Error(`No records in ${queue} queue`);
 		}
-	} catch (err) {
+	} catch (error) {
 		logger.log('error', 'Error was thrown in "fromQueueService"');
-		logError(err);
+		logError(error);
 		// Send reply in case of failure
 		channel.sendToQueue(
 			replyQueue,
-			Buffer.from(JSON.stringify({status: CHUNK_STATE.ERROR, chunkNumber: chunkInfo.chunkNumber, metadata: {error: {err, stack: 'Please check melinda-rest-api-importer for more accurate error logs'}}})),
+			Buffer.from(JSON.stringify({status: CHUNK_STATE.ERROR, chunkNumber: chunkInfo.chunkNumber, metadata: {error}})),
 			{
 				persistent: true,
 				correlationId: chunkInfo.queData.properties.correlationId
 			}
 		);
-		channel.ack(chunkInfo.queData);
-		// Back to the loop
-		checkQueues();
+
+		// Do not ack if service is offline
+		if (error.status === 503 && queue === QUEUE_NAME_REPLY_BULK) {
+			// TODO Weit
+			setTimeout(checkQueues, 10000);
+		} else {
+			channel.ack(chunkInfo.queData);
+			// Back to the loop
+			checkQueues();
+		}
 	} finally {
 		if (channel) {
 			await channel.close();

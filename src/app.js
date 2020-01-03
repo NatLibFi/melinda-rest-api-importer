@@ -4,14 +4,15 @@ import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
 import {logError} from './utils';
 import {consumeQueue} from './services/fromQueueService';
-
+import {
+	QUEUE_NAME_BULK,
+	QUEUE_NAME_PRIO,
+	QUEUE_NAME_REPLY_PRIO,
+	QUEUE_NAME_REPLY_BULK
+} from '@natlibfi/melinda-record-import-commons';
 import {
 	AMQP_URL,
-	PURGE_QUEUE_ON_LOAD,
-	NAME_QUEUE_BULK,
-	NAME_QUEUE_PRIORITY,
-	NAME_QUEUE_REPLY_PRIO,
-	NAME_QUEUE_REPLY_BULK
+	PURGE_QUEUE_ON_LOAD
 } from './config';
 
 const {createLogger, handleSignal} = Utils;
@@ -32,9 +33,9 @@ export async function checkQueues() {
 	// TODO if 503 => do not crash it is down time
 	const {prio, bulk} = await operateRabbitQueues(false, false, true);
 	if (prio > 0) {
-		consumeQueue(NAME_QUEUE_PRIORITY);
+		consumeQueue(QUEUE_NAME_PRIO);
 	} else if (bulk > 0) {
-		consumeQueue(NAME_QUEUE_BULK);
+		consumeQueue(QUEUE_NAME_BULK);
 	} else {
 		setTimeout(checkQueues, 1000); // TODO Affects consume speed...
 	}
@@ -50,30 +51,30 @@ async function operateRabbitQueues(initQueues, purge, checkQueues) {
 		channel = await connection.createChannel();
 
 		if (initQueues) {
-			await channel.assertQueue(NAME_QUEUE_PRIORITY, {durable: true, autoDelete: false});
-			await channel.assertQueue(NAME_QUEUE_BULK, {durable: true, autoDelete: false});
-			await channel.assertQueue(NAME_QUEUE_REPLY_BULK, {durable: true, autoDelete: false});
-			await channel.assertQueue(NAME_QUEUE_REPLY_PRIO, {durable: true, autoDelete: false});
+			await channel.assertQueue(QUEUE_NAME_PRIO, {durable: true, autoDelete: false});
+			await channel.assertQueue(QUEUE_NAME_BULK, {durable: true, autoDelete: false});
+			await channel.assertQueue(QUEUE_NAME_REPLY_BULK, {durable: true, autoDelete: false});
+			await channel.assertQueue(QUEUE_NAME_REPLY_PRIO, {durable: true, autoDelete: false});
 			logger.log('info', 'Rabbitmq queues has been initiated');
 		}
 
 		if (purge) {
-			await channel.purgeQueue(NAME_QUEUE_PRIORITY);
-			await channel.purgeQueue(NAME_QUEUE_BULK);
-			await channel.purgeQueue(NAME_QUEUE_REPLY_BULK);
-			await channel.purgeQueue(NAME_QUEUE_REPLY_PRIO);
+			await channel.purgeQueue(QUEUE_NAME_PRIO);
+			await channel.purgeQueue(QUEUE_NAME_BULK);
+			await channel.purgeQueue(QUEUE_NAME_REPLY_BULK);
+			await channel.purgeQueue(QUEUE_NAME_REPLY_PRIO);
 			logger.log('info', 'Rabbitmq queues have been purged');
 		}
 
 		if (checkQueues) {
-			channelInfos.prio = await channel.checkQueue(NAME_QUEUE_PRIORITY);
-			logger.log('debug', `${NAME_QUEUE_PRIORITY} queue: ${channelInfos.prio.messageCount} chunks`);
-			channelInfos.bulk = await channel.checkQueue(NAME_QUEUE_BULK);
-			logger.log('debug', `${NAME_QUEUE_BULK} queue: ${channelInfos.bulk.messageCount} chunks`);
-			channelInfos.replyPrio = await channel.checkQueue(NAME_QUEUE_REPLY_PRIO);
-			logger.log('debug', `${NAME_QUEUE_REPLY_PRIO} queue: ${channelInfos.replyPrio.messageCount} chunks`);
-			channelInfos.replyBulk = await channel.checkQueue(NAME_QUEUE_REPLY_BULK);
-			logger.log('debug', `${NAME_QUEUE_REPLY_BULK} queue: ${channelInfos.replyBulk.messageCount} chunks`);
+			channelInfos.prio = await channel.checkQueue(QUEUE_NAME_PRIO);
+			logger.log('debug', `${QUEUE_NAME_PRIO} queue: ${channelInfos.prio.messageCount} chunks`);
+			channelInfos.bulk = await channel.checkQueue(QUEUE_NAME_BULK);
+			logger.log('debug', `${QUEUE_NAME_BULK} queue: ${channelInfos.bulk.messageCount} chunks`);
+			channelInfos.replyPrio = await channel.checkQueue(QUEUE_NAME_REPLY_PRIO);
+			logger.log('debug', `${QUEUE_NAME_REPLY_PRIO} queue: ${channelInfos.replyPrio.messageCount} chunks`);
+			channelInfos.replyBulk = await channel.checkQueue(QUEUE_NAME_REPLY_BULK);
+			logger.log('debug', `${QUEUE_NAME_REPLY_BULK} queue: ${channelInfos.replyBulk.messageCount} chunks`);
 		}
 	} catch (err) {
 		logError(err);

@@ -2,7 +2,7 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
-import {CHUNK_STATE, NAME_QUEUE_BULK, NAME_QUEUE_PRIORITY} from '../config';
+import {CHUNK_STATE, QUEUE_NAME_BULK, QUEUE_NAME_PRIO} from '@natlibfi/melinda-record-import-commons';
 import {createService} from './datastoreService';
 
 const {createLogger} = Utils;
@@ -23,14 +23,14 @@ export function toRecordLoadApi() {
 			const records = data.records.map(record => {
 				return new MarcRecord(record);
 			});
-			if (queue === NAME_QUEUE_BULK) {
+			if (queue === QUEUE_NAME_BULK) {
 				const metadata = await DatastoreService.bulk({operation: data.operation, records, cataloger: data.cataloger});
 				const status = generateStatus(data.operation, metadata.ids, metadata.failedRecords);
 				logger.log('debug', `${data.operation} records ${metadata.ids}`);
 				return {status, metadata};
 			}
 
-			if (queue === NAME_QUEUE_PRIORITY) {
+			if (queue === QUEUE_NAME_PRIO) {
 				if (data.operation === 'update') {
 					const record = new MarcRecord(data.records[0]);
 					const id = getRecordId(record);
@@ -75,6 +75,6 @@ export function toRecordLoadApi() {
 			return CHUNK_STATE.CREATED;
 		}
 
-		return CHUNK_STATE.INVALID;
+		return CHUNK_STATE.ERROR;
 	}
 }

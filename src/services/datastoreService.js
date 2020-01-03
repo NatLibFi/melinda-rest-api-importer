@@ -3,6 +3,7 @@ import {promisify, isArray} from 'util';
 import HttpStatus from 'http-status';
 import fetch from 'node-fetch';
 import createSruClient from '@natlibfi/sru-client';
+import ServiceError from './error';
 import {MARCXML, AlephSequential} from '@natlibfi/marc-record-serializers';
 import deepEqual from 'deep-eql';
 import moment from 'moment';
@@ -24,13 +25,6 @@ export const INDEXING_PRIORITY = {
 	HIGH: 1,
 	LOW: 2
 };
-
-export class DatastoreError extends Error {
-	constructor(status, ...params) {
-		super(params);
-		this.status = status;
-	}
-}
 
 export function createService() {
 	const logger = createLogger();
@@ -57,9 +51,9 @@ export function createService() {
 		const existingRecord = await fetchRecord(id);
 		// If !valid -> add record to failedRecords
 		const valid = validateRecordState(record, existingRecord);
-		if (!(valid instanceof DatastoreError)) {
-			failedRecords.push({record: id, error: 'Invalid modification history!'});
-			return {ids: [], failedRecords};
+		if (!valid) {
+			failedRecords.push({record: id});
+			return {ids: [], failedRecords, error: new ServiceError(HttpStatus.CONFLICT, 'Invalid modification history!')};
 		}
 
 		record = AlephSequential.to(record);
@@ -77,14 +71,14 @@ export function createService() {
 			const id = record.get(/$001^/)[0].value;
 			const existingRecord = await fetchRecord(id);
 			const valid = validateRecordState(record, existingRecord);
-			if (valid instanceof DatastoreError) {
-				failedRecords.push({record, error: 'Invalid modification history!'});
-				return valid;
+			if (!valid) {
+				failedRecords.push({record, error: new ServiceError(HttpStatus.CONFLICT, 'Invalid modification history!'));
+				return false;
 			}
 
 			return record;
 		}).filter(record => {
-			return !(record instanceof DatastoreError)
+			return record;
 		}).map(record => {
 			return AlephSequential.to(record);
 		});
@@ -108,7 +102,7 @@ export function createService() {
 						}
 					})
 					.on('end', () => {
-						reject(new DatastoreError(HttpStatus.NOT_FOUND));
+						reject(new ServiceError(HttpStatus.NOT_FOUND, 'Invalid update record ID'));
 					})
 					.on('error', err => {
 						reject(err);
@@ -144,7 +138,7 @@ export function createService() {
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
-			throw new DatastoreError(HttpStatus.SERVICE_UNAVAILABLE);
+			throw new ServiceError(HttpStatus.SERVICE_UNAVAILABLE, await response.text());
 		}
 
 		if (response.status === HttpStatus.CONFLICT) {
@@ -185,7 +179,7 @@ export function createService() {
 
 		const existingModificationHistory = existingRecord.get(/^CAT$/);
 		if (!deepEqual(incomingModificationHistory, existingModificationHistory)) {
-			return new DatastoreError(HttpStatus.CONFLICT);
+			return false;
 		}
 
 		return true;
