@@ -2,8 +2,9 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
-import {CHUNK_STATE, QUEUE_NAME_BULK, QUEUE_NAME_PRIO} from '@natlibfi/melinda-record-import-commons';
+import {CHUNK_STATE, QUEUE_NAME_BULK, QUEUE_NAME_PRIO, OPERATIONS} from '@natlibfi/melinda-record-import-commons';
 import {createService} from './datastoreService';
+import ServiceError from './error';
 
 const {createLogger} = Utils;
 
@@ -12,10 +13,11 @@ export function toRecordLoadApi() {
 	const DatastoreService = createService();
 
 	return async (queue, data) => {
+		const {operation, cataloger, chunkNumber} = data;
 		// Debug:
-		// logger.log('info', `Has record ${records}`);
 		// logger.log('info', `Has data ${JSON.stringify(data)}`);
-		// logger.log('info', `Has format ${data.format}`);
+		// logger.log('info', `Has record ${data.records}`);
+		// logger.log('info', `Has chunkNumber ${data.chunkNumber}`);
 		// logger.log('info', `Has operation ${data.operation}`);
 		// logger.log('info', `Has cataloger: ${data.cataloger}`);
 
@@ -24,10 +26,10 @@ export function toRecordLoadApi() {
 				return new MarcRecord(record);
 			});
 			if (queue === QUEUE_NAME_BULK) {
-				const metadata = await DatastoreService.bulk({operation: data.operation, records, cataloger: data.cataloger});
-				const status = generateStatus(data.operation, metadata.ids, metadata.failedRecords);
-				logger.log('debug', `${data.operation} records ${metadata.ids}`);
-				return {status, metadata};
+				const metadata = await DatastoreService.bulk({operation, records, cataloger});
+				const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
+				logger.log('debug', `${operation} records ${metadata.ids}`);
+				return {status, operation, cataloger, chunkNumber, metadata};
 			}
 
 			if (queue === QUEUE_NAME_PRIO) {
@@ -35,22 +37,23 @@ export function toRecordLoadApi() {
 					const record = new MarcRecord(data.records[0]);
 					const id = getRecordId(record);
 					const metadata = await DatastoreService.update({record, id, cataloger: data.cataloger});
-					const status = generateStatus(data.operation, metadata.ids, metadata.failedRecords);
+					const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
 					logger.log('debug', `Updated records ${metadata.ids}`);
-					return {status, metadata};
+					return {status, operation, cataloger, chunkNumber, metadata};
 				}
 
 				if (data.operation === 'create') {
 					const record = new MarcRecord(data.records[0]);
 					const metadata = await DatastoreService.create({record, cataloger: data.cataloger});
-					const status = generateStatus(data.operation, metadata.ids, data.failedRecords);
+					const status = await generateStatus(operation, metadata.ids, data.failedRecords);
 					logger.log('debug', `Created new records ${metadata.ids}`);
-					return {status, metadata};
+					return {status, operation, cataloger, chunkNumber, metadata};
 				}
 			}
 		}
 
-		return {status: CHUNK_STATE.ERROR, metadata: 'No records parsed from chunk data'};
+		// 422 Unprocessable Entity
+		return {status: CHUNK_STATE.ERROR, operation, cataloger, chunkNumber, metadata: {error: new ServiceError(422, 'No records parsed from chunk data')}};
 	};
 
 	function getRecordId(record) {
@@ -67,14 +70,10 @@ export function toRecordLoadApi() {
 			return CHUNK_STATE.ACTION_NEEDED;
 		}
 
-		if (operation === 'update') {
-			return CHUNK_STATE.UPDATED;
+		if (OPERATIONS.includes(operation)) {
+			return CHUNK_STATE.DONE;
 		}
 
-		if (operation === 'create') {
-			return CHUNK_STATE.CREATED;
-		}
-
-		return CHUNK_STATE.ERROR;
+		return CHUNK_STATE.INVALID;
 	}
 }

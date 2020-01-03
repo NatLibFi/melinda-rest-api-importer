@@ -16,7 +16,8 @@ export async function consumeQueue(queue) {
 	const logger = createLogger();
 	let connection;
 	let channel;
-	const chunkInfo = {};
+	let queData;
+	let chunkInfo;
 	const replyQueue = (queue === QUEUE_NAME_PRIO) ? QUEUE_NAME_REPLY_PRIO : QUEUE_NAME_REPLY_BULK;
 	// Debug: logger.log('debug', `Prepared to consume from queue: ${queue}`);
 
@@ -24,31 +25,29 @@ export async function consumeQueue(queue) {
 		connection = await amqplib.connect(AMQP_URL);
 		channel = await connection.createChannel();
 		channel.prefetch(1); // Per consumer limit
-		chunkInfo.queData = await channel.get(queue);
-		if (chunkInfo.queData) {
-			const data = JSON.parse(chunkInfo.queData.content.toString());
-			chunkInfo.chunkNumber = data.chunkNumber;
+		// TODO: Deconstruct to operation, chunknumber, cataloger, records???
+		queData = await channel.get(queue);
+		chunkInfo = JSON.parse(queData.content.toString());
+		if (chunkInfo) {
 			if (queue === QUEUE_NAME_PRIO && checkIfOfflineHours) {
 				throw new ServiceError(HttpStatus.SERVICE_UNAVAILABLE, `${HttpStatus['503_MESSAGE']} Offline hours begin at ${OFFLINE_BEGIN} and will last next ${OFFLINE_DURATION} hours.`);
 			}
 
-			const result = await load(queue, data);
+			const result = await load(queue, chunkInfo);
 			if (result) {
 				logger.log('debug', `Response from record-load-api ${JSON.stringify(result)}`);
 
 				// Send message back to rest-api when done
-				result.queue = queue;
-				result.chunkNumber = chunkInfo.chunkNumber;
 				await channel.sendToQueue(
 					replyQueue,
 					Buffer.from(JSON.stringify(result)),
 					{
 						persistent: true,
-						correlationId: chunkInfo.queData.properties.correlationId
+						correlationId: queData.properties.correlationId
 					}
 				);
 
-				channel.ack(chunkInfo.queData); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH & Reply is send
+				channel.ack(queData); // TODO: DO NOT ACK BEFORE RECORD IS SAVED TO ALEPH & Reply is send
 			} else {
 				throw new Error('No result from datastore');
 			}
@@ -60,26 +59,25 @@ export async function consumeQueue(queue) {
 		}
 	} catch (error) {
 		logger.log('error', 'Error was thrown in "fromQueueService"');
+
 		logError(error);
+
 		// Send reply in case of failure
 		channel.sendToQueue(
 			replyQueue,
-			Buffer.from(JSON.stringify({status: CHUNK_STATE.ERROR, chunkNumber: chunkInfo.chunkNumber, metadata: {error}})),
+			Buffer.from(JSON.stringify({status: CHUNK_STATE.ERROR, chunkNumber: chunkInfo.chunkNumber, cataloger: chunkInfo.cataloger, operation: chunkInfo.operation, metadata: {error}})),
 			{
 				persistent: true,
-				correlationId: chunkInfo.queData.properties.correlationId
+				correlationId: queData.properties.correlationId
 			}
 		);
 
-		// Do not ack bulks if service is offline
-		if (error.status === 503 && queue === QUEUE_NAME_REPLY_BULK) {
-			/* Nack(message, [allUpTo, [requeue]])
-			   If requeue is truthy, the server will try to put the message or messages back on the queue or queues from which they came.
-			   Defaults to true if not given, so if you want to make sure messages are dead-lettered or discarded, supply false here. */
-			await channel.nack(chunkInfo.queData);
+		// Priority requests get priority responses, no need to keep messages after user is notified
+		if (error.code === 'ECONNREFUSED') {
+			// When Record-load-api is down and !checkIfOfflineHours
+			await channel.nack(queData);
 		} else {
-			// Priority requests get priority responses, no need to keep messages after user is notified
-			await channel.ack(chunkInfo.queData);
+			await channel.ack(queData);
 		}
 
 		// Back to the loop

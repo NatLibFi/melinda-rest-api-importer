@@ -61,7 +61,7 @@ export function createService() {
 	}
 
 	async function bulk({operation, records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const isUpdate = (operation === 'update');
+		const isUpdate = (operation === 'update' || operation === 'migrate');
 		const failedRecords = [];
 		records = records.map(record => {
 			return AlephSequential.to(record);
