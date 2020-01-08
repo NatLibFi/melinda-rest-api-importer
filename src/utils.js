@@ -22,7 +22,7 @@ export function checkIfOfflineHours() {
 		end.subtract(1, 'days');
 	}
 
-	if (now.format('x') >= start.format('x') && now.format('x') < end.format('x')) {
+	if (now.isBetween(start, end)) {
 		return true;
 	}
 

@@ -2,11 +2,12 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
-import {CHUNK_STATE, QUEUE_NAME_BULK, QUEUE_NAME_PRIO, OPERATIONS} from '@natlibfi/melinda-record-import-commons';
+import {CHUNK_STATE, IMPORT_QUEUES, OPERATIONS} from '@natlibfi/melinda-record-import-commons';
 import {createService} from './datastoreService';
 import ServiceError from './error';
 
 const {createLogger} = Utils;
+const {BULK_CREATE, BULK_UPDATE, PRIO_CREATE, PRIO_UPDATE} = IMPORT_QUEUES;
 
 export function toRecordLoadApi() {
 	const logger = createLogger();
@@ -26,14 +27,14 @@ export function toRecordLoadApi() {
 				return new MarcRecord(record);
 			});
 
-			if (queue === QUEUE_NAME_BULK) {
+			if (queue === BULK_UPDATE || queue === BULK_CREATE) {
 				const metadata = await DatastoreService.bulk({operation, records, cataloger});
 				const status = await generateStatus(operation, metadata.ids, metadata.failedRecords);
 				logger.log('debug', `${operation} records ${metadata.ids}`);
 				return {status, operation, cataloger, chunkNumber, metadata};
 			}
 
-			if (queue === QUEUE_NAME_PRIO) {
+			if (queue === PRIO_CREATE || queue === PRIO_UPDATE) {
 				const record = data.records[0];
 				let metadata;
 				if (data.operation === 'update') {
