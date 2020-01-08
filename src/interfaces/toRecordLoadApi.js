@@ -35,7 +35,7 @@ export function toRecordLoadApi() {
 			}
 
 			if (queue === PRIO_CREATE || queue === PRIO_UPDATE) {
-				const record = data.records[0];
+				const record = records[0];
 				let metadata;
 				if (data.operation === 'update') {
 					const id = getRecordId(record);

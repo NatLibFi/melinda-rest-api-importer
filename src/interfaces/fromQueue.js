@@ -33,7 +33,7 @@ export async function consumeQueue(queue) {
 		// Set chunk info
 		chunkInfo = JSON.parse(queData.content.toString());
 
-		if ((queue === PRIO_CREATE || queue === PRIO_UPDATE) && checkIfOfflineHours) {
+		if ((queue === PRIO_CREATE || queue === PRIO_UPDATE) && checkIfOfflineHours()) {
 			throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, `${HttpStatus['503_MESSAGE']} Offline hours begin at ${OFFLINE_BEGIN} and will last next ${OFFLINE_DURATION} hours.`);
 		}
 

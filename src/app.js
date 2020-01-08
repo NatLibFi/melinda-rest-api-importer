@@ -32,7 +32,7 @@ export async function checkCreateQueues() {
 
 	if (prioC.messageCount > 0) {
 		consumeQueue(PRIO_CREATE);
-	} else if (bulkC.messageCount > 0 && checkIfOfflineHours()) {
+	} else if (bulkC.messageCount > 0 && !checkIfOfflineHours()) {
 		consumeQueue(BULK_CREATE);
 	} else {
 		setTimeout(checkCreateQueues, 1000); // TODO: Think better way, this affects consume speed...
@@ -45,7 +45,7 @@ export async function checkUpdateQueues() {
 
 	if (prioU.messageCount > 0) {
 		consumeQueue(PRIO_UPDATE);
-	} else if (bulkU.messageCount > 0 && checkIfOfflineHours()) {
+	} else if (bulkU.messageCount > 0 && !checkIfOfflineHours()) {
 		consumeQueue(BULK_UPDATE);
 	} else {
 		setTimeout(checkUpdateQueues, 1000); // TODO: Think better way, this affects consume speed...
