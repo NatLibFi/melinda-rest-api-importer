@@ -3,7 +3,7 @@
 import {Utils} from '@natlibfi/melinda-commons';
 import amqplib from 'amqplib';
 import {logError, checkIfOfflineHours} from './utils';
-import {consumeQueue} from './services/fromQueueService';
+import {consumeQueue} from './interfaces/fromQueue';
 import {IMPORT_QUEUES} from '@natlibfi/melinda-record-import-commons';
 import {
 	AMQP_URL,
@@ -26,10 +26,10 @@ async function run() {
 	checkUpdateQueues();
 }
 
+// Create loop
 export async function checkCreateQueues() {
 	const {prioC, bulkC} = await operateRabbitQueues(false, false, true, false, true);
 
-	// TODO: create loop
 	if (prioC.messageCount > 0) {
 		consumeQueue(PRIO_CREATE);
 	} else if (bulkC.messageCount > 0 && checkIfOfflineHours()) {
@@ -39,10 +39,10 @@ export async function checkCreateQueues() {
 	}
 }
 
+// Update loop
 export async function checkUpdateQueues() {
 	const {prioU, bulkU} = await operateRabbitQueues(false, false, false, true, true);
 
-	// TODO: update loop
 	if (prioU.messageCount > 0) {
 		consumeQueue(PRIO_UPDATE);
 	} else if (bulkU.messageCount > 0 && checkIfOfflineHours()) {
