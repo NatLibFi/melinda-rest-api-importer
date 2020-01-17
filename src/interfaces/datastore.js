@@ -1,22 +1,20 @@
-import createSruClient from '@natlibfi/sru-client';
-import {MARCXML, AlephSequential} from '@natlibfi/marc-record-serializers';
+/* eslint-disable no-unused-vars */
+import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {Utils} from '@natlibfi/melinda-commons';
-import deepEqual from 'deep-eql';
 import fetch from 'node-fetch';
 import HttpStatus from 'http-status';
 import {URL} from 'url';
 import moment from 'moment';
-import {promisify, isArray} from 'util';
+import {promisify} from 'util';
 import ApiError from './error';
 
-import {SRU_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
+import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
 const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
 
 const FIX_ROUTINE = 'API';
 const UPDATE_ACTION = 'REP';
-const SRU_VERSION = '2.0';
 const DEFAULT_CATALOGER_ID = 'API';
 const MAX_RETRIES_ON_CONFLICT = 10;
 const RETRY_WAIT_TIME_ON_CONFLICT = 1000;
@@ -35,107 +33,39 @@ export function createService() {
 		}
 	};
 
-	return {create, update, bulk};
+	return {set};
 
-	async function create({record, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		record = AlephSequential.to(record);
-		return loadRecord({record, cataloger, indexingPriority});
-	}
-
-	async function update({record, id, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const failedRecords = [];
-		if (!id) { // If !id pick value from field 001
-			id = record.get(/$001^/)[0].value;
-		}
-
-		const existingRecord = await fetchRecord(id);
-		// If !valid -> add record to failedRecords
-		const valid = validateRecordState(record, existingRecord);
-		if (!valid) {
-			failedRecords.push({record: id});
-			return {ids: [], failedRecords, error: new ApiError(HttpStatus.CONFLICT, 'Invalid modification history!')};
-		}
-
-		record = AlephSequential.to(record);
-		return loadRecord({record, isUpdate: true, cataloger, indexingPriority});
-	}
-
-	async function bulk({operation, records, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
-		const isUpdate = (operation === 'update' || operation === 'migrate');
-		const failedRecords = [];
+	async function set({records, operation, cataloger = DEFAULT_CATALOGER_ID, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		records = records.map(record => {
 			return AlephSequential.to(record);
 		});
-		/* TODO if op -> Validate record state!
-		records = records.map(record => {
-			const id = record.get(/$001^/)[0].value;
-			const existingRecord = await fetchRecord(id);
-			const valid = validateRecordState(record, existingRecord);
-			if (!valid) {
-				failedRecords.push({record, error: new ApiError(HttpStatus.CONFLICT, 'Invalid modification history!'));
-				return false;
-			}
-
-			return record;
-		}).filter(record => {
-			return record;
-		}).map(record => {
-			return AlephSequential.to(record);
-		});
-		*/
-
-		const record = records.join('');
-		return loadRecord({record, isUpdate, cataloger, indexingPriority, failedRecords});
+		const recordData = records.join('');
+		return loadRecord({recordData, operation, cataloger, indexingPriority});
 	}
 
-	async function fetchRecord(id) {
-		return new Promise((resolve, reject) => {
-			try {
-				const sruClient = createSruClient({serverUrl: SRU_URL, version: SRU_VERSION, maximumRecords: 1});
-
-				sruClient.searchRetrieve(`rec.id=${id}`)
-					.on('record', record => {
-						try {
-							resolve(MARCXML.from(record));
-						} catch (err) {
-							reject(err);
-						}
-					})
-					.on('end', () => {
-						reject(new ApiError(HttpStatus.NOT_FOUND, 'Invalid update record ID'));
-					})
-					.on('error', err => {
-						reject(err);
-					});
-			} catch (err) {
-				reject(err);
-			}
-		});
-	}
-
-	async function loadRecord({record, isUpdate = false, cataloger, indexingPriority, failedRecords = [], retriesCount = 0}) {
+	async function loadRecord({recordData, operation, cataloger, indexingPriority, retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
 		// TODO: Pass correlationId to record-load-api so it can use same name in log files?
 		url.search = new URLSearchParams([
 			['library', RECORD_LOAD_LIBRARY],
-			['method', isUpdate === false ? 'NEW' : 'OLD'],
+			['method', operation === 'create' ? 'NEW' : 'OLD'],
 			['fixRoutine', FIX_ROUTINE],
 			['updateAction', UPDATE_ACTION],
 			['cataloger', cataloger],
-			['indexingPriority', generateIndexingPriority(indexingPriority, isUpdate === false)]
+			['indexingPriority', generateIndexingPriority(indexingPriority, operation === 'update')]
 		]);
 
 		const response = await fetch(url, Object.assign({
 			method: 'POST',
-			body: record,
+			body: recordData,
 			headers: {'Content-Type': 'text/plain'}
 		}, requestOptions));
 
 		if (response.status === HttpStatus.OK) {
 			const array = await response.json();
 			const idList = array.map(id => formatRecordId(id));
-			return {ids: idList, failedRecords};
+			return {ids: idList};
 		}
 
 		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
@@ -149,7 +79,7 @@ export function createService() {
 
 			logger.log('info', 'Got conflict response. Retrying...');
 			await setTimeoutPromise(RETRY_WAIT_TIME_ON_CONFLICT);
-			return loadRecord({record, isUpdate, cataloger, indexingPriority, retriesCount: retriesCount + 1});
+			return loadRecord({recordData, operation, cataloger, indexingPriority, retriesCount: retriesCount + 1});
 		}
 
 		throw new Error(`Unexpected response: ${response.status}: ${await response.text()}`);
@@ -167,22 +97,5 @@ export function createService() {
 
 			return moment().add(1000, 'years').year();
 		}
-	}
-
-	// Checks that the modification history is identical
-	function validateRecordState(incomingRecord, existingRecord) {
-		let incomingModificationHistory;
-		if (isArray(incomingRecord)) {
-			incomingModificationHistory = incomingRecord;
-		} else {
-			incomingModificationHistory = incomingRecord.get(/^CAT$/);
-		}
-
-		const existingModificationHistory = existingRecord.get(/^CAT$/);
-		if (!deepEqual(incomingModificationHistory, existingModificationHistory)) {
-			return false;
-		}
-
-		return true;
 	}
 }
