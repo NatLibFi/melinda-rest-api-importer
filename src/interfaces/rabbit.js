@@ -5,7 +5,7 @@ import {logError, checkIfOfflineHours} from '../utils';
 import HttpStatus from 'http-status';
 import {MarcRecord} from '@natlibfi/marc-record';
 import {AMQP_URL, OFFLINE_BEGIN, OFFLINE_DURATION, QUEUE, OPERATION, POLL_WAIT_TIME} from '../config';
-import {CHUNK_SIZE, PRIO_IMPORT_QUEUES, QUEUE_ITEM_STATE} from '@natlibfi/melinda-record-import-commons';
+import {CHUNK_SIZE, PRIO_IMPORT_QUEUES, QUEUE_ITEM_STATE, RECORD_IMPORT_STATE} from '@natlibfi/melinda-record-import-commons';
 import mongoFactory from './mongo';
 import {datastoreFactory} from './datastore';
 import {promisify} from 'util';
@@ -29,7 +29,6 @@ export default async function () {
 				await channel.assertQueue(QUEUE);
 			}
 
-			// Only for testing purposes, Removed in production
 			if (purge) {
 				await channel.purgeQueue(QUEUE);
 			}
@@ -116,14 +115,14 @@ export default async function () {
 			// ACK records
 			if (queue === CREATE || queue === UPDATE) {
 				datas.forEach((data, index) => {
-					if (queue === CREATE || queue === UPDATE) {
-						sendReply({
-							correlationId: data.properties.correlationId,
-							cataloger,
-							operation,
-							data: results.ids[index]
-						});
-					}
+					const status = (queue === CREATE) ? RECORD_IMPORT_STATE.CREATED : RECORD_IMPORT_STATE.UPDATED;
+					sendReply({
+						correlationId: data.properties.correlationId,
+						cataloger,
+						operation,
+						data: {status, id: results.ids[index]}
+					});
+					// Reply consumer gets: {"data":{"status":"UPDATED","id":"0"}}
 
 					channel.ack(data);
 				});
@@ -137,7 +136,7 @@ export default async function () {
 					channel.nack(data, false, true);
 				});
 			} else {
-				// Add ids to mongo metadata?
+				// TODO?: Add ids to mongo metadata?
 				datas.forEach(data => {
 					channel.ack(data);
 				});
