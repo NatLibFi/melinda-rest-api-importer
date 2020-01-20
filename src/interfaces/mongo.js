@@ -10,7 +10,7 @@ import moment from 'moment';
 const {createLogger} = Utils;
 /* QueueItem:
 {
-	"correlationId":"test",
+	"correlationId":"FOO",
 	"cataloger":"xxx0000",
 	"operation":"update",
 	"contentType":"application/json",
@@ -19,9 +19,6 @@ const {createLogger} = Utils;
 	"modificationTime":"2020-01-01T00:00:01.000Z"
 }
 */
-// Send to Record-Load-Api
-// Make reply
-// Back to loop
 
 export default async function () {
 	const logger = createLogger(); // eslint-disable-line no-unused-vars
@@ -77,7 +74,8 @@ export default async function () {
 		return result;
 	}
 
-	function logMongo({error, log, debug}) {
+	// TODO: Make work properly (https://mongodb.github.io/node-mongodb-native/driver-articles/mongoclient.html logger)
+	function logMongo({error = {}, log = {}, debug = {}}) {
 		if (error) {
 			logger.log('error', error);
 		}

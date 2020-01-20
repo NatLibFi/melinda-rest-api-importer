@@ -2,9 +2,6 @@ import {Utils} from '@natlibfi/melinda-commons/';
 
 const {readEnvironmentVariable, parseBoolean} = Utils; // eslint-disable-line no-unused-vars
 
-// Useless?
-export const SRU_URL = readEnvironmentVariable('SRU_URL');
-
 // Record-load-api to save data
 export const RECORD_LOAD_URL = readEnvironmentVariable('RECORD_LOAD_URL');
 export const RECORD_LOAD_API_KEY = readEnvironmentVariable('RECORD_LOAD_API_KEY');
