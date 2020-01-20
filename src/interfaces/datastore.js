@@ -1,21 +1,19 @@
 /* eslint-disable no-unused-vars */
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import {Utils} from '@natlibfi/melinda-commons';
+import DatastoreError, {Utils} from '@natlibfi/melinda-commons';
 import fetch from 'node-fetch';
 import HttpStatus from 'http-status';
 import {URL} from 'url';
 import moment from 'moment';
 import {promisify} from 'util';
-import ApiError from './error';
 
-import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
+import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL, DEFAULT_CATALOGER_ID} from '../config';
 const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
 const setTimeoutPromise = promisify(setTimeout);
 
 const FIX_ROUTINE = 'API';
 const UPDATE_ACTION = 'REP';
-const DEFAULT_CATALOGER_ID = 'API';
 const MAX_RETRIES_ON_CONFLICT = 10;
 const RETRY_WAIT_TIME_ON_CONFLICT = 1000;
 
@@ -24,7 +22,7 @@ export const INDEXING_PRIORITY = {
 	LOW: 2
 };
 
-export function createService() {
+export function datastoreFactory() {
 	const logger = createLogger();
 	const requestOptions = {
 		headers: {
@@ -68,13 +66,10 @@ export function createService() {
 			return {ids: idList};
 		}
 
-		if (response.status === HttpStatus.SERVICE_UNAVAILABLE) {
-			throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, await response.text());
-		}
-
+		// Should not ever happen!
 		if (response.status === HttpStatus.CONFLICT) {
 			if (retriesCount === MAX_RETRIES_ON_CONFLICT) {
-				throw new Error(`Unexpected response: ${response.status}: ${await response.text()}`);
+				throw new DatastoreError(response.status, await response.text());
 			}
 
 			logger.log('info', 'Got conflict response. Retrying...');
@@ -82,7 +77,8 @@ export function createService() {
 			return loadRecord({recordData, operation, cataloger, indexingPriority, retriesCount: retriesCount + 1});
 		}
 
-		throw new Error(`Unexpected response: ${response.status}: ${await response.text()}`);
+		// Unexpected! Retry?
+		throw new DatastoreError(response.status, await response.text());
 
 		function formatRecordId(id) {
 			const pattern = new RegExp(`${RECORD_LOAD_LIBRARY.toUpperCase()}$`);
