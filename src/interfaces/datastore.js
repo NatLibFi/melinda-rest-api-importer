@@ -63,7 +63,7 @@ export function datastoreFactory() {
 		if (response.status === HttpStatus.OK) {
 			const array = await response.json();
 			const idList = array.map(id => formatRecordId(id));
-			return {ids: idList};
+			return {payloads: idList};
 		}
 
 		// Should not ever happen!

@@ -14,7 +14,7 @@ While service is in operation, if AMQP does not have anything in `'QUEUE'` it ch
 | RECORD_LOAD_URL      | Yes       | A serialized URL address of Melinda-record-load-api                                                                |
 | DEFAULT_CATALOGER_ID | No        | Default cataloger to be set to the record ? Obsolite! Defaults to: `'API'`                                         |
 | MONGO_URI            | No        | A serialized URL address of Melinda-rest-api's import queue database. Defaults to `'mongodb://localhost:27017/db'` |
-| OFFLINE_PERIOD       | No        | Starting hour and length of offline period. Format is `'START_HOUR,LENGTH_IN_HOURS'`,                              |
+| OFFLINE_PERIOD       | No        | Starting hour and length of offline period. e.g `'11,1'`                                                           |
 | POLL_WAIT_TIME       | No        | A number value presenting time in ms between polling                                                               |
 | PURGE_QUEUE_ON_LOAD  | No        | A numeric presentation of boolean option to purge AMQP queue set in `'QUEUE'` when process is started e.g. `1`     |
 
