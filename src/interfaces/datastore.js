@@ -28,20 +28,20 @@ export function datastoreFactory() {
 
 	return {set};
 
-	async function set({records, operation, cataloger = DEFAULT_CATALOGER_ID, recordLoadParams, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+	async function set({correlationId = undefined, records, operation, cataloger = DEFAULT_CATALOGER_ID, recordLoadParams, indexingPriority = INDEXING_PRIORITY.HIGH}) {
 		records = records.map(record => {
 			return AlephSequential.to(record);
 		});
 		const recordData = records.join('');
-		return loadRecord({recordData, operation, cataloger, recordLoadParams, indexingPriority});
+		return loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams, indexingPriority});
 	}
 
-	async function loadRecord({recordData, operation, cataloger, recordLoadParams, indexingPriority, retriesCount = 0}) {
+	async function loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams, indexingPriority, retriesCount = 0}) {
 		const url = new URL(RECORD_LOAD_URL);
 
 		// TODO: Pass correlationId to record-load-api so it can use same name in log files?
 		url.search = new URLSearchParams([
-			['correlationId', 'test'],
+			['correlationId', correlationId],
 			['library', recordLoadParams.library || RECORD_LOAD_LIBRARY],
 			['method', operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'],
 			['fixRoutine', recordLoadParams.fixRoutine || FIX_ROUTINE],
@@ -88,15 +88,13 @@ export function datastoreFactory() {
 			return {payloads: idList};
 		}
 
-		// Should not ever happen!
+		// If record-load-api finds result file that should not be there!
 		if (response.status === HttpStatus.CONFLICT) {
-			if (retriesCount === MAX_RETRIES_ON_CONFLICT) {
-				throw new DatastoreError(response.status, await response.text());
-			}
-
-			logger.log('info', 'Got conflict response. Retrying...');
-			await setTimeoutPromise(RETRY_WAIT_TIME_ON_CONFLICT);
-			return loadRecord({recordData, operation, cataloger, indexingPriority, retriesCount: retriesCount + 1});
+			const array = await response.json();
+			logger.log('info', `Got conflict response. ${array}`);
+			const idList = array.filter(id => id.length > 0).map(id => formatRecordId(id));
+			console.log(idList);
+			return {payloads: idList, ackOnlyLength: idList.length};
 		}
 
 		// Unexpected! Retry?

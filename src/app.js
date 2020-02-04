@@ -35,12 +35,19 @@ async function run() {
 			try {
 				// Work with results
 				const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
-				const results = await datastoreOperator.set({...headers, records, recordLoadParams});
 				if (OPERATION_TYPES.includes(queue)) {
+					const results = await datastoreOperator.set({...headers, records, recordLoadParams});
 					await amqpOperator.ackNReplyMessages({status, messages, payloads: results.payloads});
 				} else {
+					const results = await datastoreOperator.set({correlationId: queue, ...headers, records, recordLoadParams});
 					await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
-					await amqpOperator.ackMessages(messages);
+					if (results.ackOnlyLength === undefined) {
+						await amqpOperator.ackMessages(messages);
+					} else {
+						const ack = messages.splice(0, results.ackOnlyLength);
+						await amqpOperator.ackMessages(ack);
+						await amqpOperator.nackMessages(messages);
+					}
 				}
 
 				return checkAmqpQueue();
