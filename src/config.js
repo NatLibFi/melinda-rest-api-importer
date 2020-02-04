@@ -17,7 +17,6 @@ export const PURGE_QUEUE_ON_LOAD = readEnvironmentVariable('PURGE_QUEUE_ON_LOAD'
 export const POLL_WAIT_TIME = readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000});
 
 // Operation variables
-export const QUEUE = readEnvironmentVariable('QUEUE');
 export const OPERATION = readEnvironmentVariable('OPERATION');
 
 export const [OFFLINE_BEGIN, OFFLINE_DURATION] = readEnvironmentVariable('OFFLINE_PERIOD', {defaultValue: '0,0', format: v => v.split(',')});

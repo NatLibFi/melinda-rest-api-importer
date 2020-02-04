@@ -7,7 +7,7 @@ While service is in operation, if AMQP does not have anything in `'QUEUE'` it ch
 | Name                 | Mandatory | Description                                                                                                        |
 |----------------------|-----------|--------------------------------------------------------------------------------------------------------------------|
 | AMQP_URL             | Yes       | A serialized object of AMQP connection config                                                                      |
-| OPERATION            | Yes       | A string state of passing operations. Enum: `'create'` or `'update'`                                               |
+| OPERATION            | Yes       | A string state of passing operations. Enum: `'CREATE'` or `'UPDATE'`                                               |
 | QUEUE                | Yes       | A string name of AMQP queue to be polled. Enum: Melinda-recorc-import-commons `PRIO_IMPORT_QUEUES`                 |
 | RECORD_LOAD_API_KEY  | Yes       | A string key authorized to use the API                                                                             |
 | RECORD_LOAD_LIBRARY  | Yes       | A string                                                                                                           |
@@ -26,7 +26,7 @@ Queue-item schema:
 {
 	"correlationId":"FOO",
 	"cataloger":"xxx0000",
-	"operation":"update",
+	"operation":"UPDATE",
 	"contentType":"application/json",
 	"queueItemState":"PENDING_QUEUING",
 	"creationTime":"2020-01-01T00:00:00.000Z",
