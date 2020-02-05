@@ -6,17 +6,13 @@ const {readEnvironmentVariable, parseBoolean} = Utils; // eslint-disable-line no
 export const RECORD_LOAD_URL = readEnvironmentVariable('RECORD_LOAD_URL');
 export const RECORD_LOAD_API_KEY = readEnvironmentVariable('RECORD_LOAD_API_KEY');
 export const RECORD_LOAD_LIBRARY = readEnvironmentVariable('RECORD_LOAD_LIBRARY');
-export const DEFAULT_CATALOGER_ID = readEnvironmentVariable('DEFAULT_CATALOGER_ID', {defaultValue: 'API'});
 
-// Mongo variables
-export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://localhost:27017/db'});
+// Amqp variables to priority
+export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672/'});
 
-// Rabbit queue variables
-export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {format: v => JSON.parse(v)});
-export const PURGE_QUEUE_ON_LOAD = readEnvironmentVariable('PURGE_QUEUE_ON_LOAD', {defaultValue: 1, format: v => parseBoolean(v)});
-export const POLL_WAIT_TIME = readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000});
+// Mongo variables to bulk
+export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1:27017/db'});
 
 // Operation variables
+export const POLL_WAIT_TIME = readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000});
 export const OPERATION = readEnvironmentVariable('OPERATION');
-
-export const [OFFLINE_BEGIN, OFFLINE_DURATION] = readEnvironmentVariable('OFFLINE_PERIOD', {defaultValue: '0,0', format: v => v.split(',')});
