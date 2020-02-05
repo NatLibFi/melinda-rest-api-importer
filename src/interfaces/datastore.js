@@ -1,22 +1,17 @@
 /* eslint-disable no-unused-vars */
+import HttpStatus from 'http-status';
+import moment from 'moment';
+import fetch from 'node-fetch';
+import {URL} from 'url';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import DatastoreError, {Utils} from '@natlibfi/melinda-commons';
-import fetch from 'node-fetch';
-import HttpStatus from 'http-status';
-import {URL} from 'url';
-import moment from 'moment';
-import {promisify} from 'util';
+import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
 
-import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL, DEFAULT_CATALOGER_ID} from '../config';
-import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons/dist/constants';
 const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
-const setTimeoutPromise = promisify(setTimeout);
-
-const FIX_ROUTINE = 'API'; // Henrillä ja esalla INSB
+const FIX_ROUTINE = 'API';
 const UPDATE_ACTION = 'REP';
-const MAX_RETRIES_ON_CONFLICT = 10;
-const RETRY_WAIT_TIME_ON_CONFLICT = 1000;
 
 export const INDEXING_PRIORITY = {
 	HIGH: 1,
@@ -28,18 +23,18 @@ export function datastoreFactory() {
 
 	return {set};
 
-	async function set({correlationId = undefined, records, operation, cataloger = DEFAULT_CATALOGER_ID, recordLoadParams, indexingPriority = INDEXING_PRIORITY.HIGH}) {
+	async function set({correlationId = undefined, records, operation, cataloger, recordLoadParams}) {
 		records = records.map(record => {
 			return AlephSequential.to(record);
 		});
 		const recordData = records.join('');
-		return loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams, indexingPriority});
+		return loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams});
 	}
 
-	async function loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams, indexingPriority, retriesCount = 0}) {
+	async function loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams}) {
 		const url = new URL(RECORD_LOAD_URL);
 
-		// TODO: Pass correlationId to record-load-api so it can use same name in log files?
+		// Pass correlationId to record-load-api so it can use same name in log files
 		url.search = new URLSearchParams([
 			['correlationId', correlationId],
 			['library', recordLoadParams.library || RECORD_LOAD_LIBRARY],
@@ -47,10 +42,10 @@ export function datastoreFactory() {
 			['fixRoutine', recordLoadParams.fixRoutine || FIX_ROUTINE],
 			['updateAction', recordLoadParams.updateAction || UPDATE_ACTION],
 			['cataloger', recordLoadParams.cataloger || cataloger],
-			['indexingPriority', recordLoadParams.indexingPriority || generateIndexingPriority(indexingPriority, operation === OPERATIONS.CREATE)]
+			['indexingPriority', recordLoadParams.indexingPriority || generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE)]
 		]);
 
-		// Set Bulk loader settings
+		// Set Bulk loader optional settings
 		if (recordLoadParams.indexing) {
 			url.searchParams.set('indexing', recordLoadParams.indexing);
 		}
@@ -88,12 +83,11 @@ export function datastoreFactory() {
 			return {payloads: idList};
 		}
 
-		// If record-load-api finds result file that should not be there!
+		// If record-load-api finds result file that should not be there! (e.g. record load api has crashed mid process)
 		if (response.status === HttpStatus.CONFLICT) {
 			const array = await response.json();
-			logger.log('info', `Got conflict response. ${array}`);
+			logger.log('info', `Got conflict response. Ids: ${array}`);
 			const idList = array.filter(id => id.length > 0).map(id => formatRecordId(id));
-			console.log(idList);
 			return {payloads: idList, ackOnlyLength: idList.length};
 		}
 

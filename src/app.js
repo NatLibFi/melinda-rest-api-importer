@@ -34,13 +34,23 @@ async function run() {
 		if (headers && records) {
 			try {
 				// Work with results
-				const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
 				if (OPERATION_TYPES.includes(queue)) {
+					const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
 					const results = await datastoreOperator.set({...headers, records, recordLoadParams});
-					await amqpOperator.ackNReplyMessages({status, messages, payloads: results.payloads});
-				} else {
+
+					// Handle separation of all ready done records
+					if (results.ackOnlyLength === undefined) {
+						await amqpOperator.ackNReplyMessages({status, messages, payloads: results.payloads});
+					} else {
+						const ack = messages.splice(0, results.ackOnlyLength);
+						await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
+						await amqpOperator.nackMessages(messages);
+					}
+				} else { // Could send confirmation back to record load api that ids are saved to db and it is ok to clear the files
 					const results = await datastoreOperator.set({correlationId: queue, ...headers, records, recordLoadParams});
 					await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
+
+					// Handle separation of all ready done records
 					if (results.ackOnlyLength === undefined) {
 						await amqpOperator.ackMessages(messages);
 					} else {
@@ -58,6 +68,7 @@ async function run() {
 					const payloads = (error.payload) ? new Array(messages.lenght).fill(error.payload) : [];
 					await amqpOperator.ackNReplyMessages({status, messages, payloads});
 				} else {
+					// Return bulk stuff back to queue
 					await amqpOperator.nackMessages(messages);
 					await setTimeoutPromise(POLL_WAIT_TIME);
 				}
@@ -76,28 +87,29 @@ async function run() {
 	}
 
 	async function checkMongoDB() {
-		let result = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
-		if (!result) {
-			result = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE});
+		let queueItem = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
+		if (!queueItem) {
+			queueItem = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE});
 		}
 
-		if (result) {
-			const amount = await amqpOperator.checkQueue(result.correlationId, 'messages', false);
-			if (amount) {
-				if (result.queueItemState === QUEUE_ITEM_STATE.IN_QUEUE) {
-					logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: result.correlationId, state: QUEUE_ITEM_STATE.IN_PROCESS})));
+		if (queueItem) {
+			const messagesAmount = await amqpOperator.checkQueue(queueItem.correlationId, 'messages', false);
+			if (messagesAmount) {
+				if (queueItem.queueItemState === QUEUE_ITEM_STATE.IN_QUEUE) {
+					logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IN_PROCESS})));
 				}
 
-				return checkAmqpQueue(result.correlationId, result.recordLoadParams);
+				return checkAmqpQueue(queueItem.correlationId, queueItem.recordLoadParams);
 			}
 
-			if (result.queueItemState === QUEUE_ITEM_STATE.IN_PROCESS) {
-				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: result.correlationId, state: QUEUE_ITEM_STATE.DONE})));
+			if (queueItem.queueItemState === QUEUE_ITEM_STATE.IN_PROCESS) {
+				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE})));
 				// Clean empty queues
-				amqpOperator.removeQueue(result.correlationId);
+				amqpOperator.removeQueue(queueItem.correlationId);
 			} else {
-				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: result.correlationId, state: QUEUE_ITEM_STATE.ERROR})));
-				amqpOperator.removeQueue(result.correlationId);
+				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR})));
+				// Clean empty queues
+				amqpOperator.removeQueue(queueItem.correlationId);
 			}
 
 			return checkAmqpQueue();
