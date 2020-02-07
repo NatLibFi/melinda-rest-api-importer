@@ -1,5 +1,5 @@
 FROM node:10-alpine
-CMD ["/usr/local/bin/node", "index.js"]
+CMD ["/usr/local/bin/node", "app.js"]
 WORKDIR /home/node
 
 COPY --chown=node:node . build
