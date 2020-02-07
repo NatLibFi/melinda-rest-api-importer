@@ -15,7 +15,7 @@ run();
 async function run() {
 	const logger = createLogger(); // eslint-disable-line no-console
 	registerSignalHandlers();
-	logger.log('info', 'Melinda-rest-import-queue has been started');
+	logger.log('info', `Melinda-rest-import-queue has been started: ${OPERATION}`);
 	const amqpOperator = await amqpFactory(AMQP_URL);
 	const mongoOperator = await mongoFactory(MONGO_URI);
 	const datastoreOperator = datastoreFactory();
