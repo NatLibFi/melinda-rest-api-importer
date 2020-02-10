@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@natlibfi/marc-record": "^4.0.1",
-    "@natlibfi/melinda-commons": "git+https://github.com/NatLibFi/melinda-commons-js.git#new-common-class-error",
+    "@natlibfi/melinda-commons": "^7.2.0",
     "@natlibfi/melinda-record-import-commons": "git+https://github.com/NatLibFi/melinda-record-import-commons.git#melkehitys-1054-1117",
     "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
     "amqplib": "^0.5.5",
