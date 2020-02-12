@@ -46,6 +46,15 @@ export function datastoreFactory() {
 		]);
 
 		// Set Bulk loader optional settings
+
+		if (recordLoadParams.rejectedFile) {
+			url.searchParams.set('rejectedFile', recordLoadParams.rejectedFile);
+		}
+
+		if (recordLoadParams.resultFile) {
+			url.searchParams.set('resultFile', recordLoadParams.resultFile);
+		}
+
 		if (recordLoadParams.indexing) {
 			url.searchParams.set('indexing', recordLoadParams.indexing);
 		}
