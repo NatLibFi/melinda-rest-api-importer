@@ -1,7 +1,0 @@
-{
-  "exec": "npm run lint:dev && npm run app:dev",
-  "watch": [
-    "src/*"
-  ],
-  "ext": "js"
-}

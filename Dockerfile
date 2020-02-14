@@ -1,4 +1,4 @@
-FROM node:10-alpine
+FROM node:12-alpine
 CMD ["/usr/local/bin/node", "app.js"]
 WORKDIR /home/node
 

@@ -2,33 +2,46 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {AMQP_URL, OPERATION, POLL_WAIT_TIME, MONGO_URI} from './config';
 import {promisify} from 'util';
 import {datastoreFactory} from './interfaces/datastore';
 
-const setTimeoutPromise = promisify(setTimeout);
-const {createLogger, handleInterrupt} = Utils;
-const OPERATION_TYPES = [OPERATIONS.CREATE, OPERATIONS.UPDATE];
-
-run();
-
-async function run() {
+export default async function ({
+	amqpUrl, operation, pollWaitTime, mongoUri,
+	recordLoadApiKey, recordLoadLibrary, recordLoadUrl
+}) {
+	const setTimeoutPromise = promisify(setTimeout);
+	const {createLogger} = Utils;
 	const logger = createLogger(); // eslint-disable-line no-console
-	registerSignalHandlers();
-	logger.log('info', `Melinda-rest-api-importer has been started: ${OPERATION}`);
-	const amqpOperator = await amqpFactory(AMQP_URL);
-	const mongoOperator = await mongoFactory(MONGO_URI);
-	const datastoreOperator = datastoreFactory();
+	const OPERATION_TYPES = [OPERATIONS.CREATE, OPERATIONS.UPDATE];
+	let amqpOperator;
+	let mongoOperator;
+	let datastoreOperator;
 
-	try {
-		// Start loop
-		await checkAmqpQueue(OPERATION);
-	} catch (error) {
-		logError(error);
-		process.exit(0);
+	const app = await initApp();
+	// Soft shutdown function
+	app.on('close', async () => {
+		// Things that need soft shutdown
+		// amqp disconnect?
+		// mongo disconnect?
+	});
+
+	return app;
+
+	async function initApp() {
+		try {
+			amqpOperator = await amqpFactory(amqpUrl);
+			mongoOperator = await mongoFactory(mongoUri);
+			datastoreOperator = datastoreFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
+
+			// Start loop
+			await checkAmqpQueue();
+		} catch (error) {
+			logError(error);
+			process.exit(1);
+		}
 	}
 
-	async function checkAmqpQueue(queue = OPERATION, recordLoadParams = {}) {
+	async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
 		const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', false);
 
 		if (headers && records) {
@@ -39,41 +52,43 @@ async function run() {
 					const results = await datastoreOperator.set({...headers, records, recordLoadParams});
 
 					// Handle separation of all ready done records
-					if (results.ackOnlyLength === undefined) {
-						await amqpOperator.ackNReplyMessages({status, messages, payloads: results.payloads});
-					} else {
-						const ack = messages.splice(0, results.ackOnlyLength);
-						await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
-						await amqpOperator.nackMessages(messages);
-					}
-				} else { // Could send confirmation back to record load api that ids are saved to db and it is ok to clear the files
-					const results = await datastoreOperator.set({correlationId: queue, ...headers, records, recordLoadParams});
-					await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
+					const ack = (results.ackOnlyLength === undefined) ? messages.splice(0) : messages.splice(0, results.ackOnlyLength);
+					await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
 
-					// Handle separation of all ready done records
-					if (results.ackOnlyLength === undefined) {
-						await amqpOperator.ackMessages(messages);
-					} else {
-						const ack = messages.splice(0, results.ackOnlyLength);
-						await amqpOperator.ackMessages(ack);
+					if (messages.lenght > 0) {
 						await amqpOperator.nackMessages(messages);
 					}
+
+					return checkAmqpQueue();
+				}
+
+				// Could send confirmation back to record load api that ids are saved to db and it is ok to clear the files
+				const results = await datastoreOperator.set({correlationId: queue, ...headers, records, recordLoadParams});
+				await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
+
+				// Handle separation of all ready done records
+				const ack = (results.ackOnlyLength === undefined) ? messages.splice(0) : messages.splice(0, results.ackOnlyLength);
+				await amqpOperator.ackMessages(ack);
+
+				if (messages.lenght > 0) {
+					await amqpOperator.nackMessages(messages);
 				}
 
 				return checkAmqpQueue();
 			} catch (error) {
+				logError(error);
 				if (OPERATION_TYPES.includes(queue)) {
 					// Send response back if PRIO
 					const status = error.status;
 					const payloads = (error.payload) ? new Array(messages.lenght).fill(error.payload) : [];
 					await amqpOperator.ackNReplyMessages({status, messages, payloads});
-				} else {
-					// Return bulk stuff back to queue
-					await amqpOperator.nackMessages(messages);
-					await setTimeoutPromise(POLL_WAIT_TIME);
+
+					return checkAmqpQueue();
 				}
 
-				logError(error);
+				// Return bulk stuff back to queue
+				await amqpOperator.nackMessages(messages);
+
 				return checkAmqpQueue();
 			}
 		}
@@ -87,9 +102,9 @@ async function run() {
 	}
 
 	async function checkMongoDB() {
-		let queueItem = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
+		let queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
 		if (!queueItem) {
-			queueItem = await mongoOperator.getOne({operation: OPERATION, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE});
+			queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE});
 		}
 
 		if (queueItem) {
@@ -106,25 +121,18 @@ async function run() {
 				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE})));
 				// Clean empty queues
 				amqpOperator.removeQueue(queueItem.correlationId);
-			} else {
-				logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR})));
-				// Clean empty queues
-				amqpOperator.removeQueue(queueItem.correlationId);
+
+				return checkAmqpQueue();
 			}
+
+			logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR})));
+			// Clean empty queues
+			amqpOperator.removeQueue(queueItem.correlationId);
 
 			return checkAmqpQueue();
 		}
 
-		await setTimeoutPromise(POLL_WAIT_TIME);
+		await setTimeoutPromise(pollWaitTime);
 		return checkAmqpQueue();
-	}
-
-	function registerSignalHandlers() {
-		process
-			.on('SIGINT', handleInterrupt)
-			.on('uncaughtException', handleInterrupt)
-			.on('unhandledRejection', handleInterrupt);
-		// Nodemon
-		// .on('SIGUSR2', handle);
 	}
 }

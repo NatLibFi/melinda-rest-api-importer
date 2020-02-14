@@ -6,7 +6,6 @@ import {URL} from 'url';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import DatastoreError, {Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY, RECORD_LOAD_URL} from '../config';
 
 const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 
@@ -18,7 +17,7 @@ export const INDEXING_PRIORITY = {
 	LOW: 2
 };
 
-export function datastoreFactory() {
+export function datastoreFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 	const logger = createLogger();
 
 	return {set};
@@ -32,12 +31,12 @@ export function datastoreFactory() {
 	}
 
 	async function loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams}) {
-		const url = new URL(RECORD_LOAD_URL);
+		const url = new URL(recordLoadUrl);
 
 		// Pass correlationId to record-load-api so it can use same name in log files
 		url.search = new URLSearchParams([
 			['correlationId', correlationId],
-			['library', recordLoadParams.library || RECORD_LOAD_LIBRARY],
+			['library', recordLoadParams.library || recordLoadLibrary],
 			['method', operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'],
 			['fixRoutine', recordLoadParams.fixRoutine || FIX_ROUTINE],
 			['updateAction', recordLoadParams.updateAction || UPDATE_ACTION],
@@ -81,7 +80,7 @@ export function datastoreFactory() {
 			headers: {
 				'Content-Type': 'text/plain',
 				Accept: 'text/plain',
-				Authorization: generateAuthorizationHeader(RECORD_LOAD_API_KEY)
+				Authorization: generateAuthorizationHeader(recordLoadApiKey)
 			}
 		});
 
@@ -104,7 +103,8 @@ export function datastoreFactory() {
 		throw new DatastoreError(response.status, await response.text());
 
 		function formatRecordId(id) {
-			const pattern = new RegExp(`${RECORD_LOAD_LIBRARY.toUpperCase()}$`);
+			const pattern = (recordLoadParams.library) ? new RegExp(`${recordLoadParams.library.toUpperCase()}$`) :
+				new RegExp(`${recordLoadLibrary.toUpperCase()}$`);
 			return id.replace(pattern, '');
 		}
 

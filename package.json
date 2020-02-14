@@ -17,24 +17,24 @@
   "version": "0.0.1",
   "main": "./dist/index.js",
   "engines": {
-    "node": "10"
+    "node": "12"
   },
   "private": true,
   "scripts": {
     "start": "npm run app",
     "lint": "eslint ./src",
     "lint:dev": "eslint ./src --fix",
-    "app:dev": "babel-node ./src/app",
+    "app:dev": "babel-node ./src/index",
     "app": "node -r esm ./src/app",
     "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
-    "clean": "rimraf dist",
-    "build": "babel ./src --out-dir dist",
-    "prod": "NODE_ENV=production npm-run-all clean build app"
+		"build" : "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist --minified",
+    "prod": "NODE_ENV=production npm-run-all clean build app",
+    "test": "npm run lint",
+		"test:dev": "npm run lint:dev"
   },
   "dependencies": {
     "@natlibfi/marc-record": "^4.0.1",
     "@natlibfi/melinda-commons": "^7.2.0",
-    "@natlibfi/melinda-record-import-commons": "git+https://github.com/NatLibFi/melinda-record-import-commons.git#melkehitys-1054-1117",
     "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
     "amqplib": "^0.5.5",
     "esm": "^3.2.25",
@@ -42,8 +42,7 @@
     "moment": "^2.24.0",
     "mongodb": "^3.4.1",
     "node-fetch": "^2.6.0",
-    "npm-run-all": "^4.1.5",
-    "rimraf": "^3.0.0"
+    "npm-run-all": "^4.1.5"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",
@@ -80,10 +79,18 @@
         "@babel/preset-env",
         {
           "targets": {
-            "node": "10"
+            "node": "12"
           }
         }
       ]
     ]
+  },
+  "nodemonConfig": {
+    "exec": "npm run lint:dev && npm run app:dev",
+    "watch": [
+      "src/*"
+    ],
+    "ext": "js",
+    "delay": 2.5
   }
 }
