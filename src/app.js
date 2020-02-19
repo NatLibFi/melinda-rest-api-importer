@@ -1,9 +1,10 @@
 /* eslint-disable no-unused-vars */
 
-import {Utils} from '@natlibfi/melinda-commons';
+import ApiError, {Utils} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
-import {datastoreFactory} from './interfaces/datastore';
+import recordLoadFactory from './interfaces/datastore';
+import processFactory from './interfaces/processPoll';
 
 export default async function ({
 	amqpUrl, operation, pollWaitTime, mongoUri,
@@ -13,9 +14,11 @@ export default async function ({
 	const {createLogger} = Utils;
 	const logger = createLogger(); // eslint-disable-line no-console
 	const OPERATION_TYPES = [OPERATIONS.CREATE, OPERATIONS.UPDATE];
+	const purgeQueues = false;
 	let amqpOperator;
 	let mongoOperator;
-	let datastoreOperator;
+	let recordLoadOperator;
+	let processOperator;
 
 	const app = await initApp();
 	// Soft shutdown function
@@ -31,48 +34,104 @@ export default async function ({
 		try {
 			amqpOperator = await amqpFactory(amqpUrl);
 			mongoOperator = await mongoFactory(mongoUri);
-			datastoreOperator = datastoreFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
-
+			recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
+			processOperator = processFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
 			// Start loop
-			await checkAmqpQueue();
+			await checkProcess(true);
 		} catch (error) {
 			logError(error);
 			process.exit(1);
 		}
 	}
 
+	async function checkProcess() {
+		await checkProcessQueue(operation);
+
+		const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
+		if (queueItem) {
+			console.log('check process queueItem');
+			await checkProcessQueue(queueItem.correlationId);
+		}
+
+		return checkAmqpQueue();
+	}
+
+	async function checkProcessQueue(queue) {
+		let processMessage;
+		try {
+			processMessage = await amqpOperator.checkQueue('PROCESS.' + queue, 'raw', purgeQueues);
+			if (processMessage) {
+				const processParams = JSON.parse(processMessage.content.toString());
+				const results = await processOperator.pollProcess(processParams.data);
+
+				const {headers, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
+				if (messages) {
+					await handleMessages(results, headers, messages);
+				}
+
+				processOperator.requestFileClear(processParams.data);
+				return;
+			}
+
+			return;
+		} catch (error) {
+			if (error instanceof ApiError && error.status === 423) {
+				await amqpOperator.nackMessages([processMessage]);
+				await setTimeoutPromise(pollWaitTime);
+				return checkProcessQueue(queue);
+			}
+
+			throw error;
+		}
+
+		async function handleMessages(results, headers, messages) {
+			const ack = messages.splice(0, results.ackOnlyLength);
+			if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
+				// Handle separation of all ready done records
+				const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
+				await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
+
+				if (messages === []) {
+					return;
+				}
+
+				await amqpOperator.nackMessages(messages);
+				return;
+			}
+
+			// Ids to mongo
+			await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
+
+			// Handle separation of all ready done records
+			await amqpOperator.ackMessages(ack);
+
+			if (messages === []) {
+				return;
+			}
+
+			await amqpOperator.nackMessages(messages);
+		}
+	}
+
 	async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
-		const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', false);
+		const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
 
 		if (headers && records) {
+			await amqpOperator.nackMessages(messages);
 			try {
-				// Work with results
-				if (OPERATION_TYPES.includes(queue)) {
-					const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
-					const results = await datastoreOperator.set({...headers, records, recordLoadParams});
+				const {processId, correlationId} = (OPERATION_TYPES.includes(queue)) ? await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true}) :
+					await recordLoadOperator.loadRecord({correlationId: queue, ...headers, records, recordLoadParams, prio: false});
 
-					// Handle separation of all ready done records
-					const ack = (results.ackOnlyLength === undefined) ? messages.splice(0) : messages.splice(0, results.ackOnlyLength);
-					await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
-
-					if (messages.lenght > 0) {
-						await amqpOperator.nackMessages(messages);
+				// Send to process queue {queue, correlationId, headers, data}
+				await amqpOperator.sendToQueue({
+					queue: 'PROCESS.' + queue, correlationId: correlationId, headers: {queue}, data: {
+						correlationId: correlationId,
+						pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
+						processId
 					}
+				});
 
-					return checkAmqpQueue();
-				}
-
-				// Could send confirmation back to record load api that ids are saved to db and it is ok to clear the files
-				const results = await datastoreOperator.set({correlationId: queue, ...headers, records, recordLoadParams});
-				await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
-
-				// Handle separation of all ready done records
-				const ack = (results.ackOnlyLength === undefined) ? messages.splice(0) : messages.splice(0, results.ackOnlyLength);
-				await amqpOperator.ackMessages(ack);
-
-				if (messages.lenght > 0) {
-					await amqpOperator.nackMessages(messages);
-				}
+				await checkProcess();
 
 				return checkAmqpQueue();
 			} catch (error) {
@@ -98,6 +157,7 @@ export default async function ({
 			return checkAmqpQueue();
 		}
 
+		console.log('check amqp queue to check mongodb');
 		return checkMongoDB();
 	}
 
@@ -108,7 +168,7 @@ export default async function ({
 		}
 
 		if (queueItem) {
-			const messagesAmount = await amqpOperator.checkQueue(queueItem.correlationId, 'messages', false);
+			const messagesAmount = await amqpOperator.checkQueue(queueItem.correlationId, 'messages', purgeQueues);
 			if (messagesAmount) {
 				if (queueItem.queueItemState === QUEUE_ITEM_STATE.IN_QUEUE) {
 					logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IN_PROCESS})));

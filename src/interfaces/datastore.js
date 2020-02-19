@@ -7,71 +7,40 @@ import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import DatastoreError, {Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 
-const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
-
-const FIX_ROUTINE = 'API';
-const UPDATE_ACTION = 'REP';
-
-export const INDEXING_PRIORITY = {
-	HIGH: 1,
-	LOW: 2
-};
-
-export function datastoreFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
+export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
+	const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
 	const logger = createLogger();
+	const INDEXING_PRIORITY = {
+		HIGH: 1,
+		LOW: 2
+	};
 
-	return {set};
+	return {loadRecord};
 
-	async function set({correlationId = undefined, records, operation, cataloger, recordLoadParams}) {
+	async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
 		records = records.map(record => {
 			return AlephSequential.to(record);
 		});
 		const recordData = records.join('');
-		return loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams});
-	}
 
-	async function loadRecord({correlationId, recordData, operation, cataloger, recordLoadParams}) {
 		const url = new URL(recordLoadUrl);
 
 		// Pass correlationId to record-load-api so it can use same name in log files
 		url.search = new URLSearchParams([
 			['correlationId', correlationId],
-			['library', recordLoadParams.library || recordLoadLibrary],
-			['method', operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'],
-			['fixRoutine', recordLoadParams.fixRoutine || FIX_ROUTINE],
-			['updateAction', recordLoadParams.updateAction || UPDATE_ACTION],
-			['cataloger', recordLoadParams.cataloger || cataloger],
-			['indexingPriority', recordLoadParams.indexingPriority || generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE)]
+			['pActiveLibrary', recordLoadParams.pActiveLibrary || recordLoadLibrary],
+			['pOldNew', operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'],
+			['pFixType', prio ? 'API' : 'INSB'],
+			['pCatalogerIn', recordLoadParams.pCatalogerIn || cataloger],
+			['pZ07PriorityYear', prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099]
 		]);
 
-		// Set Bulk loader optional settings
-
-		if (recordLoadParams.rejectedFile) {
-			url.searchParams.set('rejectedFile', recordLoadParams.rejectedFile);
+		if (recordLoadParams.pRejectFile) {
+			url.searchParams.set('pRejectFile', recordLoadParams.pRejectFile);
 		}
 
-		if (recordLoadParams.resultFile) {
-			url.searchParams.set('resultFile', recordLoadParams.resultFile);
-		}
-
-		if (recordLoadParams.indexing) {
-			url.searchParams.set('indexing', recordLoadParams.indexing);
-		}
-
-		if (recordLoadParams.mode) {
-			url.searchParams.set('mode', recordLoadParams.mode);
-		}
-
-		if (recordLoadParams.charConversion) {
-			url.searchParams.set('charConversion', recordLoadParams.charConversion);
-		}
-
-		if (recordLoadParams.mergeRoutine) {
-			url.searchParams.set('mergeRoutine', recordLoadParams.mergeRoutine);
-		}
-
-		if (recordLoadParams.catalogerLevel) {
-			url.searchParams.set('catalogerLevel', recordLoadParams.catalogerLevel);
+		if (recordLoadParams.pLogFile) {
+			url.searchParams.set('pLogFile', recordLoadParams.pLogFile);
 		}
 
 		const response = await fetch(url, {
@@ -79,34 +48,18 @@ export function datastoreFactory(recordLoadApiKey, recordLoadLibrary, recordLoad
 			body: recordData,
 			headers: {
 				'Content-Type': 'text/plain',
-				Accept: 'text/plain',
+				Accept: 'text/plain', // Might need change
 				Authorization: generateAuthorizationHeader(recordLoadApiKey)
 			}
 		});
 
 		if (response.status === HttpStatus.OK) {
-			const array = await response.json();
-			const idList = array.filter(id => id.length > 0).map(id => formatRecordId(id));
-			logger.log('debug', `Ids back from record-load-api: ${idList}`);
-			return {payloads: idList};
-		}
-
-		// If record-load-api finds result file that should not be there! (e.g. record load api has crashed mid process)
-		if (response.status === HttpStatus.CONFLICT) {
-			const array = await response.json();
-			logger.log('info', `Got conflict response. Ids: ${array}`);
-			const idList = array.filter(id => id.length > 0).map(id => formatRecordId(id));
-			return {payloads: idList, ackOnlyLength: idList.length};
+			const processId = await response.json();
+			return processId;
 		}
 
 		// Unexpected! Retry?
 		throw new DatastoreError(response.status, await response.text());
-
-		function formatRecordId(id) {
-			const pattern = (recordLoadParams.library) ? new RegExp(`${recordLoadParams.library.toUpperCase()}$`) :
-				new RegExp(`${recordLoadLibrary.toUpperCase()}$`);
-			return id.replace(pattern, '');
-		}
 
 		function generateIndexingPriority(priority, forCreated) {
 			if (priority === INDEXING_PRIORITY.HIGH) {
