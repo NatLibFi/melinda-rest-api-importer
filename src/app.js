@@ -49,7 +49,6 @@ export default async function ({
 
 		const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
 		if (queueItem) {
-			console.log('check process queueItem');
 			await checkProcessQueue(queueItem.correlationId);
 		}
 
@@ -69,47 +68,49 @@ export default async function ({
 					await handleMessages(results, headers, messages);
 				}
 
-				processOperator.requestFileClear(processParams.data);
+				await processOperator.requestFileClear(processParams.data);
+				await amqpOperator.ackMessages([processMessage]);
+				await setTimeoutPromise(100); // (S)Nack time!
+
 				return;
 			}
 
 			return;
 		} catch (error) {
-			if (error instanceof ApiError && error.status === 423) {
-				await amqpOperator.nackMessages([processMessage]);
-				await setTimeoutPromise(pollWaitTime);
-				return checkProcessQueue(queue);
+			if (error instanceof ApiError) {
+				if (error.status === 423) {
+					await amqpOperator.nackMessages([processMessage]);
+					await setTimeoutPromise(pollWaitTime);
+
+					return checkProcessQueue(queue);
+				}
+
+				if (error.status === 404) {
+					await amqpOperator.ackMessages([processMessage]);
+
+					return checkProcess();
+				}
 			}
 
 			throw error;
 		}
 
 		async function handleMessages(results, headers, messages) {
+			// Handle separation of all ready done records
 			const ack = messages.splice(0, results.ackOnlyLength);
+			await amqpOperator.nackMessages(messages);
+
 			if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
 				// Handle separation of all ready done records
 				const status = (headers.operation === OPERATIONS.CREATE) ? 'CREATED' : 'UPDATED';
 				await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
 
-				if (messages === []) {
-					return;
-				}
-
-				await amqpOperator.nackMessages(messages);
 				return;
 			}
 
 			// Ids to mongo
 			await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
-
-			// Handle separation of all ready done records
 			await amqpOperator.ackMessages(ack);
-
-			if (messages === []) {
-				return;
-			}
-
-			await amqpOperator.nackMessages(messages);
 		}
 	}
 
@@ -147,7 +148,7 @@ export default async function ({
 
 				// Return bulk stuff back to queue
 				await amqpOperator.nackMessages(messages);
-
+				await setTimeoutPromise(200); // (S)Nack time!
 				return checkAmqpQueue();
 			}
 		}
@@ -157,7 +158,6 @@ export default async function ({
 			return checkAmqpQueue();
 		}
 
-		console.log('check amqp queue to check mongodb');
 		return checkMongoDB();
 	}
 
