@@ -21,19 +21,19 @@
   },
   "private": true,
   "scripts": {
-    "start": "npm run app",
+    "start": "node -r esm ./dist/index",
+    "start:dev": "babel-node ./src/index",
     "lint": "eslint ./src",
     "lint:dev": "eslint ./src --fix",
-    "app:dev": "babel-node ./src/index",
-    "app": "node -r esm ./src/index",
+    "check-deps": "npm-check;exit 0",
+    "test": "npm run lint",
     "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
     "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist --minified",
-    "prod": "NODE_ENV=production npm-run-all clean build app",
-    "test": "npm run lint",
-    "test:dev": "npm run lint:dev"
+    "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
     "@natlibfi/marc-record": "^4.0.1",
+    "@natlibfi/marc-record-serializers": "5.0.1",
     "@natlibfi/melinda-commons": "^7.2.0",
     "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
     "amqplib": "^0.5.5",
@@ -41,8 +41,7 @@
     "http-status": "^1.4.2",
     "moment": "^2.24.0",
     "mongodb": "^3.4.1",
-    "node-fetch": "^2.6.0",
-    "npm-run-all": "^4.1.5"
+    "node-fetch": "^2.6.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",
@@ -50,12 +49,12 @@
     "@babel/node": "^7.8.4",
     "@babel/preset-env": "^7.8.4",
     "@babel/register": "^7.8.3",
-    "nodemon": "^1.19.4",
     "babel-eslint": "^10.0.2",
-    "cross-env": "^6.0.3",
+    "cross-env": "^7.0.0",
     "eslint": "^6.4.0",
     "eslint-config-xo": ">=0.27.1 <1.0.0",
     "eslint-plugin-import": "^2.18.2",
+    "nodemon": "^2.0.2",
     "npm-check": "^5.9.0"
   },
   "eslintConfig": {
@@ -86,7 +85,7 @@
     ]
   },
   "nodemonConfig": {
-    "exec": "npm run lint:dev && npm run app:dev",
+    "exec": "npm run lint:dev && npm run start:dev",
     "watch": [
       "src/*"
     ],
