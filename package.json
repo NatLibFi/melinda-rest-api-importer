@@ -25,7 +25,7 @@
     "start:dev": "babel-node ./src/index",
     "lint": "eslint ./src",
     "lint:dev": "eslint ./src --fix",
-    "check-deps": "npm-check;exit 0",
+    "check-deps": "npm-check; exit 0",
     "test": "npm run lint",
     "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
     "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist --minified",
