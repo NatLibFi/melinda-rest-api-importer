@@ -36,11 +36,9 @@
     "@natlibfi/marc-record-serializers": "5.0.1",
     "@natlibfi/melinda-commons": "^7.2.0",
     "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
-    "amqplib": "^0.5.5",
     "esm": "^3.2.25",
     "http-status": "^1.4.2",
     "moment": "^2.24.0",
-    "mongodb": "^3.4.1",
     "node-fetch": "^2.6.0"
   },
   "devDependencies": {
