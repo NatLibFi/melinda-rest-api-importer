@@ -56,6 +56,7 @@ export default async function ({
 	}
 
 	async function checkProcessQueue(queue) {
+		logger.log('debug', `Checking process queue: PROCESS.${queue}`);
 		let processMessage;
 		try {
 			processMessage = await amqpOperator.checkQueue('PROCESS.' + queue, 'raw', purgeQueues);
@@ -68,8 +69,9 @@ export default async function ({
 					await handleMessages(results, headers, messages);
 				}
 
-				await processOperator.requestFileClear(processParams.data);
 				await amqpOperator.ackMessages([processMessage]);
+				logger.log('debug', 'Requesting file cleaning');
+				await processOperator.requestFileClear(processParams.data);
 				await setTimeoutPromise(100); // (S)Nack time!
 
 				return;
@@ -96,6 +98,7 @@ export default async function ({
 		}
 
 		async function handleMessages(results, headers, messages) {
+			logger.log('debug', 'Handling process messages based on results got from process polling');
 			// Handle separation of all ready done records
 			const ack = messages.splice(0, results.ackOnlyLength);
 			await amqpOperator.nackMessages(messages);

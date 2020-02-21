@@ -26,7 +26,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 			}
 		});
 
-		logger.log('debug', 'Got response for process poll!');
+		logger.log('info', 'Got response for process poll!');
 		logger.log('debug', `Status: ${response.status}`);
 
 		// OK (200)
@@ -40,7 +40,6 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 		// R-L-A has crashed (409)
 		if (response.status === HttpStatus.CONFLICT) {
 			const array = await response.json();
-			console.log(array);
 			if (array.length > 0) {
 				const idList = array.map(id => formatRecordId(pActiveLibrary, id));
 				logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);

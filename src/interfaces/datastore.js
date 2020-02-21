@@ -35,11 +35,12 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 			['pZ07PriorityYear', prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099]
 		]);
 
-		if (recordLoadParams.pRejectFile) {
+		// Sets major log files if given
+		if (recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '') {
 			url.searchParams.set('pRejectFile', recordLoadParams.pRejectFile);
 		}
 
-		if (recordLoadParams.pLogFile) {
+		if (recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '') {
 			url.searchParams.set('pLogFile', recordLoadParams.pLogFile);
 		}
 
@@ -48,10 +49,12 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 			body: recordData,
 			headers: {
 				'Content-Type': 'text/plain',
-				Accept: 'text/plain', // Might need change
 				Authorization: generateAuthorizationHeader(recordLoadApiKey)
 			}
 		});
+
+		logger.log('info', 'Got response for load record');
+		logger.log('debug', `Status: ${response.status}`);
 
 		if (response.status === HttpStatus.OK) {
 			const processId = await response.json();
