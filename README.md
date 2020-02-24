@@ -15,25 +15,7 @@ While service is in operation, if AMQP does not have anything in `'QUEUE'` it ch
 | OFFLINE_PERIOD      | No        | Starting hour and length of offline period. e.g `'11,1'`                                                           |
 | POLL_WAIT_TIME      | No        | A number value presenting time in ms between polling                                                               |
 
-P_manage_18 confs
-| P_manage_18 args      | camelCase           | Prio update | Prio create | Bulk update | Bulk create | Finto             | NOTE                           |
-|-----------------------|---------------------|-------------|-------------|-------------|-------------|-------------------|--------------------------------|
-| "p_active_library"    | "pActiveLibrary"    | `params`    | `params`    | `params`    | `params`    | `params`          |                                |
-| "p_input_file"        | "pInputFile"        | `generated` | `generated` | `generated` | `generated` | `generated`       |                                |
-| "p_reject_file"       | "pRejectFile"       | `generated` | `generated` | `generated` | `generated` | `generated`       |                                |
-| "p_log_file"          | "pLogFile"          | `generated` | `generated` | `generated` | `generated` | `generated`       |                                |
-| "p_old_new"           | "pOldNew"           | OLD         | NEW         | OLD         | NEW         | NEW / OLD         |                                |
-| "p_fix_type"          | "pFixType"          | API         | API         | INSB        | INSB        | INSA              | Alpeh fix routine code         |
-| "p_check_references"  | "pCheckReferences"  |             |             |             |             |                   |                                |
-| "p_update_f"          | "pUpdateF"          | FULL        | FULL        | FULL        | FULL        | FULL              | Indexing                       |
-| "p_update_type"       | "pUpdateType"       | REP         | REP         | REP         | REP         | REP / APP / MERGE | REP or APP (REPlace or APPend) |
-| "p_update_mode"       | "pUpdateMode"       | M           | M           | M           | M           | M                 | M (Multi-user)                 |
-| "p_char_conv"         | "pCharConv"         |             |             |             |             |                   |                                |
-| "p_merge_type"        | "pMergeType"        |             |             |             |             | '' / REPLACE      |                                |
-| "p_cataloger_in"      | "pCatalogerIn"      | `params`    | `params`    | `params`    | `params`    | `params`          |                                |
-| "p_cataloger_level_x" | "pCatalogerLevelX"  |             |             |             |             | 30                |                                |
-| "p_z07_priority_year" | "pZ07PriorityYear"  | 1998        | 1990        | 2099        | 2099        | 2095              |                                |
-| "p_redirection_field" | "pRedirectionField" |             |             |             |             |                   |                                |
+
 
 ### Mongo
 Db: `'rest-api'`
@@ -46,23 +28,16 @@ Queue-item schema:
 	"operation":"UPDATE",
 	"contentType":"application/json",
 	"recordLoadParams": {
-        "library": "XXX00",
-        "inputFile": "filename.seq",
-        "method": "NEW",
-        "fixRoutine": "INSB",
-        "space": "",
-        "indexing": "FULL",
-        "updateAction": "APP",
-        "mode": "M",
-        "charConversion": "",
-        "mergeRoutine": "",
-        "cataloger": "XXX0000",
-        "catalogerLevel": "",
-        "indexingPriority": "2099"
+        "pActiveLibrary": "XXX00",
+        "pInputFile": "filename.seq",
+        "pRejectFile": "filename.rej",
+        "pLogFile": "filename.syslog",
+        "pOldNew": "NEW"
       },
-	"queueItemState":"PENDING_QUEUING",
+	"queueItemState":"DONE",
 	"creationTime":"2020-01-01T00:00:00.000Z",
-	"modificationTime":"2020-01-01T00:00:01.000Z"
+  "modificationTime":"2020-01-01T00:00:01.000Z",
+  "handledIds": [ "000000001","000000002"]
 }
 ```
 
