@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 
-import ApiError, {Utils} from '@natlibfi/melinda-commons';
+import {Error, Utils} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/datastore';
@@ -79,7 +79,7 @@ export default async function ({
 
 			return;
 		} catch (error) {
-			if (error instanceof ApiError) {
+			if (error instanceof Error) {
 				if (error.status === 423) {
 					await amqpOperator.nackMessages([processMessage]);
 					await setTimeoutPromise(pollWaitTime);

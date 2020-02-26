@@ -4,7 +4,7 @@ import moment from 'moment';
 import fetch from 'node-fetch';
 import {URL} from 'url';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import DatastoreError, {Utils} from '@natlibfi/melinda-commons';
+import {Error, Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
@@ -62,7 +62,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 		}
 
 		// Unexpected! Retry?
-		throw new DatastoreError(response.status, await response.text());
+		throw new Error(response.status, await response.text());
 
 		function generateIndexingPriority(priority, forCreated) {
 			if (priority === INDEXING_PRIORITY.HIGH) {

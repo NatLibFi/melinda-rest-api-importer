@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import HttpStatus from 'http-status';
-import ApiError, {Utils} from '@natlibfi/melinda-commons';
+import {Error, Utils} from '@natlibfi/melinda-commons';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 	const {createLogger, generateAuthorizationHeader} = Utils;
@@ -52,16 +52,26 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 		// Not found (404)
 		if (response.status === HttpStatus.NOT_FOUND) {
 			logger.log('info', 'Got "not found" (404) response from record-load-api. Process log files missing!');
-			throw new ApiError(404, 'Process log not found!');
+			throw new Error(HttpStatus.NOT_FOUND, 'Process log not found!');
 		}
 
 		// Locked (423) too early
 		if (response.status === HttpStatus.LOCKED) {
 			logger.log('info', 'Got "locked" (423) response from record-load-api. Process is still going on!');
-			throw new ApiError(423, 'Not ready yet!');
+			throw new Error(HttpStatus.LOCKED, 'Not ready yet!');
 		}
 
-		throw new ApiError(500, 'Unexpected');
+		// Forbidden (403)
+		if (response.status === HttpStatus.FORBIDDEN) {
+			throw new Error(HttpStatus.FORBIDDEN);
+		}
+
+		// Unauthorized (401)
+		if (response.status === HttpStatus.UNAUTHORIZED) {
+			throw new Error(HttpStatus.UNAUTHORIZED);
+		}
+
+		throw new Error(HttpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
 	}
 
 	async function requestFileClear({correlationId, pActiveLibrary, processId}) {
