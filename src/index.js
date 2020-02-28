@@ -7,11 +7,10 @@ run();
 
 async function run() {
 	const {handleInterrupt} = Utils;
-	let app;
 
 	registerInterruptionHandlers();
 
-	app = await startApp({...config});
+	await startApp({...config});
 
 	function registerInterruptionHandlers() {
 		process
@@ -25,12 +24,9 @@ async function run() {
 			});
 
 		function handleTermination({code = 0, message}) {
-			if (app) {
-				app.close();
-			}
-
 			if (message) {
 				logError(message);
+				process.exit(code);
 			}
 
 			process.exit(code);

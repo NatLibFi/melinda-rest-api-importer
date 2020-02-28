@@ -18,10 +18,9 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 	return {loadRecord};
 
 	async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
-		records = records.map(record => {
+		const seqRecords = records.map(record => {
 			return AlephSequential.to(record);
-		});
-		const recordData = records.join('');
+		}).join('');
 
 		const url = new URL(recordLoadUrl);
 
@@ -32,21 +31,14 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 			['pOldNew', operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'],
 			['pFixType', prio ? 'API' : 'INSB'],
 			['pCatalogerIn', recordLoadParams.pCatalogerIn || cataloger],
-			['pZ07PriorityYear', prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099]
+			['pZ07PriorityYear', prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099],
+			['pRejectFile', (recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '') ? recordLoadParams.pRejectFile : null],
+			['pLogFile', (recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '') ? recordLoadParams.pLogFile : null]
 		]);
-
-		// Sets major log files if given
-		if (recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '') {
-			url.searchParams.set('pRejectFile', recordLoadParams.pRejectFile);
-		}
-
-		if (recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '') {
-			url.searchParams.set('pLogFile', recordLoadParams.pLogFile);
-		}
 
 		const response = await fetch(url, {
 			method: 'POST',
-			body: recordData,
+			body: seqRecords,
 			headers: {
 				'Content-Type': 'text/plain',
 				Authorization: generateAuthorizationHeader(recordLoadApiKey)
