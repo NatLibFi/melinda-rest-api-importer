@@ -8,14 +8,16 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
 	return {pollProcess, requestFileClear};
 
-	async function pollProcess({correlationId, pActiveLibrary, processId}) {
+	async function pollProcess({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
 		const url = new URL(recordLoadUrl);
 
 		// Pass correlationId to record-load-api so it can use same name in log files
 		url.search = new URLSearchParams([
 			['correlationId', correlationId],
 			['pActiveLibrary', pActiveLibrary],
-			['processId', processId]
+			['processId', processId],
+			['pLogFile', pLogFile || null],
+			['pRejectFile', pRejectFile || null]
 		]);
 
 		const response = await fetch(url, {

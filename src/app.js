@@ -27,7 +27,13 @@ export default async function ({
 
 		const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
 		if (queueItem) {
-			return checkProcessQueue(queueItem.correlationId);
+			// Check if process queue has items
+			const messagesAmount = await amqpOperator.checkQueue('PROCESS.' + queueItem.correlationId, 'messages', purgeQueues);
+			if (messagesAmount) {
+				return checkProcessQueue(queueItem.correlationId);
+			}
+
+			return checkAmqpQueue();
 		}
 
 		return checkAmqpQueue();
@@ -71,8 +77,6 @@ export default async function ({
 			return checkAmqpQueue();
 		}
 
-		return checkAmqpQueue();
-
 		async function handleMessages(results, headers, messages) {
 			logger.log('debug', 'Handling process messages based on results got from process polling');
 			// Handle separation of all ready done records
@@ -99,7 +103,7 @@ export default async function ({
 		if (headers && records) {
 			await amqpOperator.nackMessages(messages);
 			try {
-				const {processId, correlationId} = (OPERATION_TYPES.includes(queue)) ? await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true}) :
+				const {processId, correlationId, pLogFile, pRejectFile} = (OPERATION_TYPES.includes(queue)) ? await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true}) :
 					await recordLoadOperator.loadRecord({correlationId: queue, ...headers, records, recordLoadParams, prio: false});
 
 				// Send to process queue {queue, correlationId, headers, data}
@@ -107,7 +111,7 @@ export default async function ({
 					queue: 'PROCESS.' + queue, correlationId: correlationId, headers: {queue}, data: {
 						correlationId: correlationId,
 						pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
-						processId
+						processId, pRejectFile, pLogFile
 					}
 				});
 
