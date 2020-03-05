@@ -44,8 +44,8 @@ export default async function ({
 		logger.log('debug', `Checking process queue: PROCESS.${queue}`);
 		const processMessage = await amqpOperator.checkQueue('PROCESS.' + queue, 'raw', purgeQueues);
 		if (processMessage) {
-			const processParams = JSON.parse(processMessage.content.toString());
 			try {
+				const processParams = JSON.parse(processMessage.content.toString());
 				const results = await processOperator.pollProcess(processParams.data);
 				const {headers, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
 				if (messages) {
