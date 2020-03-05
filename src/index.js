@@ -24,16 +24,18 @@ async function run() {
 			});
 
 		function handleTermination({code = 0, message}) {
-			if (message) {
-				logError(message);
-				process.exit(code);
-			}
-
+			logMessage(message);
 			process.exit(code);
 		}
 
 		function handleSignal(signal) {
 			handleTermination({code: 1, message: `Received ${signal}`});
+		}
+
+		function logMessage(message) {
+			if (message) {
+				return logError(message);
+			}
 		}
 	}
 }

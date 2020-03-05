@@ -1,10 +1,11 @@
 /* eslint-disable no-unused-vars */
 
-import {Error, Utils} from '@natlibfi/melinda-commons';
+import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/datastore';
 import processFactory from './interfaces/processPoll';
+import httpStatus from 'http-status';
 
 export default async function ({
 	amqpUrl, operation, pollWaitTime, mongoUri,
@@ -48,18 +49,25 @@ export default async function ({
 				const results = await processOperator.pollProcess(processParams.data);
 				const {headers, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
 				if (messages) {
+					console.log('handling messages');
 					await handleMessages(results, headers, messages);
+					await amqpOperator.ackMessages([processMessage]);
+					logger.log('debug', 'Requesting file cleaning');
+					await processOperator.requestFileClear(processParams.data);
+					await setTimeoutPromise(100); // (S)Nack time!
+
+					return checkAmqpQueue();
 				}
 			} catch (error) {
-				if (error instanceof Error) {
-					if (error.status === 423) {
+				if (error instanceof ApiError) {
+					if (error.status === httpStatus.LOCKED) {
 						await amqpOperator.nackMessages([processMessage]);
 						await setTimeoutPromise(pollWaitTime);
 
 						return checkProcessQueue(queue);
 					}
 
-					if (error.status === 404) {
+					if (error.status === httpStatus.NOT_FOUND) {
 						await amqpOperator.ackMessages([processMessage]);
 
 						return checkProcess();
@@ -68,11 +76,6 @@ export default async function ({
 
 				throw error;
 			}
-
-			await amqpOperator.ackMessages([processMessage]);
-			logger.log('debug', 'Requesting file cleaning');
-			await processOperator.requestFileClear(processParams.data);
-			await setTimeoutPromise(100); // (S)Nack time!
 
 			return checkAmqpQueue();
 		}

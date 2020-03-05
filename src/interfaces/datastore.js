@@ -4,7 +4,7 @@ import moment from 'moment';
 import fetch from 'node-fetch';
 import {URL} from 'url';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import {Error, Utils} from '@natlibfi/melinda-commons';
+import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
@@ -54,7 +54,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 		}
 
 		// Unexpected! Retry?
-		throw new Error(response.status, await response.text());
+		throw new ApiError(response.status, await response.text());
 
 		function generateIndexingPriority(priority, forCreated) {
 			if (priority === INDEXING_PRIORITY.HIGH) {
