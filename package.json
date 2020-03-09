@@ -1,0 +1,93 @@
+{
+  "name": "@natlibfi/melinda-rest-api-importer",
+  "description": "API microservice of Melinda record batch import system",
+  "author": {
+    "name": "The National Library of Finland"
+  },
+  "keywords": [],
+  "homepage": "https://github.com/NatLibFi/melinda-rest-api-importer",
+  "bugs": {
+    "url": "https://github.com/NatLibFi/melinda-rest-api-importer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
+  },
+  "license": "AGPL-3.0+",
+  "version": "0.0.1",
+  "main": "./dist/index.js",
+  "engines": {
+    "node": "12"
+  },
+  "private": true,
+  "scripts": {
+    "start": "node -r esm ./dist/index",
+    "start:dev": "babel-node ./src/index",
+    "lint": "eslint ./src",
+    "lint:dev": "eslint ./src --fix",
+    "check-deps": "npm-check; exit 0",
+    "test": "npm run lint",
+    "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
+    "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist --minified",
+    "prod": "NODE_ENV=production npm run build && npm run start"
+  },
+  "dependencies": {
+    "@natlibfi/marc-record": "^4.0.1",
+    "@natlibfi/marc-record-serializers": "5.0.1",
+    "@natlibfi/melinda-commons": "^7.2.1",
+    "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
+    "esm": "^3.2.25",
+    "http-status": "^1.4.2",
+    "moment": "^2.24.0",
+    "node-fetch": "^2.6.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.8.4",
+    "@babel/node": "^7.8.4",
+    "@babel/preset-env": "^7.8.4",
+    "@babel/register": "^7.8.3",
+    "babel-eslint": "^10.0.2",
+    "cross-env": "^7.0.0",
+    "eslint": "^6.4.0",
+    "eslint-config-xo": ">=0.27.1 <1.0.0",
+    "eslint-plugin-import": "^2.18.2",
+    "nodemon": "^2.0.2",
+    "npm-check": "^5.9.0"
+  },
+  "eslintConfig": {
+    "parser": "babel-eslint",
+    "plugins": [
+      "import"
+    ],
+    "extends": [
+      "xo",
+      "plugin:import/errors"
+    ],
+    "rules": {
+      "prefer-arrow-callback": [
+        "error"
+      ]
+    }
+  },
+  "babel": {
+    "presets": [
+      [
+        "@babel/preset-env",
+        {
+          "targets": {
+            "node": "12"
+          }
+        }
+      ]
+    ]
+  },
+  "nodemonConfig": {
+    "exec": "npm run lint:dev && npm run start:dev",
+    "watch": [
+      "src/*"
+    ],
+    "ext": "js",
+    "delay": 2.5
+  }
+}
