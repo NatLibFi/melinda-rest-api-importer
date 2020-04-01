@@ -66,6 +66,12 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       return {payloads: [], ackOnlyLength: 0};
     }
 
+    // Not found (406)
+    if (response.status === HttpStatus.NOT_ACCEPTABLE) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "not found" (406) response from record-load-api. 0 processed records!');
+      throw new ApiError(HttpStatus.NOT_ACCEPTABLE, '0 processed records!');
+    }
+
     // Not found (404)
     if (response.status === HttpStatus.NOT_FOUND) { // eslint-disable-line functional/no-conditional-statement
       logger.log('info', 'Got "not found" (404) response from record-load-api. Process log files missing!');

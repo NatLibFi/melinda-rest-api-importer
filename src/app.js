@@ -52,7 +52,8 @@ export default async function ({
         const results = await processOperator.pollProcess(processParams.data);
         const {headers, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
         if (messages) {
-          await handleMessages(results, headers, messages);
+          const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
+          await handleMessages(results, status, messages);
           await amqpOperator.ackMessages([processMessage]);
           logger.log('debug', 'Requesting file cleaning');
           await processOperator.requestFileClear(processParams.data);
@@ -69,6 +70,27 @@ export default async function ({
             return checkProcessQueue(queue);
           }
 
+          if (error.status === httpStatus.NOT_ACCEPTABLE) {
+            // Reply to priority
+            if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
+              const {status} = error;
+              const payloads = [error.payload];
+              const {messages} = await amqpOperator.checkQueue(processMessage.properties.headers.queue, 'basic', false);
+              const results = {
+                payloads,
+                ackOnlyLength: 1
+              };
+              await handleMessages(results, status, messages);
+              await amqpOperator.ackMessages([processMessage]);
+
+              return checkProcess();
+            }
+
+            await amqpOperator.ackMessages([processMessage]);
+
+            return checkProcess();
+          }
+
           if (error.status === httpStatus.NOT_FOUND) {
             await amqpOperator.ackMessages([processMessage]);
 
@@ -82,7 +104,7 @@ export default async function ({
       return checkAmqpQueue();
     }
 
-    async function handleMessages(results, headers, messages) {
+    async function handleMessages(results, status, messages) {
       logger.log('debug', 'Handling process messages based on results got from process polling');
       // Handle separation of all ready done records
       const ack = messages.splice(0, results.ackOnlyLength); // eslint-disable-line functional/immutable-data
@@ -90,7 +112,6 @@ export default async function ({
 
       if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
         // Handle separation of all ready done records
-        const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
         await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
 
         return;
