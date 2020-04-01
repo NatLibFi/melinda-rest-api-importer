@@ -35,7 +35,7 @@
     "@natlibfi/marc-record": "^4.0.1",
     "@natlibfi/marc-record-serializers": "5.0.1",
     "@natlibfi/melinda-commons": "^7.2.1",
-    "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#dev",
+    "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#melkehitys-1054",
     "esm": "^3.2.25",
     "http-status": "^1.4.2",
     "moment": "^2.24.0",
@@ -50,25 +50,12 @@
     "babel-eslint": "^10.0.2",
     "cross-env": "^7.0.0",
     "eslint": "^6.4.0",
-    "eslint-config-xo": ">=0.27.1 <1.0.0",
-    "eslint-plugin-import": "^2.18.2",
+    "@natlibfi/eslint-config-melinda-backend": ">1.0.0-alpha.1",
     "nodemon": "^2.0.2",
     "npm-check": "^5.9.0"
   },
   "eslintConfig": {
-    "parser": "babel-eslint",
-    "plugins": [
-      "import"
-    ],
-    "extends": [
-      "xo",
-      "plugin:import/errors"
-    ],
-    "rules": {
-      "prefer-arrow-callback": [
-        "error"
-      ]
-    }
+    "extends": "@natlibfi/melinda-backend"
   },
   "babel": {
     "presets": [

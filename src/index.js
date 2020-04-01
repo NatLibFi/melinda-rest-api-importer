@@ -6,36 +6,36 @@ import {logError} from '@natlibfi/melinda-rest-api-commons';
 run();
 
 async function run() {
-	const {handleInterrupt} = Utils;
+  const {handleInterrupt} = Utils;
 
-	registerInterruptionHandlers();
+  registerInterruptionHandlers();
 
-	await startApp({...config});
+  await startApp({...config});
 
-	function registerInterruptionHandlers() {
-		process
-			.on('SIGTERM', handleSignal)
-			.on('SIGINT', handleInterrupt)
-			.on('uncaughtException', ({stack}) => {
-				handleTermination({code: 1, message: stack});
-			})
-			.on('unhandledRejection', ({stack}) => {
-				handleTermination({code: 1, message: stack});
-			});
+  function registerInterruptionHandlers() {
+    process
+      .on('SIGTERM', handleSignal)
+      .on('SIGINT', handleInterrupt)
+      .on('uncaughtException', ({stack}) => {
+        handleTermination({code: 1, message: stack});
+      })
+      .on('unhandledRejection', ({stack}) => {
+        handleTermination({code: 1, message: stack});
+      });
 
-		function handleTermination({code = 0, message}) {
-			logMessage(message);
-			process.exit(code);
-		}
+    function handleTermination({code = 0, message}) {
+      logMessage(message);
+      process.exit(code); // eslint-disable-line no-process-exit
+    }
 
-		function handleSignal(signal) {
-			handleTermination({code: 1, message: `Received ${signal}`});
-		}
+    function handleSignal(signal) {
+      handleTermination({code: 1, message: `Received ${signal}`});
+    }
 
-		function logMessage(message) {
-			if (message) {
-				return logError(message);
-			}
-		}
-	}
+    function logMessage(message) {
+      if (message) {
+        return logError(message);
+      }
+    }
+  }
 }
