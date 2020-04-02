@@ -44,7 +44,6 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     });
 
     logger.log('info', 'Got response for process poll!');
-    logger.log('debug', `Status: ${response.status}`);
 
     // OK (200)
     if (response.status === HttpStatus.OK) {
@@ -86,19 +85,19 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
     // Forbidden (403)
     if (response.status === HttpStatus.FORBIDDEN) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "FORBIDDEN" (423) response from record-load-api.');
+      logger.log('info', 'Got "FORBIDDEN" (403) response from record-load-api.');
       throw new ApiError(HttpStatus.FORBIDDEN);
     }
 
     // Unauthorized (401)
     if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "UNAUTHORIZED" (423) response from record-load-api.');
+      logger.log('info', 'Got "UNAUTHORIZED" (401) response from record-load-api.');
       throw new ApiError(HttpStatus.UNAUTHORIZED);
     }
 
     // Unauthorized (503)
     if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (423) response from record-load-api.');
+      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (503) response from record-load-api.');
       throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
     }
 
