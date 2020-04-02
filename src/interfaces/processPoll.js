@@ -96,7 +96,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
     // Unauthorized (503)
     if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
-      throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE);
+      throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
     }
 
     throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
