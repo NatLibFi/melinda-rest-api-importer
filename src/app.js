@@ -70,7 +70,7 @@ export default async function ({
             return checkProcessQueue(queue);
           }
 
-          if (error.status === httpStatus.NOT_ACCEPTABLE) {
+          if (error.status === httpStatus.NOT_ACCEPTABLE || error.status === httpStatus.SERVICE_UNAVAILABLE) {
             // Reply to priority
             if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
               const {status} = error;
