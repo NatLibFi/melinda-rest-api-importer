@@ -68,34 +68,37 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
     // Not found (406)
     if (response.status === HttpStatus.NOT_ACCEPTABLE) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "not found" (406) response from record-load-api. 0 processed records!');
+      logger.log('info', 'Got "NOT_ACCEPTABLE" (406) response from record-load-api. 0 processed records!');
       throw new ApiError(HttpStatus.NOT_ACCEPTABLE, '0 processed records!');
     }
 
     // Not found (404)
     if (response.status === HttpStatus.NOT_FOUND) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "not found" (404) response from record-load-api. Process log files missing!');
+      logger.log('info', 'Got "NOT_FOUND" (404) response from record-load-api. Process log files missing!');
       throw new ApiError(HttpStatus.NOT_FOUND, 'Process log not found!');
     }
 
     // Locked (423) too early
     if (response.status === HttpStatus.LOCKED) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "locked" (423) response from record-load-api. Process is still going on!');
+      logger.log('info', 'Got "LOCKED" (423) response from record-load-api. Process is still going on!');
       throw new ApiError(HttpStatus.LOCKED, 'Not ready yet!');
     }
 
     // Forbidden (403)
     if (response.status === HttpStatus.FORBIDDEN) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "FORBIDDEN" (423) response from record-load-api.');
       throw new ApiError(HttpStatus.FORBIDDEN);
     }
 
     // Unauthorized (401)
     if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "UNAUTHORIZED" (423) response from record-load-api.');
       throw new ApiError(HttpStatus.UNAUTHORIZED);
     }
 
     // Unauthorized (503)
-    if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
+    if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (423) response from record-load-api.');
       throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
     }
 
