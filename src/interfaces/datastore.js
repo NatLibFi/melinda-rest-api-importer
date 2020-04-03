@@ -75,6 +75,24 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       return processId;
     }
 
+    // Forbidden (403)
+    if (response.status === HttpStatus.FORBIDDEN) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "FORBIDDEN" (403) response from record-load-api.');
+      throw new ApiError(HttpStatus.FORBIDDEN);
+    }
+
+    // Unauthorized (401)
+    if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "UNAUTHORIZED" (401) response from record-load-api.');
+      throw new ApiError(HttpStatus.UNAUTHORIZED);
+    }
+
+    // Service unavailable (503)
+    if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (503) response from record-load-api.');
+      throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
+    }
+
     // Unexpected! Retry?
     throw new ApiError(response.status, await response.text());
 
