@@ -70,32 +70,24 @@ export default async function ({
             return checkProcessQueue(queue);
           }
 
-          if (error.status === httpStatus.NOT_ACCEPTABLE || error.status === httpStatus.SERVICE_UNAVAILABLE) {
-            // Reply to priority
-            if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
-              const {status} = error;
-              const payloads = [error.payload];
-              const {messages} = await amqpOperator.checkQueue(processMessage.properties.headers.queue, 'basic', false);
-              const results = {
-                payloads,
-                ackOnlyLength: 1
-              };
-              await handleMessages(results, status, messages);
-              await amqpOperator.ackMessages([processMessage]);
-
-              return checkProcess();
-            }
-
+          // Reply to priority
+          if (OPERATION_TYPES.includes(processMessage.properties.headers.queue)) {
+            const {status} = error;
+            const payloads = [error.payload];
+            const {messages} = await amqpOperator.checkQueue(processMessage.properties.headers.queue, 'basic', false);
+            const results = {
+              payloads,
+              ackOnlyLength: 1
+            };
+            await handleMessages(results, status, messages);
             await amqpOperator.ackMessages([processMessage]);
 
             return checkProcess();
           }
 
-          if (error.status === httpStatus.NOT_FOUND) {
-            await amqpOperator.ackMessages([processMessage]);
+          await amqpOperator.ackMessages([processMessage]);
 
-            return checkProcess();
-          }
+          return checkProcess();
         }
 
         throw error;
