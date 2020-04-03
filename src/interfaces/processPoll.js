@@ -65,7 +65,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       return {payloads: [], ackOnlyLength: 0};
     }
 
-    // Not found (406)
+    // Not acceptable (406)
     if (response.status === HttpStatus.NOT_ACCEPTABLE) { // eslint-disable-line functional/no-conditional-statement
       logger.log('info', 'Got "NOT_ACCEPTABLE" (406) response from record-load-api. 0 processed records!');
       throw new ApiError(HttpStatus.NOT_ACCEPTABLE, '0 processed records!');
@@ -95,7 +95,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       throw new ApiError(HttpStatus.UNAUTHORIZED);
     }
 
-    // Unauthorized (503)
+    // Service unavailable (503)
     if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
       logger.log('info', 'Got "SERVICE_UNAVAILABLE" (503) response from record-load-api.');
       throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
