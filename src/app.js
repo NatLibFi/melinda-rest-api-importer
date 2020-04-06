@@ -75,11 +75,7 @@ export default async function ({
             const {status} = error;
             const payloads = [error.payload];
             const {messages} = await amqpOperator.checkQueue(processMessage.properties.headers.queue, 'basic', false);
-            const results = {
-              payloads,
-              ackOnlyLength: 1
-            };
-            await handleMessages(results, status, messages);
+            await amqpOperator.ackNReplyMessages({status, messages, payloads});
             await amqpOperator.ackMessages([processMessage]);
 
             return checkProcess();
