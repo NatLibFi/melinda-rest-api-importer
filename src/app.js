@@ -131,6 +131,7 @@ export default async function ({
       } catch (error) {
         logError(error);
         if (OPERATION_TYPES.includes(queue)) {
+          const {messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
           // Send response back if PRIO
           const {status} = error;
           const payloads = error.payload ? new Array(messages.lenght).fill(error.payload) : [];
