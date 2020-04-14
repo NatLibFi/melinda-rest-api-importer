@@ -71,7 +71,9 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     logger.log('debug', `Status: ${response.status}`);
 
     if (response.status === HttpStatus.OK) {
+      logger.log('info', 'Got "OK" (200) response from record-load-api.');
       const processId = await response.json();
+      logger.log('debug', `Process id: ${processId}`);
       return processId;
     }
 
