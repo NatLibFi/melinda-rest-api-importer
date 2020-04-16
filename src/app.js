@@ -116,7 +116,7 @@ export default async function ({
 
     if (headers && records) {
       logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
-      logger.log('debug', records);
+      console.log('debug', records);  // eslint-disable-line no-console
       logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
       await amqpOperator.nackMessages(messages);
       try {
