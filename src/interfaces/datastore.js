@@ -18,7 +18,9 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   return {loadRecord};
 
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
+    logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
     logger.log('debug', records);
+    logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
     const url = new URL(recordLoadUrl);
