@@ -18,6 +18,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   return {loadRecord};
 
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
+    logger.log('debug', records);
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
     const url = new URL(recordLoadUrl);
@@ -73,7 +74,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     if (response.status === HttpStatus.OK) {
       logger.log('info', 'Got "OK" (200) response from record-load-api.');
       const result = await response.json();
-      logger.log('debug', `Process id: ${JSON.stringify(result)}`);
+      logger.log('debug', `Response: ${JSON.stringify(result)}`);
       return result;
     }
 
