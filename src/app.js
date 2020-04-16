@@ -115,6 +115,9 @@ export default async function ({
     const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
 
     if (headers && records) {
+      logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      logger.log('debug', records);
+      logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
       await amqpOperator.nackMessages(messages);
       try {
         const {processId, correlationId, pLogFile, pRejectFile} = OPERATION_TYPES.includes(queue) ? await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true})
