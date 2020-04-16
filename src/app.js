@@ -116,7 +116,7 @@ export default async function ({
 
     if (headers && records) {
       logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
-      console.log('records lenght', records.lenght());  // eslint-disable-line no-console
+      console.log('records lenght', JSON.stringify(records));  // eslint-disable-line no-console
       logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
       await amqpOperator.nackMessages(messages);
       try {
