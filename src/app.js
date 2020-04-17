@@ -13,7 +13,7 @@ export default async function ({
 }) {
   const setTimeoutPromise = promisify(setTimeout);
   const {createLogger} = Utils;
-  const logger = createLogger(); // eslint-disable-line no-console
+  const logger = createLogger();
   const OPERATION_TYPES = [
     OPERATIONS.CREATE,
     OPERATIONS.UPDATE
@@ -115,9 +115,6 @@ export default async function ({
     const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
 
     if (headers && records) {
-      logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
-      console.log('records lenght', JSON.stringify(records));  // eslint-disable-line no-console
-      logger.log('debug', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
       await amqpOperator.nackMessages(messages);
       try {
         const {processId, correlationId, pLogFile, pRejectFile} = OPERATION_TYPES.includes(queue) ? await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true})

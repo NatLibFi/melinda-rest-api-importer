@@ -4,7 +4,7 @@ import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   const {createLogger, generateAuthorizationHeader} = Utils;
-  const logger = createLogger(); // eslint-disable-line no-console
+  const logger = createLogger();
 
   return {pollProcess, requestFileClear};
 
