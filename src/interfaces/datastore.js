@@ -1,11 +1,11 @@
 /* eslint-disable no-unused-vars */
-import HttpStatus from 'http-status';
+import httpStatus from 'http-status';
 import moment from 'moment';
-import fetch from 'node-fetch';
-import {URL} from 'url';
+import axios from 'axios';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {checkStatus, handleConectionError} from '../utils';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
@@ -20,83 +20,43 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
-    const url = new URL(recordLoadUrl);
+    const params = {
+      correlationId,
+      pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
+      pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
+      pFixType: prio ? 'API' : 'INSB',
+      pCatalogerIn: recordLoadParams.pCatalogerIn || cataloger,
+      pZ07PriorityYear: prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099,
+      pRejectFile: recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null,
+      pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
+    };
 
-    // Pass correlationId to record-load-api so it can use same name in log files
-    url.search = new URLSearchParams([ // eslint-disable-line functional/immutable-data
-      [
-        'correlationId',
-        correlationId
-      ],
-      [
-        'pActiveLibrary',
-        recordLoadParams.pActiveLibrary || recordLoadLibrary
-      ],
-      [
-        'pOldNew',
-        operation === OPERATIONS.CREATE ? 'NEW' : 'OLD'
-      ],
-      [
-        'pFixType',
-        prio ? 'API' : 'INSB'
-      ],
-      [
-        'pCatalogerIn',
-        recordLoadParams.pCatalogerIn || cataloger
-      ],
-      [
-        'pZ07PriorityYear',
-        prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099
-      ],
-      [
-        'pRejectFile',
-        recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null
-      ],
-      [
-        'pLogFile',
-        recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
-      ]
-    ]);
-
-    const response = await fetch(url, {
-      method: 'POST',
-      body: seqRecords,
+    const response = await axios({
+      method: 'post',
+      baseURL: recordLoadUrl,
+      url: '',
       headers: {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
-      }
-    });
+      },
+      params,
+      data: seqRecords
+    }).catch(error => handleConectionError(error));
 
     logger.log('info', 'Got response for load record');
     logger.log('debug', `Status: ${response.status}`);
 
-    if (response.status === HttpStatus.OK) {
+    checkStatus(response);
+
+    if (response.status === httpStatus.OK) {
       logger.log('info', 'Got "OK" (200) response from record-load-api.');
-      const result = await response.json();
+      const result = await response.data;
       logger.log('debug', `Response: ${JSON.stringify(result)}`);
       return result;
     }
 
-    // Forbidden (403)
-    if (response.status === HttpStatus.FORBIDDEN) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "FORBIDDEN" (403) response from record-load-api.');
-      throw new ApiError(HttpStatus.FORBIDDEN);
-    }
-
-    // Unauthorized (401)
-    if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "UNAUTHORIZED" (401) response from record-load-api.');
-      throw new ApiError(HttpStatus.UNAUTHORIZED);
-    }
-
-    // Service unavailable (503)
-    if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (503) response from record-load-api.');
-      throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
-    }
-
     // Unexpected! Retry?
-    throw new ApiError(response.status, await response.text());
+    throw new ApiError(response.status || httpStatus.INTERNAL_SERVER_ERROR, response ? await response.text() : 'Internal error');
 
     function generateIndexingPriority(priority, forCreated) {
       if (priority === INDEXING_PRIORITY.HIGH) {

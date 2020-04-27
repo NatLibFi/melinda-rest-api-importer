@@ -1,61 +1,52 @@
-import fetch from 'node-fetch';
-import HttpStatus from 'http-status';
+import axios from 'axios';
+import httpStatus from 'http-status';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {checkStatus, handleConectionError} from '../utils';
 
-export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
+export default function ({recordLoadApiKey, recordLoadUrl}) {
   const {createLogger, generateAuthorizationHeader} = Utils;
   const logger = createLogger();
 
-  return {pollProcess, requestFileClear};
+  return {poll, requestFileClear};
 
-  async function pollProcess({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
-    const url = new URL(recordLoadUrl);
+  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
-    url.search = new URLSearchParams([ // eslint-disable-line functional/immutable-data
-      [
-        'correlationId',
-        correlationId
-      ],
-      [
-        'pActiveLibrary',
-        pActiveLibrary
-      ],
-      [
-        'processId',
-        processId
-      ],
-      [
-        'pLogFile',
-        pLogFile || null
-      ],
-      [
-        'pRejectFile',
-        pRejectFile || null
-      ]
-    ]);
+    const params = {
+      correlationId,
+      pActiveLibrary,
+      processId,
+      pLogFile: pLogFile || null,
+      pRejectFile: pRejectFile || null
+    };
 
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await axios({
+      method: 'get',
+      baseURL: recordLoadUrl,
+      url: '',
       headers: {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
-      }
-    });
+      },
+      params
+    }).catch(error => handleConectionError(error));
 
     logger.log('info', 'Got response for process poll!');
+    logger.log('debug', `Status: ${response.status}`);
+
+    checkStatus(response);
 
     // OK (200)
-    if (response.status === HttpStatus.OK) {
-      const array = await response.json();
+    if (response.status === httpStatus.OK) {
+      const array = await response.data;
       const idList = array.map(id => formatRecordId(pActiveLibrary, id));
       logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
       return {payloads: idList, ackOnlyLength: idList.length};
     }
 
     // R-L-A has crashed (409)
-    if (response.status === HttpStatus.CONFLICT) {
-      const array = await response.json();
+    if (response.status === httpStatus.CONFLICT) {
+      const array = await response.data;
       if (array.length > 0) {
         const idList = array.map(id => formatRecordId(pActiveLibrary, id));
         logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);
@@ -65,71 +56,29 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       return {payloads: [], ackOnlyLength: 0};
     }
 
-    // Not acceptable (406)
-    if (response.status === HttpStatus.NOT_ACCEPTABLE) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "NOT_ACCEPTABLE" (406) response from record-load-api. 0 processed records!');
-      throw new ApiError(HttpStatus.NOT_ACCEPTABLE, '0 processed records!');
-    }
-
-    // Not found (404)
-    if (response.status === HttpStatus.NOT_FOUND) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "NOT_FOUND" (404) response from record-load-api. Process log files missing!');
-      throw new ApiError(HttpStatus.NOT_FOUND, 'Process log not found!');
-    }
-
-    // Locked (423) too early
-    if (response.status === HttpStatus.LOCKED) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "LOCKED" (423) response from record-load-api. Process is still going on!');
-      throw new ApiError(HttpStatus.LOCKED, 'Not ready yet!');
-    }
-
-    // Forbidden (403)
-    if (response.status === HttpStatus.FORBIDDEN) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "FORBIDDEN" (403) response from record-load-api.');
-      throw new ApiError(HttpStatus.FORBIDDEN);
-    }
-
-    // Unauthorized (401)
-    if (response.status === HttpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "UNAUTHORIZED" (401) response from record-load-api.');
-      throw new ApiError(HttpStatus.UNAUTHORIZED);
-    }
-
-    // Service unavailable (503)
-    if (response.status === HttpStatus.SERVICE_UNAVAILABLE) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('info', 'Got "SERVICE_UNAVAILABLE" (503) response from record-load-api.');
-      throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
-    }
-
-    throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
   async function requestFileClear({correlationId, pActiveLibrary, processId}) {
-    const url = new URL(recordLoadUrl);
-
     // Pass correlationId to record-load-api so it can use same name in log files
-    url.search = new URLSearchParams([ // eslint-disable-line functional/immutable-data
-      [
-        'correlationId',
-        correlationId
-      ],
-      [
-        'pActiveLibrary',
-        pActiveLibrary
-      ],
-      [
-        'processId',
-        processId
-      ]
-    ]);
+    const params = {
+      correlationId,
+      pActiveLibrary,
+      processId
+    };
 
-    const response = await fetch(url, {
+    const response = await axios({
       method: 'delete',
+      baseURL: recordLoadUrl,
+      url: '',
       headers: {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
-      }
-    });
+      },
+      params
+    }).catch(error => handleConectionError(error));
+
+    checkStatus(response);
 
     logger.log('debug', 'Got response for file clear!');
     logger.log('debug', response.status);
