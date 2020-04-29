@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {checkStatus, handleConectionError, urlQueryParams} from '../utils';
+import {checkStatus, handleConectionError} from '../utils';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
@@ -20,7 +20,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
-    const query = urlQueryParams({
+    const query = new URLSearchParams({
       correlationId,
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',

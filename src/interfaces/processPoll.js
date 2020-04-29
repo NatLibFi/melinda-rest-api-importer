@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError, urlQueryParams} from '../utils';
+import {checkStatus, handleConectionError} from '../utils';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const {createLogger, generateAuthorizationHeader} = Utils;
@@ -12,7 +12,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
   async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
-    const query = urlQueryParams({
+    const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
       processId,
@@ -60,7 +60,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   async function requestFileClear({correlationId, pActiveLibrary, processId}) {
     // Pass correlationId to record-load-api so it can use same name in log files
-    const query = await urlQueryParams({
+    const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
       processId
