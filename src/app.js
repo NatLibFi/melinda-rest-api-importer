@@ -1,6 +1,4 @@
-/* eslint-disable no-unused-vars */
-
-import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {Utils} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, logError, PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/datastore';

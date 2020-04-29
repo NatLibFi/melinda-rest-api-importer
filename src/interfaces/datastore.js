@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import httpStatus from 'http-status';
 import moment from 'moment';
 import fetch from 'node-fetch';
@@ -8,7 +7,7 @@ import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {checkStatus, handleConectionError} from '../utils';
 
 export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
-  const {createLogger, generateAuthorizationHeader} = Utils; // eslint-disable-line no-unused-vars
+  const {createLogger, generateAuthorizationHeader} = Utils;
   const logger = createLogger();
   const INDEXING_PRIORITY = {
     HIGH: 1,
