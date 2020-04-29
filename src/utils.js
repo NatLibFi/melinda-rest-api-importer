@@ -55,3 +55,10 @@ export function handleConectionError(error) {
   logError(error);
   throw new ApiError(httpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
 }
+
+export function urlQueryParams(params) {
+  const esc = encodeURIComponent;
+  return Object.keys(params)
+    .map(k => `${k}=${esc(params[k])}`)
+    .join('&');
+}

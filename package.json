@@ -36,10 +36,10 @@
     "@natlibfi/marc-record-serializers": "5.0.1",
     "@natlibfi/melinda-commons": "^8.0.0",
     "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#melkehitys-1054",
-    "axios": "^0.19.2",
     "esm": "^3.2.25",
     "http-status": "^1.4.2",
-    "moment": "^2.24.0"
+    "moment": "^2.24.0",
+    "node-fetch": "^2.6.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",

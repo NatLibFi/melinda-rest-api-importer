@@ -1,7 +1,7 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils';
+import {checkStatus, handleConectionError, urlQueryParams} from '../utils';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const {createLogger, generateAuthorizationHeader} = Utils;
@@ -12,23 +12,22 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
   async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
-    const params = {
+    const query = urlQueryParams({
       correlationId,
       pActiveLibrary,
       processId,
       pLogFile: pLogFile || null,
       pRejectFile: pRejectFile || null
-    };
+    });
+    const url = new URL(`${recordLoadUrl}?${query}`);
+    logger.log('silly', url.toString());
 
-    const response = await axios({
+    const response = await fetch(url, {
       method: 'get',
-      baseURL: recordLoadUrl,
-      url: '',
       headers: {
         'Content-Type': 'text/plain',
-        Authorization: generateAuthorizationHeader(recordLoadApiKey)
-      },
-      params
+        'Authorization': generateAuthorizationHeader(recordLoadApiKey)
+      }
     }).catch(error => handleConectionError(error));
 
     logger.log('info', 'Got response for process poll!');
@@ -38,7 +37,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     // OK (200)
     if (response.status === httpStatus.OK) {
-      const array = await response.data;
+      const array = await response.json();
       const idList = array.map(id => formatRecordId(pActiveLibrary, id));
       logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
       return {payloads: idList, ackOnlyLength: idList.length};
@@ -61,21 +60,20 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   async function requestFileClear({correlationId, pActiveLibrary, processId}) {
     // Pass correlationId to record-load-api so it can use same name in log files
-    const params = {
+    const query = await urlQueryParams({
       correlationId,
       pActiveLibrary,
       processId
-    };
+    });
+    const url = new URL(`${recordLoadUrl}?${query}`);
+    logger.log('silly', url.toString());
 
-    const response = await axios({
+    const response = await fetch(url, {
       method: 'delete',
-      baseURL: recordLoadUrl,
-      url: '',
       headers: {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
-      },
-      params
+      }
     }).catch(error => handleConectionError(error));
 
     checkStatus(response);
