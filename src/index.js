@@ -10,7 +10,7 @@ async function run() {
 
   registerInterruptionHandlers();
 
-  await startApp({...config});
+  await startApp(config);
 
   function registerInterruptionHandlers() {
     process
