@@ -1,18 +1,18 @@
 kind: pipeline
 name: default
 steps:
-- name: generate-tags
+- name: Generate-tags
   image: quay.io/natlibfi/drone-gen-tags
-- name: test-init
+- name: Permissions
   image: busybox
   commands:
   - chmod o+w /drone/src
-- name: test
+- name: Test
   image: node:12
   user: node
   commands:
-  - npm install
-- name: docker
+  - npm install && npm run test
+- name: Docker
   image: plugins/docker
   settings:
     repo: quay.io/natlibfi/melinda-rest-api-importer
@@ -28,4 +28,4 @@ data: oqLPp0OKFpi9uegqDhgxRsnmjqzRUnOLo2wRDoi+ulXQmjp4wB82TuHvAy5G9FkKVXA=
 ---
 kind: secret
 name: docker_password
-data: gjgehnV1ApbTNtdVwdtIhr1htQACXbA/rf3HDo/seJnlVBxH7RFqk/GjJIXGk2h4YRdq4ehy6ebAdkTXgSWJEDYrMK0PBD6PRnp/TXZl5LtsJwx0bkrOVz12OX8= 
+data: gjgehnV1ApbTNtdVwdtIhr1htQACXbA/rf3HDo/seJnlVBxH7RFqk/GjJIXGk2h4YRdq4ehy6ebAdkTXgSWJEDYrMK0PBD6PRnp/TXZl5LtsJwx0bkrOVz12OX8=
