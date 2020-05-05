@@ -94,8 +94,9 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
       const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
       logger.log('verbose', 'Handling process messages based on results got from process polling');
       // Handle separation of all ready done records
-      const ack = messages.splice(0, results.ackOnlyLength); // eslint-disable-line functional/immutable-data
-      await amqpOperator.nackMessages(messages);
+      const ack = messages.slice(0, results.ackOnlyLength);
+      const nack = messages.slice(results.ackOnlyLength);
+      await amqpOperator.nackMessages(nack);
 
       if (OPERATION_TYPES.includes(queue)) {
         // Handle separation of all ready done records

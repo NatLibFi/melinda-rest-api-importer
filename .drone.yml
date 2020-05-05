@@ -28,4 +28,4 @@ data: oqLPp0OKFpi9uegqDhgxRsnmjqzRUnOLo2wRDoi+ulXQmjp4wB82TuHvAy5G9FkKVXA=
 ---
 kind: secret
 name: docker_password
-data: gjgehnV1ApbTNtdVwdtIhr1htQACXbA/rf3HDo/seJnlVBxH7RFqk/GjJIXGk2h4YRdq4ehy6ebAdkTXgSWJEDYrMK0PBD6PRnp/TXZl5LtsJwx0bkrOVz12OX8=
+data: gjgehnV1ApbTNtdVwdtIhr1htQACXbA/rf3HDo/seJnlVBxH7RFqk/GjJIXGk2h4YRdq4ehy6ebAdkTXgSWJEDYrMK0PBD6PRnp/TXZl5LtsJwx0bkrOVz12OX8= 

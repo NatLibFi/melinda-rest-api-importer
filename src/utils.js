@@ -46,8 +46,7 @@ export function checkStatus(response) {
 export function handleConectionError(error) {
   const {createLogger} = Utils;
   const logger = createLogger();
-  if (error.response) { // eslint-disable-line functional/no-conditional-statement
-    // Toimii checkStatus(error.response);
+  if (error.response) {
     return error.response;
   }
 
