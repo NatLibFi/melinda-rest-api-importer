@@ -25,7 +25,9 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
 
     await checkProcessQueue(queue);
 
-    const queueItem = await mongoOperator.getOne({queue, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
+    logger.log('debug', 'Process queue done checking mongo');
+
+    const queueItem = await mongoOperator.getOne({operation: queue, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
     if (queueItem) {
       return checkMongoInProcess(queueItem);
     }
@@ -42,11 +44,11 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
           await amqpOperator.ackMessages([processMessage]);
           logger.log('verbose', 'Requesting file cleaning');
           await processOperator.requestFileClear(processParams.data);
-          await setTimeoutPromise(100); // (S)Nack time!
 
-          return true;
+          return;
         }
       }
+      await amqpOperator.nackMessages([processMessage]);
     } catch (error) {
       if (error instanceof ApiError) {
         if (OPERATION_TYPES.includes(queue)) {
@@ -97,6 +99,7 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
       const ack = messages.slice(0, results.ackOnlyLength);
       const nack = messages.slice(results.ackOnlyLength);
       await amqpOperator.nackMessages(nack);
+      await setTimeoutPromise(100); // (S)Nack time!
 
       if (OPERATION_TYPES.includes(queue)) {
         // Handle separation of all ready done records
