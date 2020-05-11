@@ -14,8 +14,7 @@ While service is in operation, if AMQP does not have anything in `'QUEUE'` it ch
 | MONGO_URI           | No        | A serialized URL address of Melinda-rest-api's import queue database. Defaults to `'mongodb://localhost:27017/db'` |
 | OFFLINE_PERIOD      | No        | Starting hour and length of offline period. e.g `'11,1'`                                                           |
 | POLL_WAIT_TIME      | No        | A number value presenting time in ms between polling                                                               |
-
-
+| LOG_LEVEL           | NO        | Log information level                                                                                              |
 
 ### Mongo
 Db: `'rest-api'`

@@ -1,105 +1,89 @@
 import fetch from 'node-fetch';
-import HttpStatus from 'http-status';
+import httpStatus from 'http-status';
 import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {checkStatus, handleConectionError} from '../utils';
 
-export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
-	const {createLogger, generateAuthorizationHeader} = Utils;
-	const logger = createLogger(); // eslint-disable-line no-console
+export default function ({recordLoadApiKey, recordLoadUrl}) {
+  const {createLogger, generateAuthorizationHeader} = Utils;
+  const logger = createLogger();
 
-	return {pollProcess, requestFileClear};
+  return {poll, requestFileClear};
 
-	async function pollProcess({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
-		const url = new URL(recordLoadUrl);
+  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
 
-		// Pass correlationId to record-load-api so it can use same name in log files
-		url.search = new URLSearchParams([
-			['correlationId', correlationId],
-			['pActiveLibrary', pActiveLibrary],
-			['processId', processId],
-			['pLogFile', pLogFile || null],
-			['pRejectFile', pRejectFile || null]
-		]);
+    // Pass correlationId to record-load-api so it can use same name in log files
+    const query = new URLSearchParams({
+      correlationId,
+      pActiveLibrary,
+      processId,
+      pLogFile: pLogFile || null,
+      pRejectFile: pRejectFile || null
+    });
+    const url = new URL(`${recordLoadUrl}?${query}`);
+    logger.log('silly', url.toString());
 
-		const response = await fetch(url, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'text/plain',
-				Authorization: generateAuthorizationHeader(recordLoadApiKey)
-			}
-		});
+    const response = await fetch(url, {
+      method: 'get',
+      headers: {
+        'Content-Type': 'text/plain',
+        'Authorization': generateAuthorizationHeader(recordLoadApiKey)
+      }
+    }).catch(error => handleConectionError(error));
 
-		logger.log('info', 'Got response for process poll!');
-		logger.log('debug', `Status: ${response.status}`);
+    logger.log('info', 'Got response for process poll!');
+    logger.log('debug', `Status: ${response.status}`);
 
-		// OK (200)
-		if (response.status === HttpStatus.OK) {
-			const array = await response.json();
-			const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-			logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
-			return {payloads: idList, ackOnlyLength: idList.length};
-		}
+    checkStatus(response);
 
-		// R-L-A has crashed (409)
-		if (response.status === HttpStatus.CONFLICT) {
-			const array = await response.json();
-			if (array.length > 0) {
-				const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-				logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);
-				return {payloads: idList, ackOnlyLength: idList.length};
-			}
+    // OK (200)
+    if (response.status === httpStatus.OK) {
+      const array = await response.json();
+      const idList = array.map(id => formatRecordId(pActiveLibrary, id));
+      logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
+      return {payloads: idList, ackOnlyLength: idList.length};
+    }
 
-			return {payloads: [], ackOnlyLength: 0};
-		}
+    // R-L-A has crashed (409)
+    if (response.status === httpStatus.CONFLICT) {
+      const array = await response.data;
+      if (array.length > 0) {
+        const idList = array.map(id => formatRecordId(pActiveLibrary, id));
+        logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);
+        return {payloads: idList, ackOnlyLength: idList.length};
+      }
 
-		// Not found (404)
-		if (response.status === HttpStatus.NOT_FOUND) {
-			logger.log('info', 'Got "not found" (404) response from record-load-api. Process log files missing!');
-			throw new ApiError(HttpStatus.NOT_FOUND, 'Process log not found!');
-		}
+      return {payloads: [], ackOnlyLength: 0};
+    }
 
-		// Locked (423) too early
-		if (response.status === HttpStatus.LOCKED) {
-			logger.log('info', 'Got "locked" (423) response from record-load-api. Process is still going on!');
-			throw new ApiError(HttpStatus.LOCKED, 'Not ready yet!');
-		}
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
+  }
 
-		// Forbidden (403)
-		if (response.status === HttpStatus.FORBIDDEN) {
-			throw new ApiError(HttpStatus.FORBIDDEN);
-		}
+  async function requestFileClear({correlationId, pActiveLibrary, processId}) {
+    // Pass correlationId to record-load-api so it can use same name in log files
+    const query = new URLSearchParams({
+      correlationId,
+      pActiveLibrary,
+      processId
+    });
+    const url = new URL(`${recordLoadUrl}?${query}`);
+    logger.log('silly', url.toString());
 
-		// Unauthorized (401)
-		if (response.status === HttpStatus.UNAUTHORIZED) {
-			throw new ApiError(HttpStatus.UNAUTHORIZED);
-		}
+    const response = await fetch(url, {
+      method: 'delete',
+      headers: {
+        'Content-Type': 'text/plain',
+        Authorization: generateAuthorizationHeader(recordLoadApiKey)
+      }
+    }).catch(error => handleConectionError(error));
 
-		throw new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
-	}
+    checkStatus(response);
 
-	async function requestFileClear({correlationId, pActiveLibrary, processId}) {
-		const url = new URL(recordLoadUrl);
+    logger.log('debug', 'Got response for file clear!');
+    logger.log('debug', response.status);
+  }
 
-		// Pass correlationId to record-load-api so it can use same name in log files
-		url.search = new URLSearchParams([
-			['correlationId', correlationId],
-			['pActiveLibrary', pActiveLibrary],
-			['processId', processId]
-		]);
-
-		const response = await fetch(url, {
-			method: 'delete',
-			headers: {
-				'Content-Type': 'text/plain',
-				Authorization: generateAuthorizationHeader(recordLoadApiKey)
-			}
-		});
-
-		logger.log('debug', 'Got response for file clear!');
-		logger.log('debug', response.status);
-	}
-
-	function formatRecordId(library, id) {
-		const pattern = new RegExp(`${library.toUpperCase()}$`);
-		return id.replace(pattern, '');
-	}
+  function formatRecordId(library, id) {
+    const pattern = new RegExp(`${library.toUpperCase()}$`, 'u');
+    return id.replace(pattern, '');
+  }
 }
