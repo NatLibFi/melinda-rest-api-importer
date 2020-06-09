@@ -39,7 +39,7 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
     try {
       if (processMessage) {
         const {results, processParams} = await handleProcessMessage(processMessage, queue);
-        const messagesHandled = await handleMessages(results, queue);
+        const messagesHandled = await handleMessages({results, processParams, queue});
         if (messagesHandled) {
           await amqpOperator.ackMessages([processMessage]);
           logger.log('verbose', 'Requesting file cleaning');
@@ -90,8 +90,8 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
     }
   }
 
-  async function handleMessages(results, queue) {
-    const {headers, messages} = await amqpOperator.checkQueue(queue, 'basic');
+  async function handleMessages({results, processParams, queue}) {
+    const {headers, messages} = await amqpOperator.checkQueue(queue, processParams.correlationId);
     if (messages) {
       const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
       logger.log('verbose', 'Handling process messages based on results got from process polling');

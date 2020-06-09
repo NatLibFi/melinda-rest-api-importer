@@ -35,7 +35,7 @@
     "@natlibfi/marc-record": "^4.0.1",
     "@natlibfi/marc-record-serializers": "5.0.1",
     "@natlibfi/melinda-commons": "^8.0.0",
-    "@natlibfi/melinda-rest-api-commons": ">=1.0.0-alpha.1",
+    "@natlibfi/melinda-rest-api-commons": "git+https://github.com/NatLibFi/melinda-rest-api-commons.git#melkehitys-1541",
     "esm": "^3.2.25",
     "http-status": "^1.4.2",
     "moment": "^2.24.0",

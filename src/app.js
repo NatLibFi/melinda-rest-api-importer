@@ -34,11 +34,11 @@ export default async function ({
 
   async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
     if (OPERATION_TYPES.includes(queue)) {
-      const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
-      if (headers && messages) {
+      const {correlationId, headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
+      if (correlationId && headers && messages) {
         const records = await checkMessages(messages);
         await setTimeoutPromise(200); // (S)Nack time!
-        return checkAmqpQueuePrio({queue, headers, records, recordLoadParams});
+        return checkAmqpQueuePrio({queue, headers, correlationId, records, recordLoadParams});
       }
 
       return checkMongoDB();
@@ -62,6 +62,7 @@ export default async function ({
         return false;
       });
       const checkedMessages = await Promise.all(validMessages);
+      // Removes undefined ones
       const filteredMessages = checkedMessages.filter(message => message);
       const invalids = messages.filter(message => !filteredMessages.includes(message));
       const records = await amqpOperator.messagesToRecords(filteredMessages);
@@ -71,9 +72,9 @@ export default async function ({
     }
   }
 
-  async function checkAmqpQueuePrio({queue, headers, records, recordLoadParams}) {
+  async function checkAmqpQueuePrio({queue, headers, correlationId, records, recordLoadParams}) {
     try {
-      const {processId, correlationId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({...headers, records, recordLoadParams, prio: true});
+      const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio: true});
 
       // Send to process queue {queue, correlationId, headers, data}
       await amqpOperator.sendToQueue({
