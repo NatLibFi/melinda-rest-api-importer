@@ -34,7 +34,8 @@ export default async function ({
 
   async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
     if (OPERATION_TYPES.includes(queue)) {
-      const {correlationId, headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
+      const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
+      const {correlationId} = messages[0].properties;
       if (correlationId && headers && messages) {
         const records = await checkMessages(messages);
         await setTimeoutPromise(200); // (S)Nack time!
