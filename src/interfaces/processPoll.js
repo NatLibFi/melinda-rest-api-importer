@@ -55,6 +55,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       return {payloads: [], ackOnlyLength: 0};
     }
 
+    if (response.status === httpStatus.NOT_FOUND) {
+      // P_manage_18 inputfile missing
+      return {payloads: ['ERROR'], ackOnlyLength: 1};
+    }
+
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
