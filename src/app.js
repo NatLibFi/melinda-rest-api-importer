@@ -1,4 +1,4 @@
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {amqpFactory, mongoFactory, logError, PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/datastore';
@@ -9,7 +9,6 @@ export default async function ({
   recordLoadApiKey, recordLoadLibrary, recordLoadUrl
 }) {
   const setTimeoutPromise = promisify(setTimeout);
-  const {createLogger} = Utils;
   const logger = createLogger();
   const OPERATION_TYPES = [
     OPERATIONS.CREATE,

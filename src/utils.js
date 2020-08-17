@@ -1,9 +1,9 @@
 import httpStatus from 'http-status';
-import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
 export function checkStatus(response) {
-  const {createLogger} = Utils;
   const logger = createLogger();
 
   // Unauthorized (401)
@@ -44,7 +44,6 @@ export function checkStatus(response) {
 }
 
 export function handleConectionError(error) {
-  const {createLogger} = Utils;
   const logger = createLogger();
   if (error.response) {
     return error.response;

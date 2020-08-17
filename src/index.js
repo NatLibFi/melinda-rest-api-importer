@@ -1,4 +1,4 @@
-import {Utils} from '@natlibfi/melinda-commons';
+import {handleInterrupt} from '@natlibfi/melinda-backend-commons';
 import * as config from './config';
 import startApp from './app';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
@@ -6,8 +6,6 @@ import {logError} from '@natlibfi/melinda-rest-api-commons';
 run();
 
 async function run() {
-  const {handleInterrupt} = Utils;
-
   registerInterruptionHandlers();
 
   await startApp(config);
