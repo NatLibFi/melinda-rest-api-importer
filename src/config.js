@@ -1,6 +1,4 @@
-import {Utils} from '@natlibfi/melinda-commons/';
-
-const {readEnvironmentVariable} = Utils;
+import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons/';
 
 // Record-load-api to save data
 export const recordLoadUrl = readEnvironmentVariable('RECORD_LOAD_URL');

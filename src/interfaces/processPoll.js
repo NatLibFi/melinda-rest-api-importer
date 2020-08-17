@@ -1,10 +1,10 @@
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
-import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {checkStatus, handleConectionError} from '../utils';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
-  const {createLogger, generateAuthorizationHeader} = Utils;
   const logger = createLogger();
 
   return {poll, requestFileClear};

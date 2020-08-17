@@ -1,4 +1,5 @@
-import {Error as ApiError, Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import httpStatus from 'http-status';
 import {promisify} from 'util';
@@ -6,7 +7,6 @@ import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
 export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime}) {
-  const {createLogger} = Utils;
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
   const OPERATION_TYPES = [
