@@ -32,6 +32,7 @@
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
+    "@babel/runtime": "7.11.2",
     "@natlibfi/marc-record": "^4.0.1",
     "@natlibfi/marc-record-serializers": "^5.0.1",
     "@natlibfi/melinda-backend-commons": "^1.0.4",
@@ -63,9 +64,7 @@
       [
         "@babel/preset-env",
         {
-          "targets": {
-            "node": "12"
-          }
+          "targets": "maintained node versions"
         }
       ]
     ]
