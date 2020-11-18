@@ -24,7 +24,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
       pFixType: prio ? 'API' : 'INSB',
-      pCatalogerIn: recordLoadParams.pCatalogerIn.toUpperCase() || cataloger.toUpperCase(),
+      pCatalogerIn: recordLoadParams.pCatalogerIn ? recordLoadParams.pCatalogerIn.toUpperCase() : cataloger.toUpperCase(),
       pZ07PriorityYear: prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099,
       pRejectFile: recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null,
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
