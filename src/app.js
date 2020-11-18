@@ -155,14 +155,14 @@ export default async function ({
     logger.log('debug', 'Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
     if (messages) { // eslint-disable-line functional/no-conditional-statement
-      const {status} = error;
-      const payloads = error.payload ? new Array(messages.lenght).fill(error.payload) : [];
+      const status = error.status ? error.status : '500';
+      const payloads = error.payload ? new Array(messages.lenght).fill(error.payload) : new Array(messages.lenght).fill(JSON.stringify.error);
+      // Send response back if PRIO
+      await amqpOperator.ackNReplyMessages({status, messages, payloads});
       await messages.forEach(async message => {
         await mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
       });
-      logger.log('silly', `Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
-      // Send response back if PRIO
-      await amqpOperator.ackNReplyMessages({status, messages, payloads});
+      logger.log('silly', `Status: ${status}, Messages: ${messages}, Payloads:${payloads}`);
     }
   }
 }
