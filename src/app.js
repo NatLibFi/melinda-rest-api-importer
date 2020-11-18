@@ -85,6 +85,7 @@ export default async function ({
         }
       });
     } catch (error) {
+      logger.log('error', 'app/checkAmqpQueuePrio');
       logError(error);
       await sendErrorResponses(error, queue);
       return startCheck();
@@ -106,6 +107,7 @@ export default async function ({
         }
       });
     } catch (error) {
+      logger.log('error', 'app/checkAmqpQueueBulk');
       logError(error);
       return checkAmqpQueue();
     }
