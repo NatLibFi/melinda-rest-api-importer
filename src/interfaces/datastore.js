@@ -57,10 +57,10 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     throw new ApiError(response.status || httpStatus.INTERNAL_SERVER_ERROR, response ? await response.text() : 'Internal error');
 
     function generateIndexingPriority(indexingPriority, operation, forPriority) {
-      if (operation ===  OPERATIONS.CREATE) {
+      if (operation === OPERATIONS.CREATE) {
         return forPriority ? '1990' : '1992';
       }
-      
+
       if (indexingPriority === INDEXING_PRIORITY.HIGH) {
         // These are values Aleph assigns for records modified in the cataloging GUI
         return forPriority ? '1998' : '2099';
