@@ -25,7 +25,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
       pFixType: prio ? 'API' : 'INSB',
       pCatalogerIn: recordLoadParams.pCatalogerIn ? recordLoadParams.pCatalogerIn.toUpperCase() : cataloger.toUpperCase(),
-      pZ07PriorityYear: prio ? generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation === OPERATIONS.CREATE) : 2099,
+      pZ07PriorityYear: operation === OPERATIONS.CREATE ? '1990' : generateIndexingPriority(INDEXING_PRIORITY.HIGH, prio),
       pRejectFile: recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null,
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
     });
@@ -56,10 +56,10 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     // Unexpected! Retry?
     throw new ApiError(response.status || httpStatus.INTERNAL_SERVER_ERROR, response ? await response.text() : 'Internal error');
 
-    function generateIndexingPriority(priority, forCreated) {
+    function generateIndexingPriority(priority, forPriority) {
       if (priority === INDEXING_PRIORITY.HIGH) {
         // These are values Aleph assigns for records modified in the cataloging GUI
-        return forCreated ? '1990' : '1998';
+        return forPriority ? '1998' : '2099';
       }
 
       return moment().add(1000, 'years')
