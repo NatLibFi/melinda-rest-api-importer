@@ -34,10 +34,10 @@
   "dependencies": {
     "@babel/runtime": "^7.11.2",
     "@natlibfi/marc-record": "^6.1.1",
-    "@natlibfi/marc-record-serializers": "^7.2.1",
+    "@natlibfi/marc-record-serializers": "^7.2.4",
     "@natlibfi/melinda-backend-commons": "^2.0.2",
-    "@natlibfi/melinda-commons": "^11.1.1",
-    "@natlibfi/melinda-rest-api-commons": "^1.0.2",
+    "@natlibfi/melinda-commons": "^11.1.2",
+    "@natlibfi/melinda-rest-api-commons": "^1.0.4",
     "esm": "^3.2.25",
     "http-status": "^1.4.2",
     "moment": "^2.29.1",
