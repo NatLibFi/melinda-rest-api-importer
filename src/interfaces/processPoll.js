@@ -1,3 +1,4 @@
+/* eslint-disable max-statements */
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
@@ -37,10 +38,10 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     // OK (200)
     if (response.status === httpStatus.OK) {
-      const array = await response.json();
-      const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-      logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
-      return {payloads: idList, ackOnlyLength: idList.length};
+      const {ids, rejectedIds} = await response.json();
+      const idList = ids.map(id => formatRecordId(pActiveLibrary, id));
+      logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList} RejectedIds: ${rejectedIds}`);
+      return {payloads: {ids: idList, rejectedIds}, ackOnlyLength: idList.length};
     }
 
     // R-L-A has crashed (409)
