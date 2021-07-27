@@ -39,28 +39,39 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
     const processMessage = await amqpOperator.checkQueue(`PROCESS.${queue}`, 'raw');
     try {
       if (processMessage) {
+        logger.log('debug', `Process message found. ${JSON.stringify(processMessage)}`);
         const {results, processParams} = await handleProcessMessage(processMessage, queue);
+        logger.log('debug', `Process message results: ${JSON.stringify(results)}, process message parameter ${JSON.stringify(processParams)}`);
         const messagesHandled = await handleMessages({results, processParams, queue});
+        logger.log('debug', `Process message messagesHandled:: ${JSON.stringify(messagesHandled)}, process message parameter ${JSON.stringify(processParams)}`);
         if (messagesHandled) {
+          logger.log('debug', `Acking message ${JSON.stringify([processMessage])}`);
           await amqpOperator.ackMessages([processMessage]);
           logger.log('verbose', 'Requesting file cleaning');
+          logger.log('debug', `Requesting file cleaning ${JSON.stringify(processParams.data)}`);
           await processOperator.requestFileClear(processParams.data);
 
           return;
         }
       }
+      logger.log('debug', `Nacking message ${JSON.stringify([processMessage])}`);
       await amqpOperator.nackMessages([processMessage]);
     } catch (error) {
+      logger.log('debug', `checkProcessQueue errored: ${JSON.stringify(error)}`);
       if (error instanceof ApiError) {
+        logger.log('debug', `error is ApiError}`);
         if (OPERATION_TYPES.includes(queue)) {
+          logger.log('debug', `sendErrorResponses for ${queue}`);
           await sendErrorResponses(error, queue);
+          logger.log('debug', `Acking message ${JSON.stringify([processMessage])}`);
           await amqpOperator.ackMessages([processMessage]);
           return checkProcessQueue(queue);
         }
-
+        logger.log('debug', `Acking message ${JSON.stringify([processMessage])}`);
         await amqpOperator.ackMessages([processMessage]);
         return checkProcessQueue(queue);
       }
+      logger.log('debug', 'error is not ApiError');
     }
   }
 
