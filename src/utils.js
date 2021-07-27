@@ -1,3 +1,4 @@
+/* eslint-disable max-statements */
 import httpStatus from 'http-status';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';

@@ -61,6 +61,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       return {payloads: ['ERROR'], ackOnlyLength: 1};
     }
 
+    logger.log('debug', `importer:processPoll:poll throws 500 Unexpected`);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 

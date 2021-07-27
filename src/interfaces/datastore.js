@@ -16,6 +16,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
   return {loadRecord};
 
+  // eslint-disable-next-line max-statements
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
