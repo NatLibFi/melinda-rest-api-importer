@@ -51,16 +51,18 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
       }
       await amqpOperator.nackMessages([processMessage]);
     } catch (error) {
+      logger.debug(`checkProcessQueue for queue ${queue} errored: ${error}`);
       if (error instanceof ApiError) {
         if (OPERATION_TYPES.includes(queue)) {
           await sendErrorResponses(error, queue);
           await amqpOperator.ackMessages([processMessage]);
           return checkProcessQueue(queue);
         }
-
+        logger.debug(`Error is from ${queue}, which is not operation type queue, not sending error responses`);
         await amqpOperator.ackMessages([processMessage]);
         return checkProcessQueue(queue);
       }
+      logger.debug(`Error is not ApiError, not sending error responses`);
     }
   }
 
@@ -135,6 +137,7 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
       logger.log('debug', `Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
       // Send response back if PRIO
       await amqpOperator.ackNReplyMessages({status, messages, payloads});
+      return;
     }
     logger.log('debug', `Got no messages: ${JSON.stringify(messages)}`);
   }
