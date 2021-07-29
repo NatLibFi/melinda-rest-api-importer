@@ -33,10 +33,14 @@ export default async function ({
   }
 
   async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
+    logger.log('debug', `Checking queue for ${queue}`);
+
     if (OPERATION_TYPES.includes(queue)) {
       const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
+      logger.log('debug', `Headers: ${queue}, Messages: ${messages}`);
       if (headers && messages) {
         const {correlationId} = messages[0].properties;
+        logger.log('debug', `Found correlationId: ${correlationId}`);
         const records = await checkMessages(messages);
         await setTimeoutPromise(200); // (S)Nack time!
         return checkAmqpQueuePrio({queue, headers, correlationId, records, recordLoadParams});
