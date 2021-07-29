@@ -1,3 +1,4 @@
+/* eslint-disable max-statements */
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
@@ -46,12 +47,13 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     // R-L-A has crashed (409)
     if (response.status === httpStatus.CONFLICT) {
       const array = await response.data;
-      if (array.length > 0) {
+      logger.debug(`Got "conflict" (409) response from record-load-api with contents ${array}`);
+      if (array && array.length > 0) {
         const idList = array.map(id => formatRecordId(pActiveLibrary, id));
         logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);
         return {payloads: idList, ackOnlyLength: idList.length};
       }
-
+      logger.debug(`Got "conflict" (409) response from record-load-api with no contents ${array}`);
       return {payloads: [], ackOnlyLength: 0};
     }
 
@@ -71,7 +73,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       processId
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('silly', url.toString());
+
+    logger.log('debug', `Sending file clearing request: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'delete',
@@ -81,6 +84,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       }
     }).catch(error => handleConectionError(error));
 
+    logger.log('debug', `Got file clearing response ${JSON.stringify(response)}`);
     checkStatus(response);
 
     logger.log('debug', 'Got response for file clear!');

@@ -124,13 +124,18 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
   async function sendErrorResponses(error, queue) {
     logger.log('debug', 'Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
-    const {status} = error;
-    const payloads = error.payload ? new Array(messages.lenght).fill(error.payload) : [];
-    messages.forEach(message => {
-      mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
-    });
-    logger.log('silly', `Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
-    // Send response back if PRIO
-    await amqpOperator.ackNReplyMessages({status, messages, payloads});
+    // eslint-disable-next-line functional/no-conditional-statement
+    if (messages) {
+      logger.log('debug', `Got messages (${messages.length}): ${JSON.stringify(messages)}`);
+      const {status} = error;
+      const payloads = error.payload ? new Array(messages.length).fill(error.payload) : [];
+      messages.forEach(message => {
+        mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
+      });
+      logger.log('debug', `Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
+      // Send response back if PRIO
+      await amqpOperator.ackNReplyMessages({status, messages, payloads});
+    }
+    logger.log('debug', `Got no messages: ${JSON.stringify(messages)}`);
   }
 }

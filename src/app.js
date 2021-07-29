@@ -156,6 +156,7 @@ export default async function ({
     logger.log('debug', 'Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
     if (messages) { // eslint-disable-line functional/no-conditional-statement
+      logger.log('debug', `Got back messages (${messages.length}): ${messages}`);
       const status = error.status ? error.status : '500';
       const payloads = error.payload ? new Array(messages.lenght).fill(error.payload) : new Array(messages.lenght).fill(JSON.stringify.error);
       // Send response back if PRIO
@@ -165,5 +166,6 @@ export default async function ({
       });
       logger.log('silly', `Status: ${status}, Messages: ${messages}, Payloads:${payloads}`);
     }
+    logger.log('debug', `Did not get back any messages: ${messages}`);
   }
 }
