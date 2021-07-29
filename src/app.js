@@ -1,3 +1,4 @@
+/* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {amqpFactory, mongoFactory, logError, PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
