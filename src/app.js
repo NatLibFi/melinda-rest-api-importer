@@ -37,8 +37,8 @@ export default async function ({
 
     if (OPERATION_TYPES.includes(queue)) {
       const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
-      logger.log('debug', `Headers: ${queue}, Messages: ${messages}`);
       if (headers && messages) {
+        logger.log('debug', `Headers: ${queue}, Messages (${messages.length}): ${messages}`);
         const {correlationId} = messages[0].properties;
         logger.log('debug', `Found correlationId: ${correlationId}`);
         const records = await checkMessages(messages);
@@ -62,8 +62,10 @@ export default async function ({
       const validMessages = messages.map(async message => {
         const valid = await mongoOperator.checkAndSetState({correlationId: message.properties.correlationId, state: PRIO_QUEUE_ITEM_STATE.IMPORTING});
         if (valid) {
+          logger.log('debug', 'Valid message');
           return message;
         }
+        logger.log('debug', 'Non-valid message');
         return false;
       });
       const checkedMessages = await Promise.all(validMessages);
@@ -71,6 +73,7 @@ export default async function ({
       const filteredMessages = checkedMessages.filter(message => message);
       const invalids = messages.filter(message => !filteredMessages.includes(message));
       const records = await amqpOperator.messagesToRecords(filteredMessages);
+      logger.log('debug', `Found ${filteredMessages.length} valid and ${invalids.length} non-valid messages`);
       await amqpOperator.nackMessages(filteredMessages);
       await amqpOperator.ackMessages(invalids);
       return records;
