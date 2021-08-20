@@ -3,6 +3,7 @@ import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
+// eslint-disable-next-line max-statements
 export function checkStatus(response) {
   const logger = createLogger();
 

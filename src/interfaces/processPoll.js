@@ -21,7 +21,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       pRejectFile: pRejectFile || null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('silly', url.toString());
+    logger.log('debug', `Polling recordLoadUrl: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'get',
@@ -38,14 +38,16 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     // OK (200)
     if (response.status === httpStatus.OK) {
+      // This should handle payloads with ids and rejectedIds also
       const array = await response.json();
       const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-      logger.log('info', `Got "OK" (200) response from record-load-api. Ids: ${idList}`);
+      logger.log('info', `Got "OK" (200) response from record-load-api. Ids (${idList.length}): ${idList}`);
       return {payloads: idList, ackOnlyLength: idList.length};
     }
 
     // R-L-A has crashed (409)
     if (response.status === httpStatus.CONFLICT) {
+      // This should handle payloads with ids and rejectedIds also
       const array = await response.data;
       logger.debug(`Got "conflict" (409) response from record-load-api with contents ${array}`);
       if (array && array.length > 0) {
@@ -57,11 +59,13 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       return {payloads: [], ackOnlyLength: 0};
     }
 
+    // This never happens??? utils:checkStatus handles also 404.
     if (response.status === httpStatus.NOT_FOUND) {
       // P_manage_18 inputfile missing
       return {payloads: ['ERROR'], ackOnlyLength: 1};
     }
 
+    // 500 from aleph-record-load-api goes here (not in utils::checkStatus)
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 

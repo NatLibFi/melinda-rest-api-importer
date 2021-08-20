@@ -31,7 +31,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('silly', url.toString());
+    logger.log('debug', `Loading record to: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'post',
