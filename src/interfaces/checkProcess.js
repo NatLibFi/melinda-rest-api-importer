@@ -1,3 +1,6 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
+/* eslint-disable max-lines */
 /* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
@@ -7,7 +10,7 @@ import {promisify} from 'util';
 import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
-export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime}) {
+export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime}) {
   // note mongoOperator?
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
@@ -19,48 +22,43 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
 
   return {intiCheck};
 
-  async function intiCheck(queue, wait = false) {
+  async function intiCheck(correlationId, mongoOperator, prio, wait = false) {
     if (wait) {
       logger.debug(`Waiting ${pollWaitTime}`);
       await setTimeoutPromise(pollWaitTime);
-      logger.log('silly', `intiCheck -> checkProcessQueue (${queue})`);
-      return checkProcessQueue(queue);
+      logger.log('silly', `intiCheck -> checkProcessQueue (${correlationId})`);
+      return checkProcessQueue(correlationId, mongoOperator, prio);
     }
 
-    logger.log('silly', `intiCheck -> checkProcessQueue (${queue})`);
-    await checkProcessQueue(queue);
+    logger.log('silly', `intiCheck -> checkProcessQueue (${correlationId})`);
+    await checkProcessQueue(correlationId, mongoOperator, prio);
 
-    logger.log('debug', `Process queue (${queue}) done, now checking mongo for items in process`);
+    logger.log('debug', `Process queue (${correlationId}) done, now checking mongo for items in process`);
 
-    const queueItem = await mongoOperator.getOne({operation: queue, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
+    /*
+    const queueItem = await mongoOperator.getOne({operation: queue, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
     if (queueItem) {
       logger.log('debug', 'Got Mongo item in process');
       logger.log('silly', `intiCheck -> checkMongoInProcess`);
       return checkMongoInProcess(queueItem);
-    }
+    }*/
   }
 
-  async function checkProcessQueue(queue) {
-    const processQueue = `PROCESS.${queue}`;
-    logger.log('verbose', `Checking process queue: ${processQueue} for ${queue}`);
+  async function checkProcessQueue(correlationId, mongoOperator, prio) {
+    const processQueue = `PROCESS.${correlationId}`;
+    logger.log('verbose', `Checking process queue: ${processQueue} for ${correlationId}`);
     const processMessage = await amqpOperator.checkQueue(processQueue, 'raw');
 
     try {
       if (processMessage) {
         logger.log('debug', `We have processMessage: ${processMessage}`);
-        const {looped, results, processParams} = await handleProcessMessage(processMessage, queue);
-
-        // If process was still busy handleProcessMessages looped and message was handled in a later loop
-        if (looped) {
-          logger.log('debug', `Looped, returning`);
-          return;
-        }
+        const {results, processParams} = await handleProcessMessage(processMessage, correlationId, mongoOperator, prio);
 
         // results: {payloads: [ids], ackOnlyLength: 0}
         logger.log('debug', `results: ${results}`);
         logger.log('debug', `processParams: ${processParams}`);
 
-        const messagesHandled = await handleMessages({results, processParams, queue});
+        const messagesHandled = await handleMessages({results, processParams, correlationId});
         logger.log('debug', `messagesHandled: ${messagesHandled}`);
 
         if (messagesHandled) {
@@ -71,20 +69,20 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
         }
       }
       logger.log('debug', `No processMessages to handle`);
-    } catch (error) {
-      logger.debug(`checkProcessQueue (${processQueue}) for queue ${queue} errored: ${error}`);
+    } catch (error) { // TARVII MUUTOSTA
+      logger.debug(`checkProcessQueue (${processQueue}) for queue ${correlationId} errored: ${error}`);
       logError(error);
       if (error instanceof ApiError) {
-        if (OPERATION_TYPES.includes(queue)) {
-          await sendErrorResponses(error, queue);
+        if (OPERATION_TYPES.includes(correlationId)) {
+          await sendErrorResponses(error, correlationId);
           await amqpOperator.ackMessages([processMessage]);
           await setTimeoutPromise(100);
-          return checkProcessQueue(queue);
+          return checkProcessQueue(correlationId);
         }
-        logger.debug(`Error is from ${queue}, which is not operation type queue, not sending error responses`);
+        logger.debug(`Error is from ${correlationId}, which is not operation type queue, not sending error responses`);
         await amqpOperator.ackMessages([processMessage]);
         await setTimeoutPromise(100);
-        return checkProcessQueue(queue);
+        return checkProcessQueue(correlationId);
       }
       logger.debug(`Error is not ApiError, not sending error responses`);
     }
@@ -99,8 +97,8 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
     }
   }
 
-  async function handleProcessMessage(processMessage, queue) {
-    logger.log('debug', `handleProcessMessage: ${processMessage} for ${queue}`);
+  async function handleProcessMessage(processMessage, correlationId, mongoOperator, prio) {
+    logger.log('debug', `handleProcessMessage: ${processMessage} for ${correlationId}`);
     try {
       const processParams = await JSON.parse(processMessage.content.toString());
       logger.log('debug', `handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
@@ -112,7 +110,7 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
       await amqpOperator.ackMessages([processMessage]);
       await setTimeoutPromise(100);
 
-      return {looped: false, results, processParams};
+      return {results, processParams};
     } catch (error) {
       logger.log('debug', `handleProcessMessage: Polling loader resulted in error: ${error}`);
       logError(error);
@@ -121,8 +119,7 @@ export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordL
         if (error.status === httpStatus.LOCKED) {
           // Nack message and loop back if process was ongoing
           await amqpOperator.nackMessages([processMessage]);
-          await intiCheck(queue, true);
-          return {looped: true};
+          return intiCheck(correlationId, mongoOperator, prio, true);
         }
 
         throw error;

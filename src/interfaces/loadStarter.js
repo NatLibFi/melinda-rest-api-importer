@@ -17,7 +17,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
   return {loadRecord};
 
-  async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
+  async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
     const query = new URLSearchParams({
