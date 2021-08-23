@@ -17,12 +17,13 @@ export default async function ({
   ];
   const purgeQueues = false;
   const amqpOperator = await amqpFactory(amqpUrl);
-  const mongoOperator = await mongoFactory(mongoUri);
-  const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl, mongoOperator);
+  const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
+  const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
+  const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
   // const processOperator = await checkProcess({amqpOperator, mongoOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime});
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
-  startCheck();
+  switchPrioBulk();
 
   /* Original
   async function startCheck() {
@@ -37,43 +38,55 @@ export default async function ({
   }
  */
 
-  async function startCheck(prio = true, wait = false) {
+  async function switchPrioBulk(prio = true, wait = false) {
     if (wait) {
       await setTimeoutPromise(5000);
-      return startCheck();
+      return switchPrioBulk();
+    }
+    if (prio) {
+      return startCheck(mongoOperatorPrio, prio);
     }
 
+    return startCheck(mongoOperatorBulk, prio);
+  }
+
+  async function startCheck(mongoOperator, prio) {
     logger.log('debug', `StartCheck for ${operation}!`);
 
     // Items in aleph-record-load-api
     const itemInProcess = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS});
     if (itemInProcess) {
-      return handleItemInProcess(itemInProcess);
+      return handleItemInProcess(itemInProcess, mongoOperator);
     }
     // Items in importer to be send to aleph-record-load-api
     const itemImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTING});
     if (itemImporting) {
-      return handleItemImporting(itemImporting);
+      return handleItemImporting(itemImporting, mongoOperator);
     }
 
     // Items waiting to be imported
     const itemInQueue = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE});
     if (itemInQueue) {
-      return handleItemInQueue(itemInQueue);
+      return handleItemInQueue(itemInQueue, mongoOperator);
     }
 
-    return startCheck(!wait, !prio);
+    if (!prio) {
+      return switchPrioBulk(true, true);
+    }
+
+    return switchPrioBulk(!prio);
   }
 
-  async function handleItemInProcess(item) {
+  async function handleItemInProcess(item, mongoOperator) {
     logger.debug(`App/handleInQueue: QueueItem: ${JSON.stringify(item)}`);
     await setTimeoutPromise(100);
-    return startCheck();
+    return switchPrioBulk();
   }
 
-  async function handleItemImporting(item) {
+  async function handleItemImporting(item, mongoOperator) {
     logger.debug(`App/handleItempImporting: QueueItem: ${JSON.stringify(item)}`);
     const {operation, correlationId} = item;
+    logger.debug(`Operation: ${operation}, correlation id: ${correlationId}`);
 
     /*
      { // Prio queue item
@@ -111,24 +124,22 @@ export default async function ({
     // Pitäskö muuttaa validaator tuuppaamaan kamat aina jonoon joka on nimetty tyyliin create.<correlationId> tai update.<correlationId> ?
     // const {headers, messages} = await amqpOperator.checkQueue(`${operation}.${correlationId}`, 'rawChunk', purgeQueues);
 
-    const {headers, messages} = await amqpOperator.checkQueue(operation, 'rawChunk', purgeQueues);
+    const {headers, messages} = await amqpOperator.checkQueue(`${operation}.${correlationId}`, 'rawChunk', purgeQueues);
+    // eslint-disable-next-line functional/no-conditional-statement
     if (headers && messages) {
       logger.log('debug', `Headers: ${headers}, Messages (${messages.length}): ${messages}`);
       const {correlationId} = messages[0].properties;
       logger.log('debug', `Found correlationId: ${correlationId}`);
-      
     }
 
     await setTimeoutPromise(100);
-
-    await setTimeoutPromise(100);
-    return startCheck();
+    return switchPrioBulk();
   }
 
-  async function handleItemInQueue(item) {
+  async function handleItemInQueue(item, mongoOperator) {
     logger.debug(`App/handleItemInQueue: QueueItem: ${JSON.stringify(item)}`);
     await mongoOperator.setState({correlationId: item.correlationId, state: QUEUE_ITEM_STATE.IMPORTING});
-    return startCheck();
+    return switchPrioBulk();
   }
 
 

@@ -8,6 +8,7 @@ import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
 export default function ({amqpOperator, mongoOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime}) {
+  // note mongoOperator?
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
   const OPERATION_TYPES = [
