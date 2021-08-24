@@ -4,13 +4,13 @@
 /* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import httpStatus from 'http-status';
 import {promisify} from 'util';
 import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
-export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime}) {
+export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, operation}) {
   // note mongoOperator?
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
@@ -20,72 +20,69 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
   ];
   const processOperator = processOperatorFactory({recordLoadApiKey, recordLoadUrl});
 
-  return {intiCheck};
+  return {loopCheck};
 
-  async function intiCheck(correlationId, mongoOperator, prio, wait = false) {
+  async function loopCheck({correlationId, mongoOperator, prio, wait = false}) {
+    // eslint-disable-next-line functional/no-conditional-statement
     if (wait) {
       logger.debug(`Waiting ${pollWaitTime}`);
       await setTimeoutPromise(pollWaitTime);
-      logger.log('silly', `intiCheck -> checkProcessQueue (${correlationId})`);
-      return checkProcessQueue(correlationId, mongoOperator, prio);
     }
 
-    logger.log('silly', `intiCheck -> checkProcessQueue (${correlationId})`);
-    await checkProcessQueue(correlationId, mongoOperator, prio);
+    logger.log('silly', `loopCheck -> checkProcessQueue (${correlationId})`);
+    const processQueueResults = await checkProcessQueue(correlationId, mongoOperator, prio);
+    if (!processQueueResults) {
+      return loopCheck({correlationId, mongoOperator, prio, wait: true});
+    }
+    const {results, processParams} = processQueueResults;
+    logger.log('debug', `results: ${JSON.stringify(results)}`);
+    logger.log('debug', `processParams: ${JSON.stringify(processParams)}`);
 
-    logger.log('debug', `Process queue (${correlationId}) done, now checking mongo for items in process`);
+    // results: {payloads: [ids], ackOnlyLength: 0}
+    try {
+      const messagesHandled = await handleMessages({results, processParams, queue: `${operation}.${correlationId}`, mongoOperator, prio});
+      logger.log('debug', `messagesHandled: ${messagesHandled}`);
 
-    /*
-    const queueItem = await mongoOperator.getOne({operation: queue, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
-    if (queueItem) {
-      logger.log('debug', 'Got Mongo item in process');
-      logger.log('silly', `intiCheck -> checkMongoInProcess`);
-      return checkMongoInProcess(queueItem);
-    }*/
+      if (messagesHandled) {
+        logger.log('verbose', `Requesting file cleaning for ${JSON.stringify(processParams.data)}`);
+        await processOperator.requestFileClear(processParams.data);
+        return;
+      }
+
+      throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
+    } catch (error) { // TARVII MUUTOSTA
+      logger.debug(`checkProcessQueue (${processQueue}) for queue ${correlationId} errored: ${error}`);
+      logError(error);
+      if (error instanceof ApiError) {
+        if (prio) {
+          logger.debug(`Error is from PRIO ${correlationId}, sending error responses`);
+          await sendErrorResponses(error, correlationId);
+          await amqpOperator.ackMessages([processMessage]);
+          await setTimeoutPromise(100);
+          return checkProcessQueue(correlationId, mongoOperator, prio);
+        }
+
+        logger.debug(`Error is from BULK ${correlationId}, not sending error responses`);
+        await amqpOperator.ackMessages([processMessage]);
+        await setTimeoutPromise(100);
+        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
+        return checkProcessQueue(correlationId, mongoOperator, prio);
+      }
+      logger.debug(`Error is not ApiError, not sending error responses`);
+    }
   }
 
   async function checkProcessQueue(correlationId, mongoOperator, prio) {
     const processQueue = `PROCESS.${correlationId}`;
     logger.log('verbose', `Checking process queue: ${processQueue} for ${correlationId}`);
     const processMessage = await amqpOperator.checkQueue(processQueue, 'raw');
-
-    try {
-      if (processMessage) {
-        logger.log('debug', `We have processMessage: ${processMessage}`);
-        const {results, processParams} = await handleProcessMessage(processMessage, correlationId, mongoOperator, prio);
-
-        // results: {payloads: [ids], ackOnlyLength: 0}
-        logger.log('debug', `results: ${results}`);
-        logger.log('debug', `processParams: ${processParams}`);
-
-        const messagesHandled = await handleMessages({results, processParams, correlationId});
-        logger.log('debug', `messagesHandled: ${messagesHandled}`);
-
-        if (messagesHandled) {
-          logger.log('verbose', `Requesting file cleaning for ${JSON.stringify(processParams.data)}`);
-          await processOperator.requestFileClear(processParams.data);
-
-          return;
-        }
-      }
-      logger.log('debug', `No processMessages to handle`);
-    } catch (error) { // TARVII MUUTOSTA
-      logger.debug(`checkProcessQueue (${processQueue}) for queue ${correlationId} errored: ${error}`);
-      logError(error);
-      if (error instanceof ApiError) {
-        if (OPERATION_TYPES.includes(correlationId)) {
-          await sendErrorResponses(error, correlationId);
-          await amqpOperator.ackMessages([processMessage]);
-          await setTimeoutPromise(100);
-          return checkProcessQueue(correlationId);
-        }
-        logger.debug(`Error is from ${correlationId}, which is not operation type queue, not sending error responses`);
-        await amqpOperator.ackMessages([processMessage]);
-        await setTimeoutPromise(100);
-        return checkProcessQueue(correlationId);
-      }
-      logger.debug(`Error is not ApiError, not sending error responses`);
+    if (processMessage) {
+      logger.log('debug', `We have processMessage: ${processMessage}`);
+      //const {results, processParams} = await handleProcessMessage(processMessage, correlationId, mongoOperator, prio);
+      return handleProcessMessage(processMessage, correlationId, mongoOperator, prio);
     }
+
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Empty ${processQueue} queue`);
   }
 
   async function checkMongoInProcess(queueItem) {
@@ -119,17 +116,18 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         if (error.status === httpStatus.LOCKED) {
           // Nack message and loop back if process was ongoing
           await amqpOperator.nackMessages([processMessage]);
-          return intiCheck(correlationId, mongoOperator, prio, true);
+          logger.debug('Process in progress @ server, back to loop!');
+          return false;
         }
 
         throw error;
       }
       // Unexpected
-      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, error.message);
     }
   }
 
-  async function handleMessages({results, processParams, queue}) {
+  async function handleMessages({mongoOperator, results, processParams, queue, prio}) {
     logger.log('debug', `handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${processParams.data.correlationId}`);
     const {headers, messages} = await amqpOperator.checkQueue(queue, processParams.data.correlationId, false, false);
     logger.log('debug', `headers: ${headers}`);
@@ -144,28 +142,41 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       await amqpOperator.nackMessages(nack);
       await setTimeoutPromise(100); // (S)Nack time!
 
-      if (OPERATION_TYPES.includes(queue)) {
-        logger.log('debug', `${queue} is in OPERATION_TYPES`);
+      // IF PRIO -> DONE
+      // IF BULK -> IF QUEUE EMPTY -> DONE, ELSE -> IMPORTING
+
+      if (prio) {
+        logger.log('debug', `${queue} is PRIO ***`);
         // Handle separation of all ready done records
-        logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
-        await ack.forEach(message => {
-          logger.log('debug', `Setting status in mongo for ${message.properties.correlationId}.`);
-          mongoOperator.setState({correlationId: message.properties.correlationId, state: PRIO_QUEUE_ITEM_STATE.DONE});
-        });
         logger.log('debug', `Replying for ${ack.length} messages.`);
         logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${results.payloads}`);
         await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
+
+        logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
+        await ack.forEach(message => {
+          logger.log('debug', `Setting status in mongo for ${message.properties.correlationId}.`);
+          mongoOperator.pushIds({correlationId: message.properties.correlationId, ids: results.payloads});
+          mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
+        });
         await setTimeoutPromise(100); // (S)Nack time!
 
         return true;
       }
 
       // Ids to mongo for other errors?
-      logger.log('debug', `${queue} is not in OPERATION_TYPES`);
-      logger.log('debug', `Pushing ids to mongo for with queue: ${queue} as correlationId, results.payloads ${results.payloads} as ids`);
-      await mongoOperator.pushIds({correlationId: queue, ids: results.payloads});
+      logger.log('debug', `${queue} is BULK ***`);
+      logger.log('debug', `Pushing ids to mongo for with ${message.properties.correlationId} as correlationId, results.payloads ${results.payloads} as ids`);
+      await mongoOperator.pushIds({correlationId: message.properties.correlationId, ids: results.payloads});
       await amqpOperator.ackMessages(ack);
       await setTimeoutPromise(100); // (S)Nack time!
+
+      logger.log('debug', `Checking remaining items in ${queue}`);
+      const queueItemsCount = await amqpOperator.checkQueue(queue, 'messages');
+      logger.log('debug', `Remaining items in ${queue}: ${queueItemsCount}`);
+      // eslint-disable-next-line functional/no-conditional-statement
+      if (queueItemsCount > 0) {
+        await mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+      }
 
       return true;
     }

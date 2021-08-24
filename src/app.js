@@ -3,7 +3,7 @@
 /* eslint-disable max-lines */
 /* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {amqpFactory, mongoFactory, logError, PRIO_QUEUE_ITEM_STATE, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/loadStarter';
 import checkProcess from './interfaces/checkProcess';
@@ -23,7 +23,7 @@ export default async function ({
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
   const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
-  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime});
+  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, operation});
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
   switchPrioBulk();
@@ -32,8 +32,8 @@ export default async function ({
   async function startCheck() {
     logger.log('debug', `StartCheck for ${operation}!`);
 
-    logger.log('silly', `app:startCheck -> checkProcess:intiCheck`);
-    await processOperator.intiCheck(operation, true);
+    logger.log('silly', `app:startCheck -> checkProcess:loopCheck`);
+    await processOperator.loopCheck(operation, true);
     logger.log('debug', 'app: Process queue checked!');
 
     logger.log('silly', `startCheck -> checkAmqpQueue`);
@@ -82,7 +82,7 @@ export default async function ({
 
   async function handleItemInProcess(item, mongoOperator, prio) {
     logger.debug(`App/handleInQueue: QueueItem: ${JSON.stringify(item)}`);
-    await processOperator.intiCheck(item.correlationId, mongoOperator, prio);
+    await processOperator.loopCheck({correlationId: item.correlationId, mongoOperator, prio});
     await setTimeoutPromise(100);
     return switchPrioBulk();
   }
