@@ -81,7 +81,7 @@ export default async function ({
   }
 
   async function handleItemInProcess(item, mongoOperator, prio) {
-    logger.debug(`App/handleInQueue: QueueItem: ${JSON.stringify(item)}`);
+    logger.debug(`App/handleInProcess: QueueItem: ${JSON.stringify(item)}`);
     await processOperator.loopCheck({correlationId: item.correlationId, mongoOperator, prio});
     await setTimeoutPromise(100);
     return switchPrioBulk();
