@@ -101,6 +101,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.log('debug', `handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
       // Ask aleph-record-load-api about the process
       const results = await processOperator.poll(processParams.data);
+      logger.debug(`ProcessPoll results: ${JSON.stringify(results)}`);
       // results: {payloads: [ids], ackOnlyLength: 0}
       // should this check that results exist/are sane?
 
@@ -163,7 +164,8 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       await ack.forEach(message => {
         logger.log('debug', `Setting status in mongo for ${message.properties.correlationId}.`);
         // this should handle possible rejectedIds also?
-        mongoOperator.pushIds({correlationId: message.properties.correlationId, ids: results.payloads});
+        const {handledIds, rejectedIds} = results.payloads;
+        mongoOperator.pushIds({correlationId: message.properties.correlationId, handledIds, rejectedIds});
         //         mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
       });
       await setTimeoutPromise(100); // (S)Nack time!

@@ -39,10 +39,14 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     // OK (200)
     if (response.status === httpStatus.OK) {
       // This should handle payloads with ids and rejectedIds also
-      const array = await response.json();
-      const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-      logger.log('info', `Got "OK" (200) response from record-load-api. Ids (${idList.length}): ${idList}`);
-      return {payloads: idList, ackOnlyLength: idList.length};
+      const {handledIds, rejectedIds} = await response.json();
+      logger.debug(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds}`);
+
+      const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
+      const rejectedIdList = rejectedIds.map(id => formatRecordId(pActiveLibrary, id));
+
+      logger.log('info', `Got "OK" (200) response from record-load-api. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList}, ackOnlyLength: handledIdList.length + rejectedIdList.length};
     }
 
     // R-L-A has crashed (409)
