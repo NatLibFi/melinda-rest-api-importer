@@ -1,9 +1,7 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable no-undef */
 /* eslint-disable max-lines */
 /* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/loadStarter';
 import checkProcess from './interfaces/checkProcess';
@@ -14,10 +12,6 @@ export default async function ({
 }) {
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
-  const OPERATION_TYPES = [
-    OPERATIONS.CREATE,
-    OPERATIONS.UPDATE
-  ];
   const purgeQueues = false;
   const amqpOperator = await amqpFactory(amqpUrl);
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
@@ -27,19 +21,6 @@ export default async function ({
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
   switchPrioBulk();
-
-  /* Original
-  async function startCheck() {
-    logger.log('debug', `StartCheck for ${operation}!`);
-
-    logger.log('silly', `app:startCheck -> checkProcess:loopCheck`);
-    await processOperator.loopCheck(operation, true);
-    logger.log('debug', 'app: Process queue checked!');
-
-    logger.log('silly', `startCheck -> checkAmqpQueue`);
-    return checkAmqpQueue();
-  }
- */
 
   async function switchPrioBulk(prio = true, wait = false) {
     if (wait) {
@@ -151,7 +132,9 @@ export default async function ({
     } catch (error) {
       logger.log('error', 'app/handleItemImporting');
       logError(error);
+      // eslint-disable-next-line functional/no-conditional-statement
       await sendErrorResponses(error, `${operation}.${correlationId}`, mongoOperator, prio);
+
       return switchPrioBulk();
     }
 
@@ -164,141 +147,6 @@ export default async function ({
     return switchPrioBulk();
   }
 
-
-  async function checkAmqpQueue(queue = operation, recordLoadParams = {}) {
-    logger.log('silly', `checkAmqpQueue: Checking queue for ${queue}, for params: ${recordLoadParams}`);
-
-    if (OPERATION_TYPES.includes(queue)) {
-      logger.log('silly', `checkAmqpQueue: Checking ${queue} - it is an operations queue`);
-      const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', purgeQueues);
-      if (headers && messages) {
-        logger.log('debug', `Headers: ${queue}, Messages (${messages.length}): ${messages}`);
-        const {correlationId} = messages[0].properties;
-        logger.log('debug', `Found correlationId: ${correlationId}`);
-        logger.log('debug', `checkAmqpQueue -> checkMessages: for ${messages.length} messages for ${correlationId}`);
-        const records = await checkMessages(messages);
-        await setTimeoutPromise(200); // (S)Nack time!
-        logger.log('silly', `checkAmqpQueue -> checkAmqpQueuePrio`);
-        return checkAmqpQueuePrio({queue, headers, correlationId, records, recordLoadParams});
-      }
-
-      logger.log('silly', `checkAmqpQueue -> checkMongoDB`);
-      return checkMongoDB();
-    }
-
-    logger.log('silly', `checkAmqpQueue: Checking ${queue} - it is not an operations queue`);
-    const {headers, records, messages} = await amqpOperator.checkQueue(queue, 'basic', purgeQueues);
-    logger.log('debug', `checkAmqpQueue: ${headers}, ${messages}, ${records}`);
-    if (headers && records) {
-      await amqpOperator.nackMessages(messages);
-      await setTimeoutPromise(200); // (S)Nack time!
-      logger.log('silly', `checkAmqpQueue -> checkAmqpQueueBulk`);
-      return checkAmqpQueueBulk({queue, headers, records, recordLoadParams});
-    }
-
-    logger.log('silly', `checkAmqpQueue -> checkMongoDB`);
-    return checkMongoDB();
-
-    async function checkMessages(messages) {
-      logger.log('debug', `checkMessages: IMPORTING -> ABORT?`);
-      const validMessages = messages.map(async message => {
-        const valid = await mongoOperator.checkAndSetState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
-        if (valid) {
-          logger.log('debug', 'Valid message');
-          return message;
-        }
-        logger.log('debug', 'Non-valid message');
-        return false;
-      });
-      const checkedMessages = await Promise.all(validMessages);
-      // Removes undefined ones
-      const filteredMessages = checkedMessages.filter(message => message);
-      const invalids = messages.filter(message => !filteredMessages.includes(message));
-      const records = await amqpOperator.messagesToRecords(filteredMessages);
-      logger.log('debug', `Found ${filteredMessages.length} valid and ${invalids.length} non-valid messages`);
-      await amqpOperator.nackMessages(filteredMessages);
-      await amqpOperator.ackMessages(invalids);
-      return records;
-    }
-  }
-
-  async function checkAmqpQueueBulk({queue, headers, records, recordLoadParams}) {
-    try {
-      // actually start the loader
-      logger.log('silly', `checkAmqpQueueBulk: starting loader`);
-      const {processId, correlationId, pLogFile, pRejectFile, prioCorrelationIds} = await recordLoadOperator.loadRecord({correlationId: queue, ...headers, records, recordLoadParams, prio: false});
-
-      // Send to process queue {queue, correlationId, headers, data}
-      logger.log('silly', `checkAmqpQueueBulk: send to process queue: PROCESS.${queue}`);
-      await amqpOperator.sendToQueue({
-        queue: `PROCESS.${queue}`, correlationId, headers: {queue}, data: {
-          correlationId,
-          pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
-          processId, pRejectFile, pLogFile, prioCorrelationIds
-        }
-      });
-    } catch (error) {
-      logger.log('error', 'app/checkAmqpQueueBulk');
-      logError(error);
-      return checkAmqpQueue();
-    }
-
-    logger.log('silly', `checkAmqpQueueBulk -> startCheck`);
-    return startCheck();
-  }
-
-  async function checkMongoDB() {
-    logger.log('silly', `checking Mongo for IN_PROCESS`);
-    await handleQueueItem(await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_PROCESS}));
-    logger.log('silly', `checking Mongo for IN_QUEUE`);
-    await handleQueueItem(await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IN_QUEUE}));
-
-    await setTimeoutPromise(pollWaitTime);
-
-    logger.log('silly', `checkMongoDB -> checkAmqpQueue`);
-    return checkAmqpQueue();
-
-    async function handleQueueItem(queueItem) { // mongoOperator
-      if (queueItem) {
-        logger.log('debug', `Got queueItem from Mongo: ${JSON.stringify(queueItem)}`);
-        logger.log('debug', `QueueItemState: ${JSON.stringify(queueItem.queueItemState)}`);
-        logger.log('debug', `Checking queue for ${JSON.stringify(queueItem.correlationId)}`);
-        const messagesAmount = await amqpOperator.checkQueue(queueItem.correlationId, 'messages', purgeQueues);
-        logger.log('debug', `app:handleQueueItem: messagesAmount: ${messagesAmount}`);
-        if (messagesAmount) {
-          if (queueItem.queueItemState === QUEUE_ITEM_STATE.IN_QUEUE) {
-            logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IN_PROCESS})));
-
-            logger.log('silly', `checkMongo -> checkAmqpQueue for for (${queueItem.correlationId}`);
-            return checkAmqpQueue(queueItem.correlationId, queueItem.recordLoadParams);
-          }
-
-          logger.log('silly', `checkMongo -> checkAmqpQueue for (${queueItem.correlationId}`);
-          return checkAmqpQueue(queueItem.correlationId, queueItem.recordLoadParams);
-        }
-
-        if (queueItem.queueItemState === QUEUE_ITEM_STATE.IN_PROCESS) {
-          logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE})));
-          // Clean empty queues
-          amqpOperator.removeQueue(queueItem.correlationId);
-
-          logger.log('silly', `checkMongo -> checkAmqpQueue`);
-          return checkAmqpQueue();
-        }
-
-        logger.log('info', JSON.stringify(await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR})));
-        // Clean empty queues
-        amqpOperator.removeQueue(queueItem.correlationId);
-
-        logger.log('silly', `checkMongo -> checkAmqpQueue`);
-        return checkAmqpQueue();
-      }
-
-      logger.log('silly', `app:handleQueueItem: No queueItem to handle: ${queueItem}`);
-
-    }
-  }
-
   async function sendErrorResponses(error, queue, mongoOperator, prio = false) {
     logger.log('debug', 'Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
@@ -306,6 +154,7 @@ export default async function ({
       logger.log('debug', `Got back messages (${messages.length})`);
       const status = error.status ? error.status : '500';
       const payloads = error.payload ? new Array(messages.length).fill(error.payload) : new Array(messages.length).fill(JSON.stringify.error);
+
       // Send response back if PRIO
       if (prio) { // eslint-disable-line functional/no-conditional-statement
         await amqpOperator.ackNReplyMessages({status, messages, payloads});
@@ -316,6 +165,7 @@ export default async function ({
 
       if (!prio && error.status !== 503) { // eslint-disable-line functional/no-conditional-statement
         await amqpOperator.ackMessages(messages);
+        await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
       }
       logger.log('silly', `Status: ${status}, Messages: ${messages}, Payloads:${payloads}`);
     }
