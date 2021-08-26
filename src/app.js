@@ -20,28 +20,52 @@ export default async function ({
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, operation});
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
-  switchPrioBulk();
+  startCheck();
 
-  async function switchPrioBulk(prio = true, wait = false) {
+  /*
+  prio inProcess importing inqueue
+  bulk inProcess importing inqueue
+
+  |
+  v
+
+  inProcess prio bulk
+  Prio importing inQueue
+  Bulk importing inQueue
+  */
+
+  async function startCheck(checkInProcessItems = true, wait = false) {
     if (wait) {
       await setTimeoutPromise(5000);
-      return switchPrioBulk();
-    }
-    if (prio) {
-      return startCheck(mongoOperatorPrio, prio);
+      return startCheck();
     }
 
-    return startCheck(mongoOperatorBulk, prio);
+    if (checkInProcessItems) {
+      return checkInProcess();
+    }
+
+    return checkItemImportingAndInQueue();
   }
 
-  async function startCheck(mongoOperator, prio) {
-    logger.log('debug', `StartCheck for ${operation}, ${prio ? 'PRIO' : 'BULK'}!`);
+  async function checkInProcess(prio = true) {
+    const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
 
     // Items in aleph-record-load-api
     const itemInProcess = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
     if (itemInProcess) {
       return handleItemInProcess(itemInProcess, mongoOperator, prio);
     }
+
+    if (prio) {
+      return checkInProcess(false);
+    }
+
+    return startCheck(false, false);
+  }
+
+  async function checkItemImportingAndInQueue(prio = true) {
+    const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
+
     // Items in importer to be send to aleph-record-load-api
     const itemImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
     if (itemImporting) {
@@ -54,18 +78,18 @@ export default async function ({
       return handleItemInQueue(itemInQueue, mongoOperator);
     }
 
-    if (!prio) {
-      return switchPrioBulk(true, true);
+    if (prio) {
+      return checkItemImportingAndInQueue(false);
     }
 
-    return switchPrioBulk(!prio);
+    return startCheck(true, true);
   }
 
   async function handleItemInProcess(item, mongoOperator, prio) {
     logger.debug(`App/handleInProcess: QueueItem: ${JSON.stringify(item)}`);
     await processOperator.loopCheck({correlationId: item.correlationId, mongoOperator, prio});
     await setTimeoutPromise(100);
-    return switchPrioBulk();
+    return startCheck();
   }
 
   async function handleItemImporting(item, mongoOperator, prio) {
@@ -135,16 +159,16 @@ export default async function ({
       // eslint-disable-next-line functional/no-conditional-statement
       await sendErrorResponses(error, `${operation}.${correlationId}`, mongoOperator, prio);
 
-      return switchPrioBulk();
+      return startCheck();
     }
 
-    return switchPrioBulk();
+    return startCheck();
   }
 
   async function handleItemInQueue(item, mongoOperator) {
     logger.debug(`App/handleItemInQueue: QueueItem: ${JSON.stringify(item)}`);
     await mongoOperator.setState({correlationId: item.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
-    return switchPrioBulk();
+    return startCheck();
   }
 
   async function sendErrorResponses(error, queue, mongoOperator, prio = false) {
