@@ -186,9 +186,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.log('debug', `Checking remaining items in ${queue}`);
       const queueItemsCount = await amqpOperator.checkQueue(queue, 'messages');
       logger.log('debug', `Remaining items in ${queue}: ${queueItemsCount}`);
-      // eslint-disable-next-line functional/no-conditional-statement
+
       if (queueItemsCount > 0) {
+        logger.log('debug', `All messages in ${queue} NOT handled.`);
         await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+
+        return true;
       }
 
       // eslint-disable-next-line functional/no-conditional-statement
