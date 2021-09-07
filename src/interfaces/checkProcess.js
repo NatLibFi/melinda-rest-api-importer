@@ -142,6 +142,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
       logger.log('verbose', 'Handling process messages based on results got from process polling');
       // Handle separation of all ready done records
+      // Note: bulk operatrions with rejected records might fail
       const ack = messages.slice(0, results.ackOnlyLength);
       const nack = messages.slice(results.ackOnlyLength);
       logger.log('debug', `Message separation: ack: ${ack}, nack: ${nack}`);
@@ -169,23 +170,10 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       // Assume that all messages are for same correlation id, no need to pushId for every message
       logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
       logger.log('debug', `Setting status in mongo for ${ack[0].properties.correlationId}.`);
-      // this should handle possible rejectedIds also?
       const {handledIds, rejectedIds} = results.payloads;
       mongoOperator.pushIds({correlationId: ack[0].properties.correlationId, handledIds, rejectedIds});
 
-      /*
-      await ack.forEach(message => {
-        logger.log('debug', `Setting status in mongo for ${message.properties.correlationId}.`);
-        // this should handle possible rejectedIds also?
-        const {handledIds, rejectedIds} = results.payloads;
-        mongoOperator.pushIds({correlationId: message.properties.correlationId, handledIds, rejectedIds});
-        //         mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
-      });
-      */
-
       await setTimeoutPromise(100); // (S)Nack time!
-
-      // logger.log('debug', `${queue} is BULK ***`);
 
       // If Bulk queue has more records in the line resume to them.
       logger.log('debug', `Checking remaining items in ${queue}`);
