@@ -160,7 +160,15 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
       }
 
+      // Assume that all messages are for same correlation id, no need to pushId for every message
       logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
+      logger.log('debug', `Setting status in mongo for ${ack[0].properties.correlationId}.`);
+      // this should handle possible rejectedIds also?
+      const {handledIds, rejectedIds} = results.payloads;
+      mongoOperator.pushIds({correlationId: ack[0].properties.correlationId, handledIds, rejectedIds});
+      await amqpOperator.ackMessages(ack);
+
+      /*
       await ack.forEach(message => {
         logger.log('debug', `Setting status in mongo for ${message.properties.correlationId}.`);
         // this should handle possible rejectedIds also?
@@ -168,6 +176,8 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         mongoOperator.pushIds({correlationId: message.properties.correlationId, handledIds, rejectedIds});
         //         mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
       });
+      */
+
       await setTimeoutPromise(100); // (S)Nack time!
 
       // logger.log('debug', `${queue} is BULK ***`);
@@ -181,6 +191,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
       }
 
+      // eslint-disable-next-line functional/no-conditional-statement
       logger.log('debug', `All messages in ${queue} handled`);
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
 
