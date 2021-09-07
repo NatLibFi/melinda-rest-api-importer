@@ -159,6 +159,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${results.payloads}`);
         await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
       }
+      // eslint-disable-next-line functional/no-conditional-statement
+      if (!prio) {
+        logger.log('debug', `${queue} is BULK ***`);
+        logger.log('debug', `Acking for ${ack.length} messages.`);
+        await amqpOperator.ackMessages(ack);
+      }
 
       // Assume that all messages are for same correlation id, no need to pushId for every message
       logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
@@ -166,7 +172,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       // this should handle possible rejectedIds also?
       const {handledIds, rejectedIds} = results.payloads;
       mongoOperator.pushIds({correlationId: ack[0].properties.correlationId, handledIds, rejectedIds});
-      await amqpOperator.ackMessages(ack);
 
       /*
       await ack.forEach(message => {
