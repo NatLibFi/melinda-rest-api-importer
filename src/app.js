@@ -137,7 +137,8 @@ export default async function ({
       if (headers && messages) {
         logger.log('debug', `Headers: ${JSON.stringify(headers)}, Messages (${messages.length}): ${messages}`);
         const records = await amqpOperator.messagesToRecords(messages);
-        logger.log('debug', `Found ${records.length} records`);
+        const recordAmount = records.length;
+        logger.log('debug', `Found ${records.length} records from ${messages.length} messages`);
         await amqpOperator.nackMessages(messages);
 
         await setTimeoutPromise(200); // (S)Nack time!
@@ -149,7 +150,8 @@ export default async function ({
           queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
             correlationId,
             pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
-            processId, pRejectFile, pLogFile
+            processId, pRejectFile, pLogFile,
+            recordAmount
           }
         });
       }
