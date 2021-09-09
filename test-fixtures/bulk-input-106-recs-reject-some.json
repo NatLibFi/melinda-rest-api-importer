@@ -73,7 +73,7 @@
         "subfields": [
           {
             "code": "a",
-            "value": "REJECT"
+            "value": "P_MANAGE_18 REJECT"
           }
         ]
       }
@@ -133,7 +133,7 @@
         "subfields": [
           {
             "code": "a",
-            "value": "REJECT"
+            "value": "P_MANAGE_18 REJECT"
           }
         ]
       }
@@ -373,7 +373,7 @@
         "subfields": [
           {
             "code": "a",
-            "value": "REJECT"
+            "value": "P_MANAGE_18 REJECT"
           }
         ]
       }
