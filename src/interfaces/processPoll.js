@@ -10,7 +10,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   return {poll, requestFileClear};
 
-  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile}) {
+  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile, recordAmount}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
     const query = new URLSearchParams({
@@ -33,34 +33,43 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.log('info', 'Got response for process poll!');
     logger.log('debug', `Status: ${response.status}`);
+    logger.log('debug', `Response: ${JSON.stringify(response)}`);
+    logger.log('debug', `RecordAmount sent: ${recordAmount}`);
+
+    // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
+    // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
 
     checkStatus(response);
 
     // OK (200)
-    if (response.status === httpStatus.OK) {
-      // This should handle payloads with ids and rejectedIds also
-      const {handledIds, rejectedIds} = await response.json();
-      logger.debug(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds}`);
+    // R-L-A has crashed (409)
 
+    if (response.status === httpStatus.OK || response.status === httpStatus.CONFLICT) {
+      const {handledIds, rejectedIds, rejectMessages} = await response.json();
+      logger.debug(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds} rejectMessages: ${rejectMessages}`);
+
+      // This should check that payloads make sense
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
       const rejectedIdList = rejectedIds.map(id => formatRecordId(pActiveLibrary, id));
 
-      logger.log('info', `Got "OK" (200) response from record-load-api. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
-      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList}, ackOnlyLength: handledIdList.length + rejectedIdList.length};
-    }
+      const processedAmount = handledIdList.length + rejectedIdList.length;
+      const notProcessedAmout = recordAmount - processedAmount;
+      logger.debug(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-    // R-L-A has crashed (409)
-    if (response.status === httpStatus.CONFLICT) {
-      // This should handle payloads with ids and rejectedIds also
-      const array = await response.data;
-      logger.debug(`Got "conflict" (409) response from record-load-api with contents ${array}`);
-      if (array && array.length > 0) {
-        const idList = array.map(id => formatRecordId(pActiveLibrary, id));
-        logger.log('info', `Got "conflict" (409) response from record-load-api. Ids:  ${idList}`);
-        return {payloads: idList, ackOnlyLength: idList.length};
+      if (notProcessedAmout === 0) {
+        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+        return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, rejectMessages}, ackOnlyLength: processedAmount};
       }
-      logger.debug(`Got "conflict" (409) response from record-load-api with no contents ${array}`);
-      return {payloads: [], ackOnlyLength: 0};
+
+      // eslint-disable-next-line functional/no-conditional-statement
+      if (processedAmount === 0) {
+        logger.debug(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api. NO records processed.`);
+      }
+
+      // What should we do in cases where R-L-A crashed and did not process any/all records?
+      // Currently ackOnlyLength is for processed records -> non-processed records get send again
+      logger.debug(`All records NOT processed!`);
+      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, rejectMessages}, ackOnlyLength: processedAmount};
     }
 
     // This never happens??? utils:checkStatus handles also 404.

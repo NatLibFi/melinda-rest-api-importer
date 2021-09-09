@@ -39,6 +39,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     // results: {payloads: [ids], ackOnlyLength: 0} - does this possible also contain rejected ids? payloads: {ids: [], rejectedIds: []} ?
 
     logger.log('silly', `loopCheck -> handleMessages`);
+    // HandleMessages returns false if there are no messages in queue to handle or if the results
     const messagesHandled = await handleMessages({results, processParams, queue: `${operation}.${correlationId}`, mongoOperator, prio});
     logger.log('debug', `messagesHandled: ${messagesHandled}`);
 
@@ -70,9 +71,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       }
 
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Empty ${processQueue} queue`);
+
     } catch (error) {
+
       logger.debug(`checkProcessQueue for queue ${correlationId} errored: ${error}`);
       logError(error);
+
       if (error instanceof ApiError) {
         // eslint-disable-next-line functional/no-conditional-statement
         if (prio) {
@@ -111,7 +115,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       return {results, processParams};
     } catch (error) {
       // should we ack processMessage for other errors than LOCKED?
-      logger.error('handleProcessMessage');
+      logger.error('handleProcessMessage errored');
       logError(error);
       if (error instanceof ApiError) {
         logger.log('debug', `Polling loader resulted in error: ${error.payload}`);
@@ -137,20 +141,26 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.log('debug', `headers: ${headers}`);
     logger.log('debug', `messages: ${messages}`);
 
-
     if (messages) {
+      // Could this set status to REJECTED if record-load-api rejected the record?
+      // This would need the message to have a record identifier
       const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
       logger.log('verbose', 'Handling process messages based on results got from process polling');
       // Handle separation of all ready done records
-      // Note: bulk operatrions with rejected records might fail
       const ack = messages.slice(0, results.ackOnlyLength);
       const nack = messages.slice(results.ackOnlyLength);
       logger.log('debug', `Message separation: ack: ${ack}, nack: ${nack}`);
       await amqpOperator.nackMessages(nack);
       await setTimeoutPromise(100); // (S)Nack time!
 
+      if (ack === undefined || ack.length < 1) {
+        // Should this error? Currently errors the same as if there was no messages in queue
+        logger.debug(`There was no messages to ack!!!`);
+        return false;
+      }
+
       // IF PRIO -> DONE
-      // IF BULK -> IF QUEUE EMPTY -> DONE, ELSE -> IMPORTING
+      // IF BULK -> IF QUEUE EMPTY -> DONE  ELSE -> IMPORTING
 
       // eslint-disable-next-line functional/no-conditional-statement
       if (prio) {
@@ -158,6 +168,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         // Handle separation of all ready done records
         logger.log('debug', `Replying for ${ack.length} messages.`);
         logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${results.payloads}`);
+        // ackNReply sets status in message to 422 in case where there are no handled records and there are rejected records but does not set state as ERROR in mongo
         await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
       }
       // eslint-disable-next-line functional/no-conditional-statement
@@ -168,10 +179,11 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       }
 
       // Assume that all messages are for same correlation id, no need to pushId for every message
-      logger.log('debug', `Setting status in mongo for ${ack.length} messages.`);
-      logger.log('debug', `Setting status in mongo for ${ack[0].properties.correlationId}.`);
-      const {handledIds, rejectedIds} = results.payloads;
+      logger.log('debug', `Setting status in mongo for ${ack.length} messages for ${ack[0].properties.correlationId}.`);
+      const {handledIds, rejectedIds, rejectMessages} = results.payloads;
       mongoOperator.pushIds({correlationId: ack[0].properties.correlationId, handledIds, rejectedIds});
+      logger.log('debug', `Pushing loaderRejectMessages to mongo for ${rejectMessages.length} messages for ${ack[0].properties.correlationId}.`);
+      mongoOperator.pushMessages({correlationId: ack[0].properties.correlationId, messageField: 'loaderRejectMessages', messages: rejectMessages});
 
       await setTimeoutPromise(100); // (S)Nack time!
 
@@ -187,12 +199,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         return true;
       }
 
-      // eslint-disable-next-line functional/no-conditional-statement
       logger.log('debug', `All messages in ${queue} handled`);
+      // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
 
       return true;
     }
+
     logger.log('debug', `No messages: ${messages}`);
     return false;
   }
