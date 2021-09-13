@@ -175,9 +175,9 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       await setTimeoutPromise(100); // (S)Nack time!
 
       if (ack === undefined || ack.length < 1) {
-        // Should this error? Currently errors the same as if there was no messages in queue
-        logger.debug(`There was no messages to ack!!!`);
-        return false;
+        // If there are no messages to ack, continue the loop
+        logger.verbose(`There was no messages to ack!!!`);
+        return true;
       }
 
       // IF PRIO -> DONE
@@ -200,13 +200,14 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         // ackNReplyMessages keep status as 200/201 even if there's no handledId
 
         await amqpOperator.ackNReplyMessages({status: prioStatus, messages: ack, payloads: prioPayloads});
+        await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
+        return true;
       }
+
       // eslint-disable-next-line functional/no-conditional-statement
-      if (!prio) {
-        logger.log('debug', `${queue} is BULK ***`);
-        logger.log('debug', `Acking for ${ack.length} messages.`);
-        await amqpOperator.ackMessages(ack);
-      }
+      logger.log('debug', `${queue} is BULK ***`);
+      logger.log('debug', `Acking for ${ack.length} messages.`);
+      await amqpOperator.ackMessages(ack);
 
       // If Bulk queue has more records in the line resume to them.
       logger.log('debug', `Checking remaining items in ${queue}`);
@@ -223,12 +224,11 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.log('debug', `All messages in ${queue} handled`);
       // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
-
       return true;
     }
 
-    logger.log('debug', `No messages: ${messages}`);
-    return false;
+    logger.log('verbose', `No messages in ${queue} to handle: ${messages}. Continuing the loop`);
+    return true;
   }
 
   async function sendErrorResponses(error, queue, mongoOperator) {
