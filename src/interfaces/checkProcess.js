@@ -177,7 +177,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       if (ack === undefined || ack.length < 1) {
         // If there are no messages to ack, continue the loop
         logger.verbose(`There was no messages to ack!!!`);
-        return true;
+        return false;
       }
 
       // IF PRIO -> DONE
@@ -224,11 +224,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.log('debug', `All messages in ${queue} handled`);
       // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
+
       return true;
     }
 
     logger.log('verbose', `No messages in ${queue} to handle: ${messages}. Continuing the loop`);
-    return true;
+    return false;
   }
 
   async function sendErrorResponses(error, queue, mongoOperator) {
