@@ -13,4 +13,5 @@ export const mongoUri = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mon
 
 // Operation variables
 export const pollWaitTime = readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000});
+export const error503WaitTime = readEnvironmentVariable('ERROR_503_WAIT_TIME', {defaultValue: 10000});
 export const operation = readEnvironmentVariable('OPERATION');

@@ -8,7 +8,7 @@ import {promisify} from 'util';
 import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
-export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, operation}) {
+export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
 
@@ -30,16 +30,29 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.log('debug', `processQueueResults: ${JSON.stringify(processQueueResults)}`);
 
     if (!processQueueResults) {
+      // false: there's a process in process queue that is not ready yet
       return;
     }
 
     const {results, processParams} = processQueueResults;
     logger.log('debug', `results: ${JSON.stringify(results)}`);
     logger.log('debug', `processParams: ${JSON.stringify(processParams)}`);
-    // results: {payloads: [ids], ackOnlyLength: 0} - does this possible also contain rejected ids? payloads: {ids: [], rejectedIds: []} ?
+    // results: {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
+    // if process poll results resulted in less processed results than processes recordAmount -> ackOnlyLength is recordAmount
+
+    // Assume that all messages are for same correlation id, no need to pushId for every message
+
+    logger.log('debug', `Setting status in mongo for ${correlationId}.`);
+    const {handledIds, rejectedIds, loadProcessReport} = results.payloads;
+    mongoOperator.pushIds({correlationId, handledIds, rejectedIds});
+    mongoOperator.pushMessages({correlationId, messageField: 'loaderProcessReports', messages: [loadProcessReport]});
+
+    await setTimeoutPromise(100); // (S)Nack time!
+
 
     logger.log('silly', `loopCheck -> handleMessages`);
-    // HandleMessages returns false if there are no messages in queue to handle or if the results
+    // HandleMessages returns false if there are no messages in queue to handle
+    // HandleMessages returns true, if there were messages and they were handled
     const messagesHandled = await handleMessages({results, processParams, queue: `${operation}.${correlationId}`, mongoOperator, prio});
     logger.log('debug', `messagesHandled: ${messagesHandled}`);
 
@@ -49,6 +62,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       return;
     }
 
+    // There was a message in processQueue for queueItem, but no messages in operationQueue for correlation id
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
   }
 
@@ -60,11 +74,10 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     try {
       if (processMessage) {
         logger.log('debug', `We have processMessage: ${processMessage}`);
-        //const {results, processParams} = await handleProcessMessage(processMessage, correlationId, mongoOperator, prio);
         logger.log('silly', `checkProcessQueue -> handleProcessMessage`);
 
-        // handleProcessMessage returns: {results, processParams} if successful
-        // false if process is locked
+        // handleProcessMessage returns: {results, processParams} if successful - ack processMessage
+        // false if process is locked - nack processMessage
         // otherwise throws error
         const result = await handleProcessMessage(processMessage, correlationId);
         return result;
@@ -103,11 +116,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     try {
       const processParams = await JSON.parse(processMessage.content.toString());
       logger.log('debug', `handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
+
       // Ask aleph-record-load-api about the process
       const results = await processOperator.poll(processParams.data);
       logger.debug(`ProcessPoll results: ${JSON.stringify(results)}`);
-      // results: {payloads: [ids], ackOnlyLength: 0}
       // should this check that results exist/are sane?
+
+      // This could add loadProcessMessage to mongo for queueItem
 
       await amqpOperator.ackMessages([processMessage]);
       await setTimeoutPromise(100);
@@ -125,7 +140,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
           logger.debug('Process in progress @ server, back to loop!');
           return false;
         }
+        if (error.status === httpStatus.SERVICE_UNAVAILABLE) {
+          await amqpOperator.nackMessages([processMessage]);
+          logger.debug(`Server temporarily unavailable, sleeping ${error503WaitTime} and back to loop!`);
+          await setTimeoutPromise(error503WaitTime);
+          return false;
 
+        }
         throw error;
       }
       // Unexpected
@@ -165,11 +186,20 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       // eslint-disable-next-line functional/no-conditional-statement
       if (prio) {
         logger.log('debug', `${queue} is PRIO ***`);
+
         // Handle separation of all ready done records
         logger.log('debug', `Replying for ${ack.length} messages.`);
-        logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${results.payloads}`);
-        // ackNReply sets status in message to 422 in case where there are no handled records and there are rejected records but does not set state as ERROR in mongo
-        await amqpOperator.ackNReplyMessages({status, messages: ack, payloads: results.payloads});
+        logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${JSON.stringify(results.payloads)}`);
+
+        const prioStatus = results.payloads.handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
+        const prioPayloads = results.payloads.handledIds[0] || results.payloads.rejectedIds[0] || 'No loadProcess information for record';
+
+        logger.log('debug', `New Parameters for ackNReplyMessages ${prioStatus}, ${ack}, ${JSON.stringify(prioPayloads)}`);
+
+        // ackNReplyMessages sets status in message to 422 in case where there are no handled records and there are rejected records but does not set state as ERROR in mongo
+        // ackNReplyMessages keep status as 200/201 even if there's no handledId
+
+        await amqpOperator.ackNReplyMessages({status: prioStatus, messages: ack, payloads: prioPayloads});
       }
       // eslint-disable-next-line functional/no-conditional-statement
       if (!prio) {
@@ -177,15 +207,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         logger.log('debug', `Acking for ${ack.length} messages.`);
         await amqpOperator.ackMessages(ack);
       }
-
-      // Assume that all messages are for same correlation id, no need to pushId for every message
-      logger.log('debug', `Setting status in mongo for ${ack.length} messages for ${ack[0].properties.correlationId}.`);
-      const {handledIds, rejectedIds, rejectMessages} = results.payloads;
-      mongoOperator.pushIds({correlationId: ack[0].properties.correlationId, handledIds, rejectedIds});
-      logger.log('debug', `Pushing loaderRejectMessages to mongo for ${rejectMessages.length} messages for ${ack[0].properties.correlationId}.`);
-      mongoOperator.pushMessages({correlationId: ack[0].properties.correlationId, messageField: 'loaderRejectMessages', messages: rejectMessages});
-
-      await setTimeoutPromise(100); // (S)Nack time!
 
       // If Bulk queue has more records in the line resume to them.
       logger.log('debug', `Checking remaining items in ${queue}`);
@@ -211,21 +232,22 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
   }
 
   async function sendErrorResponses(error, queue, mongoOperator) {
-    logger.log('debug', 'Sending error responses');
+    logger.log('debug', 'checkProcess/sendErrorResponses Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
     // eslint-disable-next-line functional/no-conditional-statement
     if (messages) {
       logger.log('debug', `Got messages (${messages.length}): ${JSON.stringify(messages)}`);
       const {status} = error;
       const payloads = error.payload ? new Array(messages.length).fill(error.payload) : [];
+      // Does this need to set itemState for all messages?
       messages.forEach(message => {
         mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
       });
-      logger.log('debug', `Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
+      logger.log('debug', `checkProcess/sendErrorMessages Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
       // Send response back if PRIO
       await amqpOperator.ackNReplyMessages({status, messages, payloads});
       return;
     }
-    logger.log('debug', `Got no messages: ${JSON.stringify(messages)}`);
+    logger.log('debug', `checkProcess/sendErrorMessages Got no messages: ${JSON.stringify(messages)} from ${queue}`);
   }
 }

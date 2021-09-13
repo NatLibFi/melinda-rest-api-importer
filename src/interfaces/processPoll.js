@@ -33,8 +33,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.log('info', 'Got response for process poll!');
     logger.log('debug', `Status: ${response.status}`);
-    logger.log('debug', `Response: ${JSON.stringify(response)}`);
-    logger.log('debug', `RecordAmount sent: ${recordAmount}`);
+    //logger.log('debug', `Response: ${JSON.stringify(response)}`);
+    //logger.log('debug', `RecordAmount sent: ${recordAmount}`);
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
@@ -48,28 +48,33 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const {handledIds, rejectedIds, rejectMessages} = await response.json();
       logger.debug(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds} rejectMessages: ${rejectMessages}`);
 
-      // This should check that payloads make sense
+      // This should check that payloads make sense (ie. are arrays)
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
       const rejectedIdList = rejectedIds.map(id => formatRecordId(pActiveLibrary, id));
 
       const processedAmount = handledIdList.length + rejectedIdList.length;
       const notProcessedAmout = recordAmount - processedAmount;
+      const processedAll = processedAmount === recordAmount;
+
       logger.debug(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-      if (notProcessedAmout === 0) {
-        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
-        return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, rejectMessages}, ackOnlyLength: processedAmount};
+      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, rejectMessages};
+      logger.debug(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
+
+      if (processedAll) {
+        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed {processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+        return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
       }
 
       // eslint-disable-next-line functional/no-conditional-statement
       if (processedAmount === 0) {
-        logger.debug(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api. NO records processed.`);
+        logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}.`);
       }
 
       // What should we do in cases where R-L-A crashed and did not process any/all records?
-      // Currently ackOnlyLength is for processed records -> non-processed records get send again
-      logger.debug(`All records NOT processed!`);
-      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, rejectMessages}, ackOnlyLength: processedAmount};
+      // Ack all messages for sent records
+      logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}.`);
+      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: recordAmount};
     }
 
     // This never happens??? utils:checkStatus handles also 404.
