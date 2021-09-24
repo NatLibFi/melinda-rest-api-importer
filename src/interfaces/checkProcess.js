@@ -99,14 +99,16 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
         // eslint-disable-next-line functional/no-conditional-statement
         if (!prio) {
+          // Does this set bulk state to error if any of loadProcesses result in error?
           logger.debug(`Error is from BULK ${correlationId}, not sending error responses`);
-          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
+          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
         }
 
         await amqpOperator.ackMessages([processMessage]);
         await setTimeoutPromise(100);
         return false;
       }
+      // processMessage get un-(n)acked in this case?
       logger.debug(`Error is not ApiError, not sending error responses`);
     }
   }
@@ -145,11 +147,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
           logger.debug(`Server temporarily unavailable, sleeping ${error503WaitTime} and back to loop!`);
           await setTimeoutPromise(error503WaitTime);
           return false;
-
         }
+        // processMessage un-(n)acked
         throw error;
       }
       // Unexpected
+      // processMessage un-(n)acked
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, error.message);
     }
   }
@@ -180,6 +183,9 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         return false;
       }
 
+      const distinctCorrelationIds = ack.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
+      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${ack.length} messages.`);
+
       // IF PRIO -> DONE
       // IF BULK -> IF QUEUE EMPTY -> DONE  ELSE -> IMPORTING
 
@@ -189,18 +195,27 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
         // Handle separation of all ready done records
         logger.log('debug', `Replying for ${ack.length} messages.`);
-        logger.log('debug', `Parameters for ackNReplyMessages ${status}, ${ack}, ${JSON.stringify(results.payloads)}`);
 
         const prioStatus = results.payloads.handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
         const prioPayloads = results.payloads.handledIds[0] || results.payloads.rejectedIds[0] || 'No loadProcess information for record';
 
-        logger.log('debug', `New Parameters for ackNReplyMessages ${prioStatus}, ${ack}, ${JSON.stringify(prioPayloads)}`);
+        // No need for ackNReply - melinda-rest-api-http should get data from queueItem
+        // logger.log('debug', `Parameters for ackNReplyMessages ${prioStatus}, ${ack}, ${JSON.stringify(prioPayloads)}`);
+        // await amqpOperator.ackNReplyMessages({status: prioStatus, messages: ack, payloads: prioPayloads});
+        await amqpOperator.ackMessages(ack);
 
-        // ackNReplyMessages sets status in message to 422 in case where there are no handled records and there are rejected records but does not set state as ERROR in mongo
-        // ackNReplyMessages keep status as 200/201 even if there's no handledId
+        if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
+        // This should setState to Error and add error message
+          logger.debug(`prioStatus: ${prioStatus}`);
+          await distinctCorrelationIds.forEach(async correlationId => {
+            await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
+          });
+          return true;
+        }
 
-        await amqpOperator.ackNReplyMessages({status: prioStatus, messages: ack, payloads: prioPayloads});
-        await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
+        await distinctCorrelationIds.forEach(async correlationId => {
+          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
+        });
         return true;
       }
 
@@ -216,6 +231,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
       if (queueItemsCount > 0) {
         logger.log('debug', `All messages in ${queue} NOT handled.`);
+        // Note: this assumes that all messages in the queue are related to the same correlationId
         await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
 
         return true;
@@ -223,6 +239,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
       logger.log('debug', `All messages in ${queue} handled`);
       // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
+      // Note: this assumes that all messages in the queue are related to the same correlationId
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});
 
       return true;
@@ -236,17 +253,29 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.log('debug', 'checkProcess/sendErrorResponses Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
     // eslint-disable-next-line functional/no-conditional-statement
+
     if (messages) {
       logger.log('debug', `Got messages (${messages.length}): ${JSON.stringify(messages)}`);
-      const {status} = error;
-      const payloads = error.payload ? new Array(messages.length).fill(error.payload) : [];
-      // Does this need to set itemState for all messages?
-      messages.forEach(message => {
-        mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
+      //const {status} = error;
+      //const payloads = error.payload ? new Array(messages.length).fill(error.payload) : [];
+      // logger.log('debug', `checkProcess/sendErrorMessages Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
+
+      const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
+      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
+
+      await distinctCorrelationIds.forEach(async correlationId => {
+        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
       });
-      logger.log('debug', `checkProcess/sendErrorMessages Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
+
+      await amqpOperator.ackMessages(messages);
+
+      // messages.forEach(message => {
+      //  mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
+      //  });
       // Send response back if PRIO
-      await amqpOperator.ackNReplyMessages({status, messages, payloads});
+      // No need for ackNReply - melinda-rest-api-http should get status from mongo queueItem
+      // await amqpOperator.ackNReplyMessages({status, messages, payloads});
+
       return;
     }
     logger.log('debug', `checkProcess/sendErrorMessages Got no messages: ${JSON.stringify(messages)} from ${queue}`);

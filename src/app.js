@@ -5,6 +5,7 @@ import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE} from '@natlibfi/m
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/loadStarter';
 import checkProcess from './interfaces/checkProcess';
+import httpStatus from 'http-status';
 
 export default async function ({
   amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
@@ -189,34 +190,42 @@ export default async function ({
   async function sendErrorResponses(error, queue, mongoOperator, prio = false) {
     logger.log('debug', 'app/sendErrorResponses: Sending error responses');
     const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
+
     if (messages) { // eslint-disable-line functional/no-conditional-statement
       logger.log('debug', `Got back messages (${messages.length}) from ${queue}`);
-      const status = error.status ? error.status : '500';
-      const payloads = error.payload ? new Array(messages.length).fill(error.payload) : new Array(messages.length).fill(JSON.stringify.error);
+
+      const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
+      const responsePayload = error.payload ? error.payload : 'unknown error';
+
+
+      logger.log('silly', `app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
+
+      const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
+      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
 
       // Send response back if PRIO
-      if (prio) { // eslint-disable-line functional/no-conditional-statement
-        await amqpOperator.ackNReplyMessages({status, messages, payloads});
-        // Does this need to setState for each message?
-        await messages.forEach(async message => {
-          await mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
+      // Send responses back if BULK and error is something else than 503
+
+      // eslint-disable-next-line no-extra-parens
+      if (prio || (!prio && error.status !== 503)) { // eslint-disable-line functional/no-conditional-statement
+
+        amqpOperator.ackMessages(messages);
+        // await amqpOperator.ackNReplyMessages({status, messages, payloads});
+        await distinctCorrelationIds.forEach(async correlationId => {
+          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
         });
+        return;
       }
 
-      if (!prio && error.status !== 503) { // eslint-disable-line functional/no-conditional-statement
-        await amqpOperator.ackMessages(messages);
-        await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
-      }
-
+      // Nack messages and sleep, if BULK and error is 503
       if (!prio && error.status === 503) { // eslint-disable-line functional/no-conditional-statement
         await amqpOperator.nackMessages(messages);
         logger.debug(`app/sendErrorResponses Got 503 for bulk. Nack messages to try loading/polling again after sleeping ${error503WaitTime} ms`);
         await setTimeoutPromise(error503WaitTime);
+        return;
       }
 
-      logger.log('silly', `app/sendErrorResponses Status: ${status}, Messages: ${messages}, Payloads:${payloads}`);
-
-      return;
+      throw new Error('app/sendErrorMessages: What to do with these error responses?');
     }
     logger.log('debug', `app/sendErrorResponses Did not get back any messages: ${messages} from ${queue}`);
   }
