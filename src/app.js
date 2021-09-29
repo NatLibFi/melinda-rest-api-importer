@@ -209,8 +209,7 @@ export default async function ({
       // eslint-disable-next-line no-extra-parens
       if (prio || (!prio && error.status !== 503)) { // eslint-disable-line functional/no-conditional-statement
 
-        amqpOperator.ackMessages(messages);
-        // await amqpOperator.ackNReplyMessages({status, messages, payloads});
+        await amqpOperator.ackMessages(messages);
         await distinctCorrelationIds.forEach(async correlationId => {
           await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
         });

@@ -125,7 +125,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       // should this check that results exist/are sane?
 
       // This could add loadProcessMessage to mongo for queueItem
-
       await amqpOperator.ackMessages([processMessage]);
       await setTimeoutPromise(100);
 
@@ -199,9 +198,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         const prioStatus = results.payloads.handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
         const prioPayloads = results.payloads.handledIds[0] || results.payloads.rejectedIds[0] || 'No loadProcess information for record';
 
-        // No need for ackNReply - melinda-rest-api-http should get data from queueItem
-        // logger.log('debug', `Parameters for ackNReplyMessages ${prioStatus}, ${ack}, ${JSON.stringify(prioPayloads)}`);
-        // await amqpOperator.ackNReplyMessages({status: prioStatus, messages: ack, payloads: prioPayloads});
         await amqpOperator.ackMessages(ack);
 
         if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
@@ -224,7 +220,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.log('debug', `Acking for ${ack.length} messages.`);
       await amqpOperator.ackMessages(ack);
 
-      // If Bulk queue has more records in the line resume to them.
+      // If Bulk queue has more records/messages waiting in the queue resume to them.
       logger.log('debug', `Checking remaining items in ${queue}`);
       const queueItemsCount = await amqpOperator.checkQueue(queue, 'messages');
       logger.log('debug', `Remaining items in ${queue}: ${queueItemsCount}`);
@@ -256,9 +252,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
     if (messages) {
       logger.log('debug', `Got messages (${messages.length}): ${JSON.stringify(messages)}`);
-      //const {status} = error;
-      //const payloads = error.payload ? new Array(messages.length).fill(error.payload) : [];
-      // logger.log('debug', `checkProcess/sendErrorMessages Status: ${status}\nMessages: ${messages}\nPayloads:${payloads}`);
 
       const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
       logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
@@ -268,13 +261,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       });
 
       await amqpOperator.ackMessages(messages);
-
-      // messages.forEach(message => {
-      //  mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR});
-      //  });
-      // Send response back if PRIO
-      // No need for ackNReply - melinda-rest-api-http should get status from mongo queueItem
-      // await amqpOperator.ackNReplyMessages({status, messages, payloads});
 
       return;
     }
