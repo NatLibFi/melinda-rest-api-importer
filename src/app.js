@@ -9,7 +9,7 @@ import httpStatus from 'http-status';
 
 export default async function ({
   amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
-  recordLoadApiKey, recordLoadLibrary, recordLoadUrl
+  recordLoadApiKey, recordLoadLibrary, recordLoadUrl, keepLoadProcessReports
 }) {
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
@@ -18,7 +18,7 @@ export default async function ({
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
   const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
-  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation});
+  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports});
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
   startCheck();

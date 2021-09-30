@@ -8,10 +8,9 @@ import {promisify} from 'util';
 import processOperatorFactory from './processPoll';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
-export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation}) {
+export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
-
   const processOperator = processOperatorFactory({recordLoadApiKey, recordLoadUrl});
 
   return {loopCheck};
@@ -26,11 +25,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.log('silly', `loopCheck -> checkProcessQueue (${correlationId})`);
     const processQueueResults = await checkProcessQueue(correlationId, mongoOperator, prio);
     // handle checkProcessQueue errors ???
-    // if checkProcessQueue errored, processMessage is not acked/nacked
+    // if checkProcessQueue errored with error that's not an ApiError, processMessage is not acked/nacked
     logger.log('debug', `processQueueResults: ${JSON.stringify(processQueueResults)}`);
 
     if (!processQueueResults) {
-      // false: there's a process in process queue that is not ready yet
+      // false: there's a process in process queue that is not ready yet (queueItemState: IMPORTING.IN_PROCESS) or
+      // false: processQueue errored (queueItemState was set to ERROR)
       return;
     }
 
@@ -45,7 +45,15 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.log('debug', `Setting status in mongo for ${correlationId}.`);
     const {handledIds, rejectedIds, loadProcessReport} = results.payloads;
     mongoOperator.pushIds({correlationId, handledIds, rejectedIds});
-    mongoOperator.pushMessages({correlationId, messageField: 'loaderProcessReports', messages: [loadProcessReport]});
+
+    logger.debug(`Check if loadProcessReport should be kept.`);
+    const keepLoadProcessReport = checkLoadProcessReport(keepLoadProcessReports, loadProcessReport);
+
+    // eslint-disable-next-line functional/no-conditional-statement
+    if (keepLoadProcessReport) {
+      logger.debug(`Keeping loadProcessReport.`);
+      mongoOperator.pushMessages({correlationId, messageField: 'loaderProcessReports', messages: [loadProcessReport]});
+    }
 
     await setTimeoutPromise(100); // (S)Nack time!
 
@@ -64,6 +72,25 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
     // There was a message in processQueue for queueItem, but no messages in operationQueue for correlation id
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
+  }
+
+  function checkLoadProcessReport(keepLoadProcessReports, loadProcessReport) {
+    logger.debug(`Checking if loadProcessReport should be kept.`);
+
+    if (keepLoadProcessReports === 'ALL') {
+      logger.debug(`Keeping loadProcessReport. (${keepLoadProcessReports})`);
+      return true;
+    }
+    if (keepLoadProcessReports === 'NON_PROCESSSED' && !loadProcessReport.processedAll) {
+      logger.debug(`Keeping loadProcessReport. (${keepLoadProcessReports}): processedAll: ${loadProcessReport.processedAll}`);
+      return true;
+    }
+    if (keepLoadProcessReports === 'NON_HANDLED' && loadProcessReport.handledAmount < loadProcessReport.recordAmount) {
+      logger.debug(`Keeping loadProcessReport. (${keepLoadProcessReports}): ${loadProcessReport.handledAmount}/${loadProcessReport.recordAmount}`);
+      return true;
+    }
+    logger.debug(`Not keeping loadProcessReport. (${keepLoadProcessReports}): ${loadProcessReport.processedAll}, ${loadProcessReport.handledAmount}/${loadProcessReport.recordAmount}`);
+    return false;
   }
 
   async function checkProcessQueue(correlationId, mongoOperator, prio) {
@@ -231,6 +258,9 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       }
 
       logger.log('debug', `All messages in ${queue} handled`);
+
+      // Combine loadProcessResults here
+
       // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
       // Note: this assumes that all messages in the queue are related to the same correlationId
       await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.DONE});

@@ -33,12 +33,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.log('info', 'Got response for process poll!');
     logger.log('debug', `Status: ${response.status}`);
-    //logger.log('debug', `Response: ${JSON.stringify(response)}`);
-    //logger.log('debug', `RecordAmount sent: ${recordAmount}`);
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
 
+    // 401, 403, 404, 406, 423, 503 responses from checkStatus
     checkStatus(response);
 
     // OK (200)
@@ -52,13 +51,15 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
       const rejectedIdList = rejectedIds.map(id => formatRecordId(pActiveLibrary, id));
 
-      const processedAmount = handledIdList.length + rejectedIdList.length;
+      const handledAmount = handledIdList.length || 0;
+      const rejectedAmount = rejectedIdList.length || 0;
+      const processedAmount = handledAmount + rejectedAmount;
       const notProcessedAmout = recordAmount - processedAmount;
       const processedAll = processedAmount === recordAmount;
 
       logger.debug(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, rejectMessages};
+      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages};
       logger.debug(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
       if (processedAll) {
@@ -84,6 +85,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     }
 
     // 500 from aleph-record-load-api goes here (not in utils::checkStatus)
+    // Also other not statuses not handled by checkStatus
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
