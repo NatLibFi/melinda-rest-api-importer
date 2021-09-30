@@ -94,7 +94,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         // eslint-disable-next-line functional/no-conditional-statement
         if (prio) {
           logger.debug(`Error is from PRIO ${correlationId}, sending error responses`);
-          await sendErrorResponses(error, correlationId, mongoOperator);
+          await sendErrorResponses({error, correlationId, mongoOperator});
         }
 
         // eslint-disable-next-line functional/no-conditional-statement
@@ -124,7 +124,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logger.debug(`ProcessPoll results: ${JSON.stringify(results)}`);
       // should this check that results exist/are sane?
 
-      // This could add loadProcessMessage to mongo for queueItem
       await amqpOperator.ackMessages([processMessage]);
       await setTimeoutPromise(100);
 
@@ -192,7 +191,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       if (prio) {
         logger.log('debug', `${queue} is PRIO ***`);
 
-        // Handle separation of all ready done records
         logger.log('debug', `Replying for ${ack.length} messages.`);
 
         const prioStatus = results.payloads.handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
@@ -201,7 +199,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         await amqpOperator.ackMessages(ack);
 
         if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
-        // This should setState to Error and add error message
           logger.debug(`prioStatus: ${prioStatus}`);
           await distinctCorrelationIds.forEach(async correlationId => {
             await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
@@ -245,11 +242,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return false;
   }
 
-  async function sendErrorResponses(error, queue, mongoOperator) {
+  async function sendErrorResponses({error, queue, mongoOperator}) {
     logger.log('debug', 'checkProcess/sendErrorResponses Sending error responses');
-    const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
-    // eslint-disable-next-line functional/no-conditional-statement
 
+    const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
+
+    // eslint-disable-next-line functional/no-conditional-statement
     if (messages) {
       logger.log('debug', `Got messages (${messages.length}): ${JSON.stringify(messages)}`);
 
@@ -265,5 +263,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       return;
     }
     logger.log('debug', `checkProcess/sendErrorMessages Got no messages: ${JSON.stringify(messages)} from ${queue}`);
+    // should this throw an error?
   }
 }

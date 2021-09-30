@@ -138,6 +138,8 @@ export default async function ({
     */
 
     try {
+      // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
+      // This could get also records with 'basic'?
       const {headers, messages} = await amqpOperator.checkQueue(`${operation}.${correlationId}`, 'rawChunk', purgeQueues);
       /// 1-100 messages from 1-10000 messages
       // eslint-disable-next-line functional/no-conditional-statement
@@ -174,7 +176,7 @@ export default async function ({
       logger.log('error', 'app/handleItemImporting errored:');
       logError(error);
       // eslint-disable-next-line functional/no-conditional-statement
-      await sendErrorResponses(error, `${operation}.${correlationId}`, mongoOperator, prio);
+      await sendErrorResponses({error, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
       return startCheck();
     }
@@ -187,16 +189,18 @@ export default async function ({
     return startCheck();
   }
 
-  async function sendErrorResponses(error, queue, mongoOperator, prio = false) {
+  async function sendErrorResponses({error, queue, mongoOperator, prio = false}) {
     logger.log('debug', 'app/sendErrorResponses: Sending error responses');
-    const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
+
+    // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
+    // no need for transforming messages to records
+    const {messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
 
     if (messages) { // eslint-disable-line functional/no-conditional-statement
       logger.log('debug', `Got back messages (${messages.length}) from ${queue}`);
 
       const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
       const responsePayload = error.payload ? error.payload : 'unknown error';
-
 
       logger.log('silly', `app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
 
@@ -226,6 +230,7 @@ export default async function ({
 
       throw new Error('app/sendErrorMessages: What to do with these error responses?');
     }
-    logger.log('debug', `app/sendErrorResponses Did not get back any messages: ${messages} from ${queue}`);
+    logger.log('debug', `app/sendErrorResponses: Did not get back any messages: ${messages} from ${queue}`);
+    // should this throw an error?
   }
 }
