@@ -1,0 +1,2122 @@
+[
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "1"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "2"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "3"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "4"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "P_MANAGE_18 REJECT"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "5"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "6"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "7"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "P_MANAGE_18 REJECT"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "8"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "9"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "10"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "11"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "12"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "13"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "14"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "15"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "16"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "17"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "18"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "19"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "P_MANAGE_18 REJECT"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "20"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "21"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "22"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "23"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "24"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "25"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "26"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "27"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "28"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "29"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "30"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "31"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "32"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "33"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "34"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "35"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "36"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "37"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "38"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "39"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "40"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "41"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "42"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "43"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "44"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "45"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "46"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "47"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "48"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "49"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "50"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "51"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "52"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "53"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "54"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "55"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "56"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "57"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "58"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "59"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "60"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "61"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "62"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "63"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "64"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "65"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "66"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "67"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "68"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "69"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "70"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "71"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "72"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "73"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "74"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "75"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "76"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "77"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "78"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "79"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "80"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "81"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "82"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "83"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "84"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "85"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "86"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "87"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "88"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "89"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "90"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "91"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "92"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "93"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "94"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "95"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "96"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "97"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "98"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "99"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "100"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "101"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "102"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "103"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "104"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "105"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "leader": "",
+    "fields": [
+      {
+        "tag": "001",
+        "value": "106"
+      },
+      {
+        "tag": "100",
+        "ind1": " ",
+        "Ind2": " ",
+        "subfields": [
+          {
+            "code": "a",
+            "value": "foo, faa"
+          }
+        ]
+      }
+    ]
+  }
+]

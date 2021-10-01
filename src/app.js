@@ -5,10 +5,11 @@ import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE} from '@natlibfi/m
 import {promisify} from 'util';
 import recordLoadFactory from './interfaces/loadStarter';
 import checkProcess from './interfaces/checkProcess';
+import httpStatus from 'http-status';
 
 export default async function ({
-  amqpUrl, operation, pollWaitTime, mongoUri,
-  recordLoadApiKey, recordLoadLibrary, recordLoadUrl
+  amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
+  recordLoadApiKey, recordLoadLibrary, recordLoadUrl, keepLoadProcessReports
 }) {
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
@@ -17,7 +18,7 @@ export default async function ({
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
   const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
-  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, operation});
+  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports});
 
   logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
   startCheck();
@@ -57,9 +58,11 @@ export default async function ({
     }
 
     if (prio) {
+      logger.debug(`app/checkInProcess: Nothing found: PRIO -> checkInProcess `);
       return checkInProcess(false);
     }
 
+    logger.debug(`app/checkInProcess: Nothing found: BULK -> starCheck `);
     return startCheck(false, false);
   }
 
@@ -69,19 +72,23 @@ export default async function ({
     // Items in importer to be send to aleph-record-load-api
     const itemImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
     if (itemImporting) {
+      logger.debug(`app/checkItemImportingAndInQueue: Found item in importing `);
       return handleItemImporting(itemImporting, mongoOperator, prio);
     }
 
     // Items waiting to be imported
     const itemInQueue = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.VALIDATOR.IN_QUEUE});
     if (itemInQueue) {
+      logger.debug(`app/checkItemImportingAndInQueue: Found item in queue `);
       return handleItemInQueue(itemInQueue, mongoOperator);
     }
 
     if (prio) {
+      logger.debug(`app/checkItemImportingAndInQueue: Nothing found: PRIO -> checkItemImportingAndInQueue `);
       return checkItemImportingAndInQueue(false);
     }
 
+    logger.debug(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck `);
     return startCheck(true, true);
   }
 
@@ -93,9 +100,9 @@ export default async function ({
   }
 
   async function handleItemImporting(item, mongoOperator, prio) {
-    logger.debug(`App/handleItempImporting: QueueItem: ${JSON.stringify(item)}`);
+    logger.debug(`App/handleItemImporting: QueueItem: ${JSON.stringify(item)}`);
     const {operation, correlationId, recordLoadParams} = item;
-    logger.debug(`Operation: ${operation}, correlation id: ${correlationId}`);
+    logger.debug(`Operation: ${operation}, correlation id: ${correlationId}, prio: ${prio}`);
 
     /*
       { // Prio queue item
@@ -131,38 +138,49 @@ export default async function ({
     */
 
     try {
+      // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
+      // This could get also records with 'basic'?
       const {headers, messages} = await amqpOperator.checkQueue(`${operation}.${correlationId}`, 'rawChunk', purgeQueues);
       /// 1-100 messages from 1-10000 messages
       // eslint-disable-next-line functional/no-conditional-statement
       if (headers && messages) {
-        logger.log('debug', `Headers: ${JSON.stringify(headers)}, Messages (${messages.length}): ${messages}`);
+        logger.log('debug', `app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}): ${messages}`);
         const records = await amqpOperator.messagesToRecords(messages);
-        logger.log('debug', `Found ${records.length} records`);
+        const recordAmount = records.length;
+        logger.log('debug', `app/handleItemImporting: Found ${records.length} records from ${messages.length} messages`);
         await amqpOperator.nackMessages(messages);
 
         await setTimeoutPromise(200); // (S)Nack time!
         // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
+
         const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
+        logger.log('debug', `app/handleItemImporting: setState and send to process queue`);
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
         await amqpOperator.sendToQueue({
           queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
             correlationId,
             pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
-            processId, pRejectFile, pLogFile
+            processId, pRejectFile, pLogFile,
+            recordAmount
           }
         });
+        return startCheck();
       }
+
+      logger.debug(`app/handleItemImporting: No messages found in ${operation}.${correlationId}`);
+      // await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
+      return startCheck();
+
     } catch (error) {
-      logger.log('error', 'app/handleItemImporting');
+      logger.log('error', 'app/handleItemImporting errored:');
       logError(error);
       // eslint-disable-next-line functional/no-conditional-statement
-      await sendErrorResponses(error, `${operation}.${correlationId}`, mongoOperator, prio);
+      await sendErrorResponses({error, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
       return startCheck();
     }
 
-    return startCheck();
   }
 
   async function handleItemInQueue(item, mongoOperator) {
@@ -171,28 +189,48 @@ export default async function ({
     return startCheck();
   }
 
-  async function sendErrorResponses(error, queue, mongoOperator, prio = false) {
-    logger.log('debug', 'Sending error responses');
-    const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
+  async function sendErrorResponses({error, queue, mongoOperator, prio = false}) {
+    logger.log('debug', 'app/sendErrorResponses: Sending error responses');
+
+    // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
+    // no need for transforming messages to records
+    const {messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
+
     if (messages) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('debug', `Got back messages (${messages.length})`);
-      const status = error.status ? error.status : '500';
-      const payloads = error.payload ? new Array(messages.length).fill(error.payload) : new Array(messages.length).fill(JSON.stringify.error);
+      logger.log('debug', `Got back messages (${messages.length}) from ${queue}`);
+
+      const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
+      const responsePayload = error.payload ? error.payload : 'unknown error';
+
+      logger.log('silly', `app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
+
+      const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
+      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
 
       // Send response back if PRIO
-      if (prio) { // eslint-disable-line functional/no-conditional-statement
-        await amqpOperator.ackNReplyMessages({status, messages, payloads});
-        await messages.forEach(async message => {
-          await mongoOperator.setState({correlationId: message.properties.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
+      // Send responses back if BULK and error is something else than 503
+
+      // eslint-disable-next-line no-extra-parens
+      if (prio || (!prio && error.status !== 503)) { // eslint-disable-line functional/no-conditional-statement
+
+        await amqpOperator.ackMessages(messages);
+        await distinctCorrelationIds.forEach(async correlationId => {
+          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
         });
+        return;
       }
 
-      if (!prio && error.status !== 503) { // eslint-disable-line functional/no-conditional-statement
-        await amqpOperator.ackMessages(messages);
-        await mongoOperator.setState({correlationId: messages[0].properties.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload});
+      // Nack messages and sleep, if BULK and error is 503
+      if (!prio && error.status === 503) { // eslint-disable-line functional/no-conditional-statement
+        await amqpOperator.nackMessages(messages);
+        logger.debug(`app/sendErrorResponses Got 503 for bulk. Nack messages to try loading/polling again after sleeping ${error503WaitTime} ms`);
+        await setTimeoutPromise(error503WaitTime);
+        return;
       }
-      logger.log('silly', `Status: ${status}, Messages: ${messages}, Payloads:${payloads}`);
+
+      throw new Error('app/sendErrorMessages: What to do with these error responses?');
     }
-    logger.log('debug', `Did not get back any messages: ${messages}`);
+    logger.log('debug', `app/sendErrorResponses: Did not get back any messages: ${messages} from ${queue}`);
+    // should this throw an error?
   }
 }

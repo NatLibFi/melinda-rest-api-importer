@@ -1,0 +1,102 @@
+[
+    {
+        "leader": "",
+        "fields": [
+            {
+                "tag": "001",
+                "value": "000000001"
+            },
+            {
+                "tag": "100",
+                "ind1": " ",
+                "Ind2": " ",
+                "subfields": [
+                    {
+                        "code": "a",
+                        "value": "foo, faa"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "leader": "",
+        "fields": [
+            {
+                "tag": "001",
+                "value": "000000002"
+            },
+            {
+                "tag": "100",
+                "ind1": " ",
+                "Ind2": " ",
+                "subfields": [
+                    {
+                        "code": "a",
+                        "value": "foo, faa"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "leader": "",
+        "fields": [
+            {
+                "tag": "001",
+                "value": "000000003"
+            },
+            {
+                "tag": "100",
+                "ind1": " ",
+                "Ind2": " ",
+                "subfields": [
+                    {
+                        "code": "a",
+                        "value": "P_MANAGE_18 REJECT"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "leader": "",
+        "fields": [
+            {
+                "tag": "001",
+                "value": "000000004"
+            },
+            {
+                "tag": "100",
+                "ind1": " ",
+                "Ind2": " ",
+                "subfields": [
+                    {
+                        "code": "a",
+                        "value": "foo, faa"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "leader": "",
+        "fields": [
+            {
+                "tag": "001",
+                "value": "000000005"
+            },
+            {
+                "tag": "100",
+                "ind1": " ",
+                "Ind2": " ",
+                "subfields": [
+                    {
+                        "code": "a",
+                        "value": "P_MANAGE_18 REJECT"
+                    }
+                ]
+            }
+        ]
+    }
+]
