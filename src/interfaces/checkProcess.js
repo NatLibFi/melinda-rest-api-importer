@@ -109,7 +109,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         const result = await handleProcessMessage(processMessage, correlationId);
         return result;
       }
-
+      // This could remove empty PROCESS.correlationId queu
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Empty ${processQueue} queue`);
 
     } catch (error) {
@@ -224,6 +224,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         const prioPayloads = results.payloads.handledIds[0] || results.payloads.rejectedIds[0] || 'No loadProcess information for record';
 
         await amqpOperator.ackMessages(ack);
+        // This could remove the OPERATION.correlationID queue
 
         if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
           logger.debug(`prioStatus: ${prioStatus}`);
@@ -257,6 +258,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         return true;
       }
 
+      // This could remove the OPERATION.correlationID queue
       logger.log('debug', `All messages in ${queue} handled`);
 
       // Combine loadProcessResults here
