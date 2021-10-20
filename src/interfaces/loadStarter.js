@@ -43,8 +43,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       body: seqRecords
     }).catch(error => handleConectionError(error));
 
-    logger.info('Got response for load record');
-    logger.debug(`Status: ${response.status}`);
+    logger.silly(`Got response for load record. Status: ${response.status}`);
 
     checkStatus(response);
 

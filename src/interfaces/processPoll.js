@@ -21,7 +21,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       pRejectFile: pRejectFile || null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.debug(`Polling recordLoadUrl: ${url.toString()}`);
+    logger.silly(`Polling recordLoadUrl: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'get',
@@ -31,8 +31,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       }
     }).catch(error => handleConectionError(error));
 
-    logger.info('Got response for process poll!');
-    logger.debug(`Status: ${response.status}`);
+    logger.silly(`Got response for process poll! Status: ${response.status}`);
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
@@ -45,7 +44,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     if (response.status === httpStatus.OK || response.status === httpStatus.CONFLICT) {
       const {handledIds, rejectedIds, rejectMessages} = await response.json();
-      logger.debug(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds} rejectMessages: ${rejectMessages}`);
+      logger.silly(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds} rejectMessages: ${rejectMessages}`);
 
       // This should check that payloads make sense (ie. are arrays)
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
@@ -57,24 +56,31 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const notProcessedAmout = recordAmount - processedAmount;
       const processedAll = processedAmount === recordAmount;
 
-      logger.debug(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
+      logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
       const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages};
-      logger.debug(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
+      const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
+      logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
       if (processedAll) {
-        logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed ${processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+        logger.info(`Got ${responseStatusString} response from record-load-api. All records processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}).`);
+        logger.silly(`Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
         return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
-      }
-
-      // eslint-disable-next-line functional/no-conditional-statement
-      if (processedAmount === 0) {
-        logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}.`);
       }
 
       // What should we do in cases where R-L-A crashed and did not process any/all records?
       // Ack all messages for sent records
-      logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}.`);
+
+      // eslint-disable-next-line functional/no-conditional-statement
+      if (processedAmount === 0) {
+        logger.info(`Got ${responseStatusString} response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length})`);
+      }
+      // eslint-disable-next-line functional/no-conditional-statement
+      if (processedAmount > 0) {
+        logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length})`);
+      }
+
+      logger.debug(`Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
       return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: recordAmount};
     }
 
@@ -108,11 +114,10 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       }
     }).catch(error => handleConectionError(error));
 
-    logger.debug(`Got file clearing response ${JSON.stringify(response)}`);
-    checkStatus(response);
+    logger.silly(`Got file clearing response ${JSON.stringify(response)}`);
 
-    logger.debug('Got response for file clear!');
-    logger.debug(response.status);
+    checkStatus(response);
+    logger.silly(`Got response for file clear! Status: ${response.status}`);
   }
 
   function formatRecordId(library, id) {
