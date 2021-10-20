@@ -32,7 +32,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('debug', `Loading ${recordCount} records to: ${url.toString()}`);
+    logger.debug(`Loading ${recordCount} records to: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'post',
@@ -43,15 +43,15 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       body: seqRecords
     }).catch(error => handleConectionError(error));
 
-    logger.log('info', 'Got response for load record');
-    logger.log('debug', `Status: ${response.status}`);
+    logger.info('Got response for load record');
+    logger.debug(`Status: ${response.status}`);
 
     checkStatus(response);
 
     if (response.status === httpStatus.OK) {
-      logger.log('info', 'Got "OK" (200) response from record-load-api.');
+      logger.info('Got "OK" (200) response from record-load-api.');
       const result = await response.json();
-      logger.log('debug', `Response: ${JSON.stringify(result)}`);
+      logger.debug(`Response: ${JSON.stringify(result)}`);
       return result;
     }
 

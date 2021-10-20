@@ -20,7 +20,7 @@ export default async function ({
   const recordLoadOperator = recordLoadFactory(recordLoadApiKey, recordLoadLibrary, recordLoadUrl);
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports});
 
-  logger.log('info', `Started Melinda-rest-api-importer with operation ${operation}`);
+  logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
   startCheck();
 
   /*
@@ -144,10 +144,10 @@ export default async function ({
       /// 1-100 messages from 1-10000 messages
       // eslint-disable-next-line functional/no-conditional-statement
       if (headers && messages) {
-        logger.log('debug', `app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}): ${messages}`);
+        logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}): ${messages}`);
         const records = await amqpOperator.messagesToRecords(messages);
         const recordAmount = records.length;
-        logger.log('debug', `app/handleItemImporting: Found ${records.length} records from ${messages.length} messages`);
+        logger.debug(`app/handleItemImporting: Found ${records.length} records from ${messages.length} messages`);
         await amqpOperator.nackMessages(messages);
 
         await setTimeoutPromise(200); // (S)Nack time!
@@ -155,7 +155,7 @@ export default async function ({
 
         const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
-        logger.log('debug', `app/handleItemImporting: setState and send to process queue`);
+        logger.debug(`app/handleItemImporting: setState and send to process queue`);
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
         await amqpOperator.sendToQueue({
           queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
@@ -174,7 +174,7 @@ export default async function ({
       return startCheck();
 
     } catch (error) {
-      logger.log('error', 'app/handleItemImporting errored:');
+      logger.error('app/handleItemImporting errored:');
       logError(error);
       // eslint-disable-next-line functional/no-conditional-statement
       await sendErrorResponses({error, queue: `${operation}.${correlationId}`, mongoOperator, prio});
@@ -191,19 +191,19 @@ export default async function ({
   }
 
   async function sendErrorResponses({error, queue, mongoOperator, prio = false}) {
-    logger.log('debug', 'app/sendErrorResponses: Sending error responses');
+    logger.debug('app/sendErrorResponses: Sending error responses');
 
     // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
     // no need for transforming messages to records
     const {messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
 
     if (messages) { // eslint-disable-line functional/no-conditional-statement
-      logger.log('debug', `Got back messages (${messages.length}) from ${queue}`);
+      logger.debug(`Got back messages (${messages.length}) from ${queue}`);
 
       const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
       const responsePayload = error.payload ? error.payload : 'unknown error';
 
-      logger.log('silly', `app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
+      logger.silly(`app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
 
       const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
       logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
@@ -231,7 +231,7 @@ export default async function ({
 
       throw new Error('app/sendErrorMessages: What to do with these error responses?');
     }
-    logger.log('debug', `app/sendErrorResponses: Did not get back any messages: ${messages} from ${queue}`);
+    logger.debug(`app/sendErrorResponses: Did not get back any messages: ${messages} from ${queue}`);
     // should this throw an error?
   }
 }

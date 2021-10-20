@@ -21,7 +21,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       pRejectFile: pRejectFile || null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('debug', `Polling recordLoadUrl: ${url.toString()}`);
+    logger.debug(`Polling recordLoadUrl: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'get',
@@ -31,8 +31,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       }
     }).catch(error => handleConectionError(error));
 
-    logger.log('info', 'Got response for process poll!');
-    logger.log('debug', `Status: ${response.status}`);
+    logger.info('Got response for process poll!');
+    logger.debug(`Status: ${response.status}`);
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
@@ -63,7 +63,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       logger.debug(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
       if (processedAll) {
-        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed ${processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+        logger.info(`Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed ${processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
         return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
       }
 
@@ -98,7 +98,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
 
-    logger.log('debug', `Sending file clearing request: ${url.toString()}`);
+    logger.debug(`Sending file clearing request: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'delete',
@@ -108,11 +108,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       }
     }).catch(error => handleConectionError(error));
 
-    logger.log('debug', `Got file clearing response ${JSON.stringify(response)}`);
+    logger.debug(`Got file clearing response ${JSON.stringify(response)}`);
     checkStatus(response);
 
-    logger.log('debug', 'Got response for file clear!');
-    logger.log('debug', response.status);
+    logger.debug('Got response for file clear!');
+    logger.debug(response.status);
   }
 
   function formatRecordId(library, id) {
