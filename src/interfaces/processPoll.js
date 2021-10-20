@@ -63,7 +63,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       logger.debug(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
       if (processedAll) {
-        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed {processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
+        logger.log('info', `Got "OK" (200) or "CONFLICT" (409) response from record-load-api. All records processed ${processedAmount}/${recordAmount}. Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
         return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
       }
 
