@@ -18,6 +18,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   return {loadRecord};
 
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
+    const recordCount = records.length;
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
     const query = new URLSearchParams({
@@ -31,7 +32,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('debug', `Loading record to: ${url.toString()}`);
+    logger.log('debug', `Loading ${recordCount} records to: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'post',
