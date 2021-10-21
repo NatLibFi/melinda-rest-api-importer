@@ -33,7 +33,8 @@ export function checkStatus(response) {
 
   // Locked (423) too early
   if (response.status === httpStatus.LOCKED) { // eslint-disable-line functional/no-conditional-statement
-    logger.info('Got "LOCKED" (423) response from record-load-api. Process is still going on!');
+    // Do not spam LOCKED responses
+    logger.silly('Got "LOCKED" (423) response from record-load-api. Process is still going on!');
     throw new ApiError(httpStatus.LOCKED, 'Not ready yet!');
   }
 

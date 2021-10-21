@@ -50,11 +50,11 @@ export default async function ({
 
   async function checkInProcess(prio = true) {
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
-
     // Items in aleph-record-load-api
     const itemInProcess = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
     if (itemInProcess) {
-      logger.debug(`Found item in process ${itemInProcess.correlationId}`);
+      // Do not spam logs
+      logger.silly(`Found item in process ${itemInProcess.correlationId}`);
       return handleItemInProcess(itemInProcess, mongoOperator, prio);
     }
 
