@@ -170,9 +170,9 @@ export default async function ({
       }
 
       logger.debug(`app/handleItemImporting: No messages found in ${operation}.${correlationId}`);
-      // This could remove the queue???
-      // await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
-      return startCheck();
+      await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Importer: empty queue: ${operation}.${correlationId}`});
+      throw new Error(`Empty queue ${operation}.${correlationId}`);
+      //return startCheck();
 
     } catch (error) {
       logger.error('app/handleItemImporting errored:');
