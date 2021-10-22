@@ -26,67 +26,70 @@ Tables: `'prio'` for prio jobs, `'bulk'` for bulk jobs
 
 Queue-item schema example for a prio job queueItem:
 ```json
-{	"correlationId":"FOO",
-	"cataloger":"xxx0000",
-  "oCatalogerIn": "xxx0000",
-	"operation":"UPDATE",
-  "operationSettings": {
-      "noop": true,
-      "unique": false,
-      "prio": true,
+{
+"correlationId":"FOO",
+"cataloger":"xxx0000",
+"oCatalogerIn": "xxx0000",
+"operation":"UPDATE",
+"operationSettings": {
+  "noop": true,
+  "unique": false,
+  "prio": true,
   },
-	"recordLoadParams": {
-        "pActiveLibrary": "XXX00",
-        "pInputFile": "filename.seq",
-        "pRejectFile": "filename.rej",
-        "pLogFile": "filename.syslog",
-        "pOldNew": "NEW"
-      },
-	"queueItemState":"DONE",
-	"creationTime":"2020-01-01T00:00:00.000Z",
-  "modificationTime":"2020-01-01T00:00:01.000Z",
-  "handledIds": [ "000000001"],
-  "rejectedIds": [],
-  "errorStatus": "",
-  "errorMessage": "",
-  "noopValidationMessages": [],
-  "loadProcessReports": []
+"recordLoadParams": {
+  "pActiveLibrary": "XXX00",
+  "pInputFile": "filename.seq",
+  "pRejectFile": "filename.rej",
+  "pLogFile": "filename.syslog",
+  "pOldNew": "NEW"
+  },
+"queueItemState":"DONE",
+"creationTime":"2020-01-01T00:00:00.000Z",
+"modificationTime":"2020-01-01T00:00:01.000Z",
+"handledIds": [ "000000001"],
+"rejectedIds": [],
+"errorStatus": "",
+"errorMessage": "",
+"noopValidationMessages": [],
+"loadProcessReports": []
 }
 ```
 
 Queue-item schema examle for a bulk job queueItem:
 ```json
-{ "correlationId":"FOO",
-	"cataloger":"xxx0000",
-  "oCatalogerIn": "xxx0000",
-	"operation":"UPDATE",
-  "operationSettings": {
-      "prio": false,
-  },
-	"recordLoadParams": {
-        "pActiveLibrary": "XXX00",
-        "pInputFile": "filename.seq",
-        "pRejectFile": "filename.rej",
-        "pLogFile": "filename.syslog",
-        "pOldNew": "NEW"
-      },
-	"queueItemState":"DONE",
-	"creationTime":"2020-01-01T00:00:00.000Z",
-  "modificationTime":"2020-01-01T00:00:01.000Z",
-  "handledIds": [ "000000001","000000002"],
-  "rejectedIds": ["000999999"],
-  "errorStatus": "",
-  "errorMessage": ""',
-  "loadProcessReports": [{
-        "status": 200,
-        "processId": 9999,
-        "processedAll": false,
-        "recordAmount": 3,
-        "processedAmount": 2,
-        "handledAmount": 1,
-        "rejectedAmount": 1,
-        "rejectMessages": ["Cannot overwrite a deleted record. Record 000999999 is written to rej file"]
-   }]}
+{
+"correlationId":"FOO",
+"cataloger":"xxx0000",
+"oCatalogerIn": "xxx0000",
+"operation":"UPDATE",
+"operationSettings": {
+  "prio": false,
+ },
+"recordLoadParams": {
+  "pActiveLibrary": "XXX00",
+  "pInputFile": "filename.seq",
+  "pRejectFile": "filename.rej",
+  "pLogFile": "filename.syslog",
+  "pOldNew": "NEW"
+},
+"queueItemState":"DONE",
+"creationTime":"2020-01-01T00:00:00.000Z",
+"modificationTime":"2020-01-01T00:00:01.000Z",
+"handledIds": [ "000000001","000000002"],
+"rejectedIds": ["000999999"],
+"errorStatus": "",
+"errorMessage": ""',
+"loadProcessReports": [{
+  "status": 200,
+  "processId": 9999,
+  "processedAll": false,
+  "recordAmount": 3,
+  "processedAmount": 2,
+  "handledAmount": 1,
+  "rejectedAmount": 1,
+  "rejectMessages": ["Cannot overwrite a deleted record. Record 000999999 is written to rej file"]
+  }]
+}
 ```
 
 ## License and copyright
