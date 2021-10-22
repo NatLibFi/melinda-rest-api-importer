@@ -78,7 +78,7 @@ export default async function ({
     }
 
     // Items waiting to be imported
-    const itemInQueue = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.VALIDATOR.IN_QUEUE});
+    const itemInQueue = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
     if (itemInQueue) {
       logger.debug(`Found item in queue to be imported ${itemInQueue.correlationId}`);
       return handleItemInQueue(itemInQueue, mongoOperator);
