@@ -26,8 +26,7 @@ Tables: `'prio'` for prio jobs, `'bulk'` for bulk jobs
 
 Queue-item schema example for a prio job queueItem:
 ```json
-{
-	"correlationId":"FOO",
+{	"correlationId":"FOO",
 	"cataloger":"xxx0000",
   "oCatalogerIn": "xxx0000",
 	"operation":"UPDATE",
@@ -48,8 +47,8 @@ Queue-item schema example for a prio job queueItem:
   "modificationTime":"2020-01-01T00:00:01.000Z",
   "handledIds": [ "000000001"],
   "rejectedIds": [],
-  "errorStatus": '',
-  "errorMessage": '',
+  "errorStatus": "",
+  "errorMessage": "",
   "noopValidationMessages": [],
   "loadProcessReports": []
 }
@@ -57,8 +56,7 @@ Queue-item schema example for a prio job queueItem:
 
 Queue-item schema examle for a bulk job queueItem:
 ```json
-{
-	"correlationId":"FOO",
+{ "correlationId":"FOO",
 	"cataloger":"xxx0000",
   "oCatalogerIn": "xxx0000",
 	"operation":"UPDATE",
@@ -76,9 +74,9 @@ Queue-item schema examle for a bulk job queueItem:
 	"creationTime":"2020-01-01T00:00:00.000Z",
   "modificationTime":"2020-01-01T00:00:01.000Z",
   "handledIds": [ "000000001","000000002"],
-  "rejectedIds": [000999999],
-  "errorStatus": '',
-  "errorMessage": '',
+  "rejectedIds": ["000999999"],
+  "errorStatus": "",
+  "errorMessage": ""',
   "loadProcessReports": [{
         "status": 200,
         "processId": 9999,
@@ -88,7 +86,7 @@ Queue-item schema examle for a bulk job queueItem:
         "handledAmount": 1,
         "rejectedAmount": 1,
         "rejectMessages": ["Cannot overwrite a deleted record. Record 000999999 is written to rej file"]
-      }]
+   }]}
 ```
 
 ## License and copyright
