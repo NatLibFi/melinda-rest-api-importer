@@ -2,7 +2,7 @@
 
 ## Usage
 
-While service is in use it polls Mongo for jobs in state `IMPORTER.IN_QUEUE`. 
+While service is in use it polls Mongo for jobs for OPERATION in state `IMPORTER.IN_QUEUE` prioritizing prio jobs. When a job is found, the record(s) belonging to it are fetched from it's AMQP queue in chunks of max. 100 records and forwarded to aleph-record-load-api for actual importing to Melinda. When all loadprocesses for a job are done, the job is transitioned to state `DONE` in Mongo.
 
 ### Environment variables
 | Name                | Mandatory | Description                                                                                                        |
@@ -78,7 +78,7 @@ Queue-item schema examle for a bulk job queueItem:
 "handledIds": [ "000000001","000000002"],
 "rejectedIds": ["000999999"],
 "errorStatus": "",
-"errorMessage": ""',
+"errorMessage": "",
 "loadProcessReports": [{
   "status": 200,
   "processId": 9999,
