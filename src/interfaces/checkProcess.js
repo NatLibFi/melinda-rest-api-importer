@@ -183,8 +183,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.debug(`handleMessages for ${processParams.data.correlationId}`);
     logger.silly(`handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${processParams.data.correlationId}`);
 
-    // this checks queue for correlationId -- queue is already operation.correlationId ?
-    const {headers, messages} = await amqpOperator.checkQueue(queue, processParams.data.correlationId, false, false);
+    const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
     logger.debug(`headers: ${JSON.stringify(headers)}, messages: ${messages.length}`);
     logger.silly(`messages: ${messages}`);
 
