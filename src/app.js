@@ -1,5 +1,3 @@
-/* eslint-disable max-lines */
-/* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
 import {promisify} from 'util';
@@ -22,18 +20,6 @@ export default async function ({
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
   startCheck();
-
-  /*
-  prio inProcess importing inqueue
-  bulk inProcess importing inqueue
-
-  |
-  v
-
-  inProcess prio bulk
-  Prio importing inQueue
-  Bulk importing inQueue
-  */
 
   async function startCheck(checkInProcessItems = true, wait = false) {
     if (wait) {
@@ -100,55 +86,20 @@ export default async function ({
     return startCheck();
   }
 
+  // eslint-disable-next-line max-statements
   async function handleItemImporting(item, mongoOperator, prio) {
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
     const {operation, correlationId, recordLoadParams} = item;
-    //logger.silly(`Operation: ${operation}, correlation id: ${correlationId}, prio: ${prio}`);
-
-    /*
-      { // Prio queue item
-      "correlationId": "9c9f479a-55a5-4123-8f8a-2247f48e6536",
-      "cataloger": "HELLE4017",
-      "operation": "CREATE",
-      "oCatalogerIn": "HELLE4017",
-      "queueItemState": "DONE",
-      "creationTime": "2021-08-18T06:38:33.182Z",
-      "modificationTime": "2021-08-18T06:38:37.580Z",
-      "handledId": ""
-    },
-    { // Bulk queue item
-      "correlationId": "302c4274-0554-46fb-b2b0-5e560df6dd33",
-      "cataloger": "LASTU0000",
-      "oCatalogerIn": "LOAD-MRLB",
-      "operation": "UPDATE",
-      "contentType": "application/alephseq",
-      "recordLoadParams": {
-        "pActiveLibrary": "FIN01",
-        "pOldNew": "OLD",
-        "pRejectFile": "/exlibris/aleph/u23_3/fin01/scratch/legacy-api/017561703.0818_094714.rej",
-        "pLogFile": "/exlibris/aleph/u23_3/alephe/scratch/legacy-api/017561703.0818_094714.syslog",
-        "pCatalogerIn": "LASTU0000"
-      },
-      "queueItemState": "DONE",
-      "creationTime": "2021-08-18T06:47:15.395Z",
-      "modificationTime": "2021-08-18T06:47:19.336Z",
-      "handledIds": [
-        "017561703"
-      ]
-    },
-    */
 
     try {
-      // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
-      // This could get also records with 'basic'?
-      const {headers, messages} = await amqpOperator.checkQueue(`${operation}.${correlationId}`, 'rawChunk', purgeQueues);
+      // basic: get next chunk of 100 messages {headers, records, messages}
+      const {headers, records, messages} = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: true, purge: purgeQueues});
       /// 1-100 messages from 1-10000 messages
       // eslint-disable-next-line functional/no-conditional-statement
       if (headers && messages) {
-        logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}).`);
-        const records = await amqpOperator.messagesToRecords(messages);
+        logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records.length}`);
         const recordAmount = records.length;
-        logger.silly(`app/handleItemImporting: Found ${records.length} records from ${messages.length} messages`);
+        // messages nacked to wait results - should these go to some other queue IN_PROCESS.correaltionId ?
         await amqpOperator.nackMessages(messages);
 
         await setTimeoutPromise(200); // (S)Nack time!
@@ -178,7 +129,7 @@ export default async function ({
       logger.error('app/handleItemImporting errored:');
       logError(error);
       // eslint-disable-next-line functional/no-conditional-statement
-      await sendErrorResponses({error, queue: `${operation}.${correlationId}`, mongoOperator, prio});
+      await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
       return startCheck();
     }
@@ -191,24 +142,20 @@ export default async function ({
     return startCheck();
   }
 
-  async function sendErrorResponses({error, queue, mongoOperator, prio = false}) {
+  async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio = false}) {
     logger.debug('app/sendErrorResponses: Sending error responses');
 
     // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
     // no need for transforming messages to records
-    const {messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
+    const {messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecords: false, purge: false});
 
     if (messages) { // eslint-disable-line functional/no-conditional-statement
-      logger.debug(`Got back messages (${messages.length}) from ${queue}`);
+      logger.debug(`Got back messages (${messages.length}) for ${correlationId} from ${queue}`);
 
       const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
       const responsePayload = error.payload ? error.payload : 'unknown error';
 
       logger.silly(`app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
-
-      const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
-      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
-
       // Send response back if PRIO
       // Send responses back if BULK and error is something else than 503
 
@@ -216,9 +163,7 @@ export default async function ({
       if (prio || (!prio && error.status !== 503)) { // eslint-disable-line functional/no-conditional-statement
 
         await amqpOperator.ackMessages(messages);
-        await distinctCorrelationIds.forEach(async correlationId => {
-          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
-        });
+        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
         return;
       }
 
