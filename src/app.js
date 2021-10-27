@@ -86,37 +86,16 @@ export default async function ({
     return startCheck();
   }
 
-  // eslint-disable-next-line max-statements
   async function handleItemImporting(item, mongoOperator, prio) {
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
-    const {operation, correlationId, recordLoadParams} = item;
+    const {correlationId} = item;
 
     try {
       // basic: get next chunk of 100 messages {headers, records, messages}
       const {headers, records, messages} = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: true, purge: purgeQueues});
       /// 1-100 messages from 1-10000 messages
-      // eslint-disable-next-line functional/no-conditional-statement
       if (headers && messages) {
-        logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records.length}`);
-        const recordAmount = records.length;
-        // messages nacked to wait results - should these go to some other queue IN_PROCESS.correaltionId ?
-        await amqpOperator.nackMessages(messages);
-
-        await setTimeoutPromise(200); // (S)Nack time!
-        // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
-
-        const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
-
-        logger.silly(`app/handleItemImporting: setState and send to process queue`);
-        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
-        await amqpOperator.sendToQueue({
-          queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
-            correlationId,
-            pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
-            processId, pRejectFile, pLogFile,
-            recordAmount
-          }
-        });
+        await importRecords({headers, records, messages, item, correlationId, mongoOperator, amqpOperator, recordLoadOperator, prio});
         return startCheck();
       }
 
@@ -128,12 +107,36 @@ export default async function ({
     } catch (error) {
       logger.error('app/handleItemImporting errored:');
       logError(error);
-      // eslint-disable-next-line functional/no-conditional-statement
       await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
       return startCheck();
     }
 
+  }
+
+  async function importRecords({headers, records, messages, item, mongoOperator, amqpOperator, recordLoadOperator, prio}) {
+    logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records.length}`);
+    const recordAmount = records.length;
+    const {correlationId, recordLoadParams} = item;
+    // messages nacked to wait results - should these go to some other queue IN_PROCESS.correaltionId ?
+    await amqpOperator.nackMessages(messages);
+
+    await setTimeoutPromise(200); // (S)Nack time!
+    // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
+
+    const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
+
+    logger.silly(`app/handleItemImporting: setState and send to process queue`);
+    await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
+    await amqpOperator.sendToQueue({
+      queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
+        correlationId,
+        pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
+        processId, pRejectFile, pLogFile,
+        recordAmount
+      }
+    });
+    return startCheck();
   }
 
   async function handleItemInQueue(item, mongoOperator) {
@@ -145,7 +148,7 @@ export default async function ({
   async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio = false}) {
     logger.debug('app/sendErrorResponses: Sending error responses');
 
-    // rawChunk: get next chunk of 100 messages {headers, messages} where cataloger is the same
+    // get next chunk of 100 messages {headers, messages} where cataloger is the same
     // no need for transforming messages to records
     const {messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecords: false, purge: false});
 
@@ -160,7 +163,7 @@ export default async function ({
       // Send responses back if BULK and error is something else than 503
 
       // eslint-disable-next-line no-extra-parens
-      if (prio || (!prio && error.status !== 503)) { // eslint-disable-line functional/no-conditional-statement
+      if (prio || (!prio && error.status !== 503)) {
 
         await amqpOperator.ackMessages(messages);
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
@@ -168,7 +171,7 @@ export default async function ({
       }
 
       // Nack messages and sleep, if BULK and error is 503
-      if (!prio && error.status === 503) { // eslint-disable-line functional/no-conditional-statement
+      if (!prio && error.status === 503) {
         await amqpOperator.nackMessages(messages);
         logger.debug(`app/sendErrorResponses Got 503 for bulk. Nack messages to try loading/polling again after sleeping ${error503WaitTime} ms`);
         await setTimeoutPromise(error503WaitTime);
