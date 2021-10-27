@@ -1,5 +1,3 @@
-/* eslint-disable max-lines */
-/* eslint-disable max-statements */
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {QUEUE_ITEM_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
@@ -15,6 +13,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
   return {loopCheck};
 
+  // eslint-disable-next-line max-statements
   async function loopCheck({correlationId, mongoOperator, prio, wait = false}) {
     // eslint-disable-next-line functional/no-conditional-statement
     if (wait) {
@@ -23,7 +22,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     }
 
     logger.silly(`loopCheck -> checkProcessQueue (${correlationId})`);
-    const processQueueResults = await checkProcessQueue(correlationId, mongoOperator, prio);
+    const processQueueResults = await checkProcessQueue(correlationId, mongoOperator);
     // handle checkProcessQueue errors ???
     // if checkProcessQueue errored with error that's not an ApiError, processMessage is not acked/nacked
     logger.silly(`processQueueResults: ${JSON.stringify(processQueueResults)}`);
@@ -91,10 +90,11 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return false;
   }
 
-  async function checkProcessQueue(correlationId, mongoOperator, prio) {
+  // eslint-disable-next-line max-statements
+  async function checkProcessQueue(correlationId, mongoOperator) {
     const processQueue = `PROCESS.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
-    const processMessage = await amqpOperator.checkQueue(processQueue, 'raw');
+    const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'basic', toRecord: false, purge: false});
 
     try {
       if (processMessage) {
@@ -117,18 +117,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
       if (error instanceof ApiError) {
         // eslint-disable-next-line functional/no-conditional-statement
-        if (prio) {
-          logger.debug(`Error is from PRIO ${correlationId}, sending error responses`);
-          await sendErrorResponses({error, correlationId, mongoOperator});
-        }
-
-        // eslint-disable-next-line functional/no-conditional-statement
-        if (!prio) {
-          // Does this set bulk state to error if any of loadProcesses result in error?
-          logger.debug(`Error is from BULK ${correlationId}, not sending error responses`);
-          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
-        }
-
+        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
         await amqpOperator.ackMessages([processMessage]);
         await setTimeoutPromise(100);
         return false;
@@ -138,6 +127,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     }
   }
 
+  // eslint-disable-next-line max-statements
   async function handleProcessMessage(processMessage, correlationId) {
     logger.silly(`handleProcessMessage: ${processMessage} for ${correlationId}`);
     try {
@@ -179,11 +169,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     }
   }
 
+  // eslint-disable-next-line max-statements
   async function handleMessages({mongoOperator, results, processParams, queue, prio}) {
-    logger.debug(`handleMessages for ${processParams.data.correlationId}`);
-    logger.silly(`handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${processParams.data.correlationId}`);
+    const correlationId = processParams.data.correaltionId;
+    logger.debug(`handleMessages for ${correlationId}`);
+    logger.silly(`handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${correlationId}`);
 
-    const {headers, messages} = await amqpOperator.checkQueue(queue, 'rawChunk', false);
+    const {headers, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
     logger.debug(`headers: ${JSON.stringify(headers)}, messages: ${messages.length}`);
     logger.silly(`messages: ${messages}`);
 
@@ -191,7 +183,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       // Could this set status to REJECTED if record-load-api rejected the record?
       // This would need the message to have a record identifier
       const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
-      logger.verbose('Handling process messages based on results got from process polling');
+      logger.verbose('Handling operation.correlationId messages based on results got from process polling');
       // Handle separation of all ready done records
       const ack = messages.slice(0, results.ackOnlyLength);
       const nack = messages.slice(results.ackOnlyLength);
@@ -204,9 +196,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         logger.verbose(`There was no messages to ack!!!`);
         return false;
       }
-
-      const distinctCorrelationIds = ack.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
-      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${ack.length} messages.`);
 
       // IF PRIO -> DONE
       // IF BULK -> IF QUEUE EMPTY -> DONE  ELSE -> IMPORTING
@@ -224,17 +213,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
         if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
           logger.debug(`prioStatus: ${prioStatus}`);
-          await distinctCorrelationIds.forEach(async correlationId => {
-            await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
-            removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
-          });
+          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
+          removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
           return true;
         }
 
-        await distinctCorrelationIds.forEach(async correlationId => {
-          await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
-          removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
-        });
+        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
+        removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
         return true;
       }
 
@@ -282,29 +267,5 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       amqpOperator.removeQueue(correlationId);
     }
 
-  }
-
-  async function sendErrorResponses({error, queue, mongoOperator}) {
-    logger.debug('checkProcess/sendErrorResponses Sending error responses');
-
-    const {messages} = await amqpOperator.checkQueue(queue, 'basic', false);
-
-    // eslint-disable-next-line functional/no-conditional-statement
-    if (messages) {
-      logger.debug(`Got messages (${messages.length}): ${JSON.stringify(messages)}`);
-
-      const distinctCorrelationIds = messages.map(message => message.properties.correlationId).filter((value, index, self) => self.indexOf(value) === index);
-      logger.debug(`Found ${distinctCorrelationIds.length} distinct correlationIds from ${messages.length} messages.`);
-
-      await distinctCorrelationIds.forEach(async correlationId => {
-        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
-      });
-
-      await amqpOperator.ackMessages(messages);
-
-      return;
-    }
-    logger.debug(`checkProcess/sendErrorMessages Got no messages: ${JSON.stringify(messages)} from ${queue}`);
-    // should this throw an error?
   }
 }

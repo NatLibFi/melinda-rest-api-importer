@@ -1,4 +1,3 @@
-/* eslint-disable max-statements */
 import httpStatus from 'http-status';
 import moment from 'moment';
 import fetch from 'node-fetch';

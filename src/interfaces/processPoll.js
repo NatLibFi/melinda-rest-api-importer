@@ -1,4 +1,3 @@
-/* eslint-disable max-statements */
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
@@ -10,6 +9,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   return {poll, requestFileClear};
 
+  // eslint-disable-next-line max-statements
   async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile, recordAmount}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
