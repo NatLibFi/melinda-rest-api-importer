@@ -105,7 +105,7 @@ export default async function ({
       //return startCheck();
 
     } catch (error) {
-      logger.error('app/handleItemImporting errored:');
+      logger.error('app/handleItemImporting errored: ');
       logError(error);
       await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
