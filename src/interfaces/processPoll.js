@@ -84,12 +84,6 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: recordAmount};
     }
 
-    // This never happens??? utils:checkStatus handles also 404.
-    if (response.status === httpStatus.NOT_FOUND) {
-      // P_manage_18 inputfile missing
-      return {payloads: ['ERROR'], ackOnlyLength: 1};
-    }
-
     // 500 from aleph-record-load-api goes here (not in utils::checkStatus)
     // Also other not statuses not handled by checkStatus
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
