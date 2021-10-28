@@ -235,12 +235,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
       logger.debug(`prioStatus: ${prioStatus}`);
       await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
-      removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
+      removeImporterQueues({amqpOperator, operation: headers.operation, correlationId});
       return true;
     }
 
     await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
-    removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
+    removeImporterQueues({amqpOperator, operation: headers.operation, correlationId});
     return true;
   }
 
@@ -266,19 +266,15 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     // Note: cases, where aleph-record-load-api has rejected all or some records get state DONE here
     // Note: this assumes that all messages in the queue are related to the same correlationId
     await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
-    removeImporterQueues({amqpOperator, operation: headers.operation, correlationId, prio});
+    removeImporterQueues({amqpOperator, operation: headers.operation, correlationId});
     return true;
   }
 
-  function removeImporterQueues({amqpOperator, operation, correlationId, prio}) {
+  function removeImporterQueues({amqpOperator, operation, correlationId}) {
     const operationQueue = `${operation}.${correlationId}`;
     const processQueue = `PROCESS.${correlationId}`;
     amqpOperator.removeQueue(operationQueue);
     amqpOperator.removeQueue(processQueue);
-    if (!prio) {
-      amqpOperator.removeQueue(correlationId);
-      return;
-    }
     return;
   }
 }
