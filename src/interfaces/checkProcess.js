@@ -202,11 +202,11 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
       if (prio) {
         logger.debug(`${queue} is PRIO ***`);
-        return handleMessagesPrio({headers, messages: ackMessages, results, correlationId, mongoOperator, amqpOperator, prio});
+        return handleMessagesPrio({headers, messages: ackMessages, results, correlationId, mongoOperator, amqpOperator});
       }
 
       logger.debug(`${queue} is BULK ***`);
-      return handleMessagesBulk({headers, messages: ackMessages, queue, correlationId, mongoOperator, amqpOperator, prio});
+      return handleMessagesBulk({headers, messages: ackMessages, queue, correlationId, mongoOperator, amqpOperator});
     }
 
     logger.verbose(`No messages in ${queue} to handle: ${messages}. Continuing the loop`);
@@ -222,7 +222,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return ack;
   }
 
-  async function handleMessagesPrio({headers, messages, results, correlationId, mongoOperator, amqpOperator, prio}) {
+  async function handleMessagesPrio({headers, messages, results, correlationId, mongoOperator, amqpOperator}) {
 
     logger.debug(`Replying for ${messages.length} messages.`);
     const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
@@ -244,7 +244,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return true;
   }
 
-  async function handleMessagesBulk({headers, messages, queue, correlationId, mongoOperator, amqpOperator, prio}) {
+  async function handleMessagesBulk({headers, messages, queue, correlationId, mongoOperator, amqpOperator}) {
     logger.debug(`Acking for ${messages.length} messages.`);
     await amqpOperator.ackMessages(messages);
 
