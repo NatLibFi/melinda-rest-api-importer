@@ -16,7 +16,8 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
   return {loadRecord};
 
-  async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams, prio}) {
+  async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
+    const recordCount = records.length;
     const seqRecords = records.map(record => AlephSequential.to(record)).join('');
 
     const query = new URLSearchParams({
@@ -30,7 +31,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
-    logger.log('silly', url.toString());
+    logger.debug(`Loading ${recordCount} records to: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'post',
@@ -41,15 +42,14 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       body: seqRecords
     }).catch(error => handleConectionError(error));
 
-    logger.log('info', 'Got response for load record');
-    logger.log('debug', `Status: ${response.status}`);
+    logger.silly(`Got response for load record. Status: ${response.status}`);
 
     checkStatus(response);
 
     if (response.status === httpStatus.OK) {
-      logger.log('info', 'Got "OK" (200) response from record-load-api.');
+      logger.info('Got "OK" (200) response from record-load-api.');
       const result = await response.json();
-      logger.log('debug', `Response: ${JSON.stringify(result)}`);
+      logger.debug(`Response: ${JSON.stringify(result)}`);
       return result;
     }
 

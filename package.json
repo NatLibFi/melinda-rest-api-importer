@@ -14,10 +14,10 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "AGPL-3.0+",
-  "version": "0.0.2",
+  "version": "2.0.1-alpha.1",
   "main": "./dist/index.js",
   "engines": {
-    "node": "12"
+    "node": ">=14"
   },
   "private": true,
   "scripts": {
@@ -25,36 +25,34 @@
     "start:dev": "babel-node ./src/index",
     "lint": "eslint ./src",
     "lint:dev": "eslint ./src --fix",
-    "check-deps": "npm-check; exit 0",
     "test": "npm run lint",
     "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
     "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist --minified",
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
-    "@babel/runtime": "^7.11.2",
-    "@natlibfi/marc-record": "^6.1.1",
-    "@natlibfi/marc-record-serializers": "^7.2.4",
-    "@natlibfi/melinda-backend-commons": "^2.0.2",
-    "@natlibfi/melinda-commons": "^11.1.2",
-    "@natlibfi/melinda-rest-api-commons": "^1.0.4",
+    "@babel/runtime": "^7.15.4",
+    "@natlibfi/marc-record": "^6.1.2",
+    "@natlibfi/marc-record-serializers": "^8.0.0",
+    "@natlibfi/melinda-backend-commons": "^2.0.5",
+    "@natlibfi/melinda-commons": "^12.0.0",
+    "@natlibfi/melinda-rest-api-commons": "^2.0.1",
     "esm": "^3.2.25",
-    "http-status": "^1.4.2",
+    "http-status": "^1.5.0",
     "moment": "^2.29.1",
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.11.6",
-    "@babel/core": "^7.11.6",
-    "@babel/node": "^7.10.5",
-    "@babel/preset-env": "^7.11.5",
-    "@babel/register": "^7.11.5",
-    "@natlibfi/eslint-config-melinda-backend": "^1.0.5",
-    "babel-eslint": "^10.1.0",
-    "cross-env": "^7.0.2",
-    "eslint": "^7.10.0",
-    "nodemon": "^2.0.4",
-    "npm-check": "^5.9.0"
+    "@babel/cli": "^7.15.7",
+    "@babel/core": "^7.15.8",
+    "@babel/node": "^7.15.8",
+    "@babel/preset-env": "^7.15.8",
+    "@babel/register": "^7.15.3",
+    "@natlibfi/eslint-config-melinda-backend": "^1.1.1",
+    "@babel/eslint-parser": "^7.15.8",
+    "cross-env": "^7.0.3",
+    "eslint": "^7.32.0",
+    "nodemon": "^2.0.14"
   },
   "eslintConfig": {
     "extends": "@natlibfi/melinda-backend"
