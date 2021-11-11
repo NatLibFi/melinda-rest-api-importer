@@ -92,7 +92,15 @@ Queue-item schema examle for a bulk job queueItem:
   "handledAmount": 1,
   "rejectedAmount": 1,
   "rejectMessages": ["Cannot overwrite a deleted record. Record 000999999 is written to rej file"]
-  }]
+  }],
+"splitterReport": [{
+ "recordNumber": 0,
+ "sequenceNumber": 2,
+ "readerErrors": [{
+   "sequenceNumber": 1,
+   "error": "Record is invalid"
+   }]
+ }]
 }
 ```
 
