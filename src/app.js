@@ -1,6 +1,6 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
-import {promisify} from 'util';
+import {amqpFactory, mongoFactory, logError, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {inspect, promisify} from 'util';
 import recordLoadFactory from './interfaces/loadStarter';
 import checkProcess from './interfaces/checkProcess';
 import httpStatus from 'http-status';
@@ -19,74 +19,104 @@ export default async function ({
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports});
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
-  startCheck();
+  startCheck({});
 
-  async function startCheck(checkInProcessItems = true, wait = false) {
+  async function startCheck({checkInProcessItems = true, wait = false}) {
     if (wait) {
       await setTimeoutPromise(5000);
-      return startCheck();
+      return startCheck({});
     }
 
     if (checkInProcessItems) {
-      return checkInProcess();
+      return checkInProcess({});
     }
 
-    return checkItemImportingAndInQueue();
+    return checkItemImportingAndInQueue({});
   }
 
-  async function checkInProcess(prio = true) {
+  async function checkInProcess({prio = true}) {
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
     // Items in aleph-record-load-api
-    const itemInProcess = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
+
+    const itemInProcess = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: IMPORT_JOB_STATE.IN_PROCESS});
+    logger.silly(`checkInProcess: itemInProcess: ${JSON.stringify(itemInProcess)}`);
     if (itemInProcess) {
       // Do not spam logs
       logger.silly(`Found item in process ${itemInProcess.correlationId}`);
-      return handleItemInProcess(itemInProcess, mongoOperator, prio);
+      return handleItemInProcess({item: itemInProcess, operation, mongoOperator, prio});
     }
 
     if (prio) {
-      logger.silly(`app/checkInProcess: Nothing found: PRIO -> checkInProcess `);
-      return checkInProcess(false);
+      logger.silly(`app/checkInProcess: Nothing found in process for PRIO -> checkInProcess for BULK `);
+      return checkInProcess({prio: false});
     }
 
-    logger.silly(`app/checkInProcess: Nothing found: BULK -> starCheck `);
-    return startCheck(false, false);
+    logger.silly(`app/checkInProcess: Nothing found for BULK -> startCheck for importing without waiting`);
+    return startCheck({checkInProcessItems: false, wait: false});
   }
 
-  async function checkItemImportingAndInQueue(prio = true) {
+  // eslint-disable-next-line max-statements
+  async function checkItemImportingAndInQueue({prio = true}) {
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
 
     // Items in importer to be send to aleph-record-load-api
-    const itemImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
-    if (itemImporting) {
-      logger.debug(`Found item in importing ${itemImporting.correlationId}`);
-      return handleItemImporting(itemImporting, mongoOperator, prio);
+    // get here IMPORT_JOB_STATE.<OPERATION>.IMPORTING
+    const itemImportingImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: IMPORT_JOB_STATE.IMPORTING});
+
+    // ImportJobState: PENDING, IMPORTING, IN_PROCESS, DONE
+
+    if (itemImportingImporting) {
+      logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ${operation}ImportJobState: IMPORTING`);
+      return handleItemImporting({item: itemImportingImporting, operation, mongoOperator, prio});
     }
 
-    // Items waiting to be imported
+    const itemImportingPending = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: IMPORT_JOB_STATE.PENDING});
+
+    if (itemImportingPending) {
+      logger.debug(`Found item in importing ${itemImportingPending.correlationId}, ${operation}ImportJobState: PENDING`);
+      return handleItemInQueueOrPending({item: itemImportingPending, operation, mongoOperator, prio});
+    }
+
+    const itemImportingDone = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: IMPORT_JOB_STATE.DONE});
+    if (itemImportingDone) {
+      logger.debug(`Found item in importing ${itemImportingDone.correlationId}, ${operation}ImportJobState: DONE`);
+      logger.debug(inspect(itemImportingDone));
+
+      const otherOperationImportJobState = operation === OPERATIONS.CREATE ? 'updateImportJobState' : 'createImportJobState';
+      const otherOperationImportJobStateResult = itemImportingDone[otherOperationImportJobState];
+      logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
+
+      if ([IMPORT_JOB_STATE.NULL, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
+        logger.debug(`Other importJob in not ongoing/pending, importing done`);
+        await mongoOperator.setState({correlationId: itemImportingDone.correlationId, state: QUEUE_ITEM_STATE.DONE});
+        return startCheck({checkInProcessItems: true, wait: true});
+      }
+    }
+
     const itemInQueue = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
     if (itemInQueue) {
       logger.debug(`Found item in queue to be imported ${itemInQueue.correlationId}`);
-      return handleItemInQueue(itemInQueue, mongoOperator);
+      return handleItemInQueueOrPending({item: itemInQueue, mongoOperator, operation});
     }
 
     if (prio) {
       logger.silly(`app/checkItemImportingAndInQueue: Nothing found: PRIO -> checkItemImportingAndInQueue `);
-      return checkItemImportingAndInQueue(false);
+      return checkItemImportingAndInQueue({prio: false});
     }
 
     logger.silly(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck `);
-    return startCheck(true, true);
+    return startCheck({checkInProcessItems: true, wait: true});
   }
 
-  async function handleItemInProcess(item, mongoOperator, prio) {
+
+  async function handleItemInProcess({item, operation, mongoOperator, prio}) {
     logger.silly(`Item in process: ${JSON.stringify(item)}`);
-    await processOperator.loopCheck({correlationId: item.correlationId, mongoOperator, prio});
+    await processOperator.loopCheck({correlationId: item.correlationId, operation, mongoOperator, prio});
     await setTimeoutPromise(100);
-    return startCheck();
+    return startCheck({});
   }
 
-  async function handleItemImporting(item, mongoOperator, prio) {
+  async function handleItemImporting({item, mongoOperator, prio, operation}) {
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
     const {correlationId} = item;
 
@@ -95,8 +125,8 @@ export default async function ({
       const {headers, records, messages} = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: true, purge: purgeQueues});
       /// 1-100 messages from 1-10000 messages
       if (headers && messages) {
-        await importRecords({headers, records, messages, item, correlationId, mongoOperator, amqpOperator, recordLoadOperator, prio});
-        return startCheck();
+        await importRecords({headers, operation, records, messages, item, correlationId, mongoOperator, amqpOperator, recordLoadOperator, prio});
+        return startCheck({});
       }
 
       logger.debug(`app/handleItemImporting: No messages found in ${operation}.${correlationId}`);
@@ -109,14 +139,15 @@ export default async function ({
       logError(error);
       await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio});
 
-      return startCheck();
+      return startCheck({});
     }
 
   }
 
-  async function importRecords({headers, records, messages, item, mongoOperator, amqpOperator, recordLoadOperator, prio}) {
+  async function importRecords({headers, operation, records, messages, item, mongoOperator, amqpOperator, recordLoadOperator, prio}) {
     logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records.length}`);
     const recordAmount = records.length;
+    // recordLoadParams have pOldNew - is this used or is operation caught from importer?
     const {correlationId, recordLoadParams} = item;
     // messages nacked to wait results - should these go to some other queue IN_PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
@@ -127,22 +158,34 @@ export default async function ({
     const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
-    await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
+
+    // set here IMPORT_JOB_STATE.<OPERATION>.IN_PROCESS
+    await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.IN_PROCESS});
+    //await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
+
+    // send here to queue PROCESS.<OPERATION>.correlationId
+    const processQueue = `PROCESS.${operation}.${correlationId}`;
+
     await amqpOperator.sendToQueue({
-      queue: `PROCESS.${correlationId}`, correlationId, headers: {queue: `${operation}.${correlationId}`}, data: {
+      queue: processQueue,
+      correlationId,
+      headers: {queue: `${operation}.${correlationId}`},
+      data: {
         correlationId,
         pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
         processId, pRejectFile, pLogFile,
         recordAmount
       }
     });
-    return startCheck();
+    return startCheck({});
   }
 
-  async function handleItemInQueue(item, mongoOperator) {
+  async function handleItemInQueueOrPending({item, mongoOperator, operation}) {
     logger.silly(`app/handleItemInQueue: QueueItem: ${JSON.stringify(item)}`);
+    // set here IMPORT_JOB_STATE.<OPERATION>.IMPORTING
     await mongoOperator.setState({correlationId: item.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
-    return startCheck();
+    await mongoOperator.setImportJobState({correlationId: item.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
+    return startCheck({});
   }
 
   async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio = false}) {
