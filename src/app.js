@@ -39,12 +39,13 @@ export default async function ({
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
     // Items in aleph-record-load-api
 
-    const {correlationId} = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.PROCESSING)});
-    logger.silly(`checkInProcess: itemInProcess: ${correlationId}`);
-    if (correlationId) {
+    const queueItemInProcess = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.PROCESSING)});
+
+    // logger.silly(`checkInProcess: itemInProcess: ${correlationId}`);
+    if (queueItemInProcess) {
       // Do not spam logs
-      logger.silly(`Found item in process ${correlationId}`);
-      await processOperator.loopCheck({correlationId, operation, mongoOperator, prio});
+      logger.silly(`Found item in process ${queueItemInProcess.correlationId}`);
+      await processOperator.loopCheck({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
       return startCheck(true, 100);
     }
 
@@ -90,7 +91,7 @@ export default async function ({
     return startCheck(true, 3000);
 
     async function checkImportJobStatePROCESSING() {
-      const itemImportingImporting = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.PROCESSING)});
+      const itemImportingImporting = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.PROCESSING)});
 
       if (itemImportingImporting) {
         logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ImportJobState: {${operation}: PROCESSING}`);
@@ -102,7 +103,7 @@ export default async function ({
     }
 
     async function checkImportJobStateDONE() {
-      const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.DONE)});
+      const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.DONE)});
       if (queueItem) {
         logger.debug(`Found item in importing ${queueItem.correlationId}, ImportJobState: {${operation}: DONE}`);
         logger.debug(inspect(queueItem));
@@ -122,7 +123,7 @@ export default async function ({
     }
 
     async function checkImportJobStateINQUEUE() {
-      const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IN_QUEUE)});
+      const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IN_QUEUE)});
       if (queueItem) {
         logger.debug(`Found item in importing ${queueItem.correlationId}, ImportJobState: {${operation}: IN_QUEUE}`);
         // set here IMPORT_JOB_STATE: {CREATE: PROCESSING, UPDATE: PROCESSING} based of operation
@@ -135,7 +136,7 @@ export default async function ({
     }
 
     async function checkQueueItemStateINQUEUE() {
-      const queueItem = await mongoOperator.getOne({operation, queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
+      const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IN_QUEUE)});
       if (queueItem) {
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
