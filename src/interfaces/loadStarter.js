@@ -24,12 +24,17 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     // This should check that concurrent update and create jobs with the same correlationId won't mix up their files
     // pOldNew from recordLoadParams is not used, its caught from operation
 
+    // why we had here cataloger.toUpperCase - where have we made a change?
+    // cataloger.id from prio, cataloger from bulk
+
+    const catalogerName = cataloger.id || cataloger;
+
     const query = new URLSearchParams({
       correlationId,
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
       pFixType: prio ? 'API' : 'INSB',
-      pCatalogerIn: recordLoadParams.pCatalogerIn ? recordLoadParams.pCatalogerIn.toUpperCase() : cataloger.toUpperCase(),
+      pCatalogerIn: recordLoadParams.pCatalogerIn ? recordLoadParams.pCatalogerIn.toUpperCase() : catalogerName.toUpperCase(),
       pZ07PriorityYear: generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation, prio),
       pRejectFile: recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null,
       pLogFile: recordLoadParams.pLogFile && recordLoadParams.pLogFile !== '' ? recordLoadParams.pLogFile : null
