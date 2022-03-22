@@ -18,7 +18,9 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
     const recordCount = records.length;
-    const seqRecords = records.map(record => AlephSequential.to(record)).join('');
+
+    // If incoming records do not have 001, they all get aleph seq sys and fuse together as one record
+    const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000\n');
 
     logger.debug(correlationId, records.length, operation, cataloger, recordLoadParams, prio);
     // This should check that concurrent update and create jobs with the same correlationId won't mix up their files
