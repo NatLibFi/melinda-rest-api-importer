@@ -134,8 +134,16 @@ export default async function ({
       return false;
     }
 
+    // eslint-disable-next-line max-statements
     async function checkQueueItemStateINQUEUE() {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
+
+      if (queueItem && queueItem.operationSettings.noop === true) {
+        logger.verbose(`QueueItem ${queueItem.correlationId} has operationSettings.noop ${queueItem.operationSettings.noop} - not running importer for this job`);
+        await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Noop for queueItem true, item in importer???`});
+        await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.DONE});
+        return true;
+      }
 
       if (queueItem && queueItem.importJobState[operation] === IMPORT_JOB_STATE.IN_QUEUE) {
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId}`);
