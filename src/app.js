@@ -160,7 +160,7 @@ export default async function ({
         const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
         logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
 
-        if ([IMPORT_JOB_STATE.EMPTY].includes(otherOperationImportJobStateResult)) {
+        if ([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
           logger.debug(`Other importJob in not ongoing/pending, importing done`);
           await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
           return true;
