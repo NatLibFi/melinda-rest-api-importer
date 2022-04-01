@@ -1,10 +1,10 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
+import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
+import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 import httpStatus from 'http-status';
 import {promisify} from 'util';
 import processOperatorFactory from './processPoll';
-import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 
 export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, keepLoadProcessReports}) {
   const logger = createLogger();
@@ -66,8 +66,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
     logger.silly(`Pushing load process results to mongo for ${operation} ${correlationId}.`);
     const {handledIds, rejectedIds, loadProcessReport} = results.payloads;
-
-    // Make here handledRecords & rejectedRecords
 
     await mongoOperator.pushIds({correlationId, handledIds, rejectedIds});
 
@@ -188,15 +186,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.debug(`handleMessages for ${operation} ${correlationId}`);
     logger.silly(`handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${correlationId}`);
     logger.silly(`Check queue: ${JSON.stringify(queue)}`);
-    // note: headers should be same?
-    const {headers, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
-    logger.debug(`headers: ${JSON.stringify(headers)}, messages: ${messages.length}`);
+    // note: headers are headers for the first message in chunk
+    const {headers: firstMessageHeaders, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
+    logger.debug(`firstMessageHeaders: ${JSON.stringify(firstMessageHeaders)}, messages: ${messages.length}`);
     logger.silly(`messages: ${messages}`);
 
     if (messages) {
-      // Could this set status to REJECTED if record-load-api rejected the record?
-      // This would need the message to have a record identifier
-
       logger.verbose('Handling operation.correlationId messages based on results got from process polling');
       // Handle separation of all ready done records
       const ackMessages = await separateMessages(messages, results.ackOnlyLength);
@@ -207,13 +202,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         return false;
       }
 
-      if (prio) {
-        logger.debug(`${queue} is PRIO ***`);
-        return handleMessagesPrio({operation, headers, messages: ackMessages, results, correlationId, mongoOperator, amqpOperator});
-      }
-
-      logger.debug(`${queue} is BULK ***`);
-      return handleMessagesBulk({operation, headers, messages: ackMessages, queue, correlationId, mongoOperator, amqpOperator});
+      return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
     }
 
     logger.verbose(`No messages in ${queue} to handle: ${messages}. Continuing the loop`);
@@ -229,35 +218,71 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return ack;
   }
 
-  async function handleMessagesPrio({headers, operation, messages, results, correlationId, mongoOperator, amqpOperator}) {
+  async function handleMessagesBoth({operation, messages, results, queue, correlationId, mongoOperator, amqpOperator, prio}) {
+    logger.debug(`Acking for ${messages.length} messages.`);
+    logger.debug(JSON.stringify(results));
 
-    logger.debug(`Replying for ${messages.length} messages.`);
-    const status = headers.operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
+    //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2}
+    const {handledIds, rejectedIds} = results.payloads;
+    const {processedAll} = results.payloads.loadProcessReport;
 
-    const prioStatus = results.payloads.handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
-    const prioPayloads = results.payloads.handledIds[0] || results.payloads.rejectedIds[0] || 'No loadProcess information for record';
+    const status = operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
 
+    const prioStatus = handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
+    const prioPayloads = handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
+
+    // eslint-disable-next-line functional/no-conditional-statement
+    if (operation === OPERATIONS.CREATE && processedAll === false) {
+      logger.verbose(`Not all records handled for CREATE - cannot match records to melindaIds for CREATE!`);
+    }
+
+    // Add here something for cases where we did not get handledId for everything!
+
+    // This works if all the records got handledId from aleph-record-load-api
+    messages.forEach((message, index) => {
+      logger.debug(JSON.stringify(message));
+      const {headers} = message.properties;
+      logger.debug(`headers.id: ${headers.id} vs handledId for ${index}: ${handledIds[index]}`);
+
+      const recordResponseItem = {
+        status: prio ? prioStatus : status,
+        melindaId: handledIds[index] || undefined,
+        recordMetadata: headers.recordMetadata,
+        message: prio ? prioPayloads : ''
+      };
+
+      addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+    });
+
+    // ack messages
     await amqpOperator.ackMessages(messages);
 
+    // handle queueItem and amqp queues
+    if (prio) {
+      return prioResponse({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator});
+    }
+    return bulkResponse({correlationId, operation, queue, mongoOperator, amqpOperator});
+  }
+
+  async function prioResponse({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator}) {
+
+    // failed prios
     if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
       logger.debug(`prioStatus: ${prioStatus}`);
       await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
       await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: prioPayloads, errorStatus: prioStatus});
-      removeImporterQueues({amqpOperator, operation: headers.operation, correlationId});
+
+      removeImporterQueues({amqpOperator, operation, correlationId});
       return true;
     }
 
-    // prio has always just one record
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.DONE});
     await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.DONE});
-    removeImporterQueues({amqpOperator, operation: headers.operation, correlationId});
+    removeImporterQueues({amqpOperator, operation, correlationId});
     return true;
   }
 
-  async function handleMessagesBulk({operation, messages, queue, correlationId, mongoOperator, amqpOperator}) {
-    logger.debug(`Acking for ${messages.length} messages.`);
-    await amqpOperator.ackMessages(messages);
-
+  async function bulkResponse({correlationId, operation, queue, mongoOperator, amqpOperator}) {
     // If Bulk queue has more records/messages waiting in the queue resume to them.
     //logger.silly(`Checking remaining items in ${queue}`);
     const queueMessagesCount = await amqpOperator.checkQueue({queue, style: 'messages'});
@@ -277,6 +302,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.DONE});
     removeImporterQueues({amqpOperator, operation, correlationId});
+
+    return true;
+  }
+
+
+  async function addRecordResponseItem({recordResponseItem, correlationId, mongoOperator}) {
+    await mongoOperator.pushMessages({correlationId, messages: [recordResponseItem], messageField: 'records'});
     return true;
   }
 
