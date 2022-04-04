@@ -55,10 +55,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const processedAmount = handledAmount + rejectedAmount;
       const notProcessedAmout = recordAmount - processedAmount;
       const processedAll = processedAmount === recordAmount;
+      const handledAll = handledAmount === recordAmount;
 
       logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages};
+      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, handledAll};
       const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
       logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 

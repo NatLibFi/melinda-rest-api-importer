@@ -1,6 +1,6 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
+import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItem} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 import httpStatus from 'http-status';
 import {promisify} from 'util';
@@ -222,49 +222,97 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     logger.debug(`Acking for ${messages.length} messages.`);
     logger.debug(JSON.stringify(results));
 
-    //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2}
+    //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
     const {handledIds, rejectedIds} = results.payloads;
-    const {processedAll} = results.payloads.loadProcessReport;
+    const {handledAll} = results.payloads.loadProcessReport;
 
-    const status = operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
-
-    const prioStatus = handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
-    const prioPayloads = handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
-
-    // eslint-disable-next-line functional/no-conditional-statement
-    if (operation === OPERATIONS.CREATE && processedAll === false) {
-      logger.verbose(`Not all records handled for CREATE - cannot match records to melindaIds for CREATE!`);
-    }
-
-    // Add here something for cases where we did not get handledId for everything!
-
-    // This works if all the records got handledId from aleph-record-load-api
-    messages.forEach((message, index) => {
-      logger.debug(JSON.stringify(message));
-      const {headers} = message.properties;
-      logger.debug(`headers.id: ${headers.id} vs handledId for ${index}: ${handledIds[index]}`);
-
-      const recordResponseItem = {
-        status: prio ? prioStatus : status,
-        melindaId: handledIds[index] || undefined,
-        recordMetadata: headers.recordMetadata,
-        message: prio ? prioPayloads : ''
-      };
-
-      addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
-    });
-
+    await createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds});
     // ack messages
     await amqpOperator.ackMessages(messages);
 
     // handle queueItem and amqp queues
     if (prio) {
-      return prioResponse({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator});
+      const status = operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
+      const prioStatus = handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
+      const prioPayloads = handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
+
+      return prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator});
     }
-    return bulkResponse({correlationId, operation, queue, mongoOperator, amqpOperator});
+    return bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator});
   }
 
-  async function prioResponse({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator}) {
+  async function createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds}) {
+    if (handledAll && operation === OPERATIONS.CREATE) {
+
+      const status = 'CREATED';
+      await messages.forEach((message, index) => {
+        logger.debug(JSON.stringify(message));
+        const {id, recordMetadata} = message.properties.headers;
+        logger.debug(`headers.id: ${id} got handledId for ${index}: ${handledIds[index]}`);
+
+        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id: handledIds[index]});
+        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+      });
+      return;
+    }
+
+    if (!handledAll && operation === OPERATIONS.CREATE) {
+
+      await messages.forEach((message) => {
+        const {id, recordMetadata} = message.properties.headers;
+
+        if (rejectedIds.includes(id)) {
+          const rejectedStatus = 'INVALID';
+          const rejectedResponsePayload = `LoaderProcess rejected record`;
+          const recordResponseItem = createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id, rejectedResponsePayload});
+          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+          return;
+        }
+
+        const status = 'UNKNOWN';
+        const responsePayload = {
+          message: `LoaderProcess did not return MelindaIds for all records in chunk.`,
+          ids: handledIds
+        };
+
+        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id: '000000000', responsePayload});
+        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+      });
+      return;
+    }
+
+    if (operation === OPERATIONS.UPDATE) {
+      await messages.forEach((message) => {
+        logger.debug(JSON.stringify(message));
+        const {id, recordMetadata} = message.properties.headers;
+
+        // Note: if a record is in chunk to be updated several times, all of them get status UPDATED
+        if (handledIds.includes(id)) {
+          const status = 'UPDATED';
+          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id});
+          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+          return;
+        }
+
+        if (rejectedIds.includes(id)) {
+          const status = 'INVALID';
+          const responsePayload = `LoaderProcess rejected record`;
+          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
+          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+          return;
+        }
+
+        const status = 'UNKNOWN';
+        const responsePayload = 'LoaderProcess did not return result for this records';
+        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
+        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+      });
+
+      return;
+    }
+  }
+
+  async function prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator}) {
 
     // failed prios
     if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED') {
@@ -282,7 +330,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return true;
   }
 
-  async function bulkResponse({correlationId, operation, queue, mongoOperator, amqpOperator}) {
+  async function bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator}) {
     // If Bulk queue has more records/messages waiting in the queue resume to them.
     //logger.silly(`Checking remaining items in ${queue}`);
     const queueMessagesCount = await amqpOperator.checkQueue({queue, style: 'messages'});
@@ -303,12 +351,6 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.DONE});
     removeImporterQueues({amqpOperator, operation, correlationId});
 
-    return true;
-  }
-
-
-  async function addRecordResponseItem({recordResponseItem, correlationId, mongoOperator}) {
-    await mongoOperator.pushMessages({correlationId, messages: [recordResponseItem], messageField: 'records'});
     return true;
   }
 
