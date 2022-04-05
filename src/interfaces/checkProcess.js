@@ -1,5 +1,5 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError} from '@natlibfi/melinda-commons';
+import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItem} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 import httpStatus from 'http-status';
@@ -248,9 +248,12 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       await messages.forEach((message, index) => {
         logger.debug(JSON.stringify(message));
         const {id, recordMetadata} = message.properties.headers;
-        logger.debug(`headers.id: ${id} got handledId for ${index}: ${handledIds[index]}`);
+        const idFromHandledIds = handledIds[index];
 
-        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id: handledIds[index]});
+        logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
+        const responsePayload = {message: `Created record ${idFromHandledIds}`};
+
+        const recordResponseItem = createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id: idFromHandledIds});
         addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
       });
       return;
@@ -259,12 +262,14 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     if (!handledAll && operation === OPERATIONS.CREATE) {
 
       await messages.forEach((message) => {
-        const {id, recordMetadata} = message.properties.headers;
+        const {recordMetadata} = message.properties.headers;
+        const {blobSequence} = recordMetadata;
+        const alephSeqId = toAlephId(blobSequence.toString());
 
-        if (rejectedIds.includes(id)) {
+        if (rejectedIds.includes(alephSeqId)) {
           const rejectedStatus = 'INVALID';
-          const rejectedResponsePayload = `LoaderProcess rejected record`;
-          const recordResponseItem = createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id, rejectedResponsePayload});
+          const responsePayload = {message: `LoaderProcess rejected record ${alephSeqId}`};
+          const recordResponseItem = createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id: '000000000', responsePayload});
           addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
           return;
         }
@@ -285,25 +290,27 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       await messages.forEach((message) => {
         logger.debug(JSON.stringify(message));
         const {id, recordMetadata} = message.properties.headers;
+        const paddedId = toAlephId(id);
 
         // Note: if a record is in chunk to be updated several times, all of them get status UPDATED
-        if (handledIds.includes(id)) {
-          const status = 'UPDATED';
-          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id});
+        if (handledIds.includes(paddedId)) {
+          const responseStatus = 'UPDATED';
+          const responsePayload = {message: `Updated record ${paddedId}`};
+          const recordResponseItem = createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
           addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
           return;
         }
 
-        if (rejectedIds.includes(id)) {
-          const status = 'INVALID';
-          const responsePayload = `LoaderProcess rejected record`;
-          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
+        if (rejectedIds.includes(paddedId)) {
+          const responseStatus = 'INVALID';
+          const responsePayload = {message: `LoaderProcess rejected record ${paddedId}`};
+          const recordResponseItem = createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
           addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
           return;
         }
 
         const status = 'UNKNOWN';
-        const responsePayload = 'LoaderProcess did not return result for this records';
+        const responsePayload = {message: `LoaderProcess did not return result for record ${paddedId}`};
         const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
         addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
       });
