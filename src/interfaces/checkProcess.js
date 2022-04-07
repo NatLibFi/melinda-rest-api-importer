@@ -22,7 +22,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     }
 
     logger.silly(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
-    const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator});
+    const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator, prio});
     // handle checkProcessQueue errors ???
     // if checkProcessQueue errored with error that's not an ApiError, processMessage is not acked/nacked
     logger.silly(`processQueueResults: ${JSON.stringify(processQueueResults)}`);
@@ -97,7 +97,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     return false;
   }
 
-  async function checkProcessQueue({correlationId, operation, mongoOperator}) {
+  async function checkProcessQueue({correlationId, operation, mongoOperator, prio}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
     const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
@@ -110,7 +110,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
         // handleProcessMessage returns: {results, processParams} if successful - ack processMessage
         // false if process is locked - nack processMessage
         // otherwise throws error
-        const result = await handleProcessMessage(processMessage, correlationId);
+        const result = await handleProcessMessage(processMessage, correlationId, prio);
         return result;
       }
       // This could remove empty PROCESS.operation.correlationId queue
@@ -122,6 +122,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       logError(error);
 
       if (error instanceof ApiError) {
+
         // should this do something for importJobState?
         await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
         // We are erroring the whole job here
@@ -135,7 +136,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     }
   }
 
-  async function handleProcessMessage(processMessage, correlationId) {
+  async function handleProcessMessage(processMessage, correlationId, prio) {
     logger.silly(`handleProcessMessage: ${JSON.stringify(processMessage)} for ${correlationId}`);
     try {
       const processParams = await JSON.parse(processMessage.content.toString());
@@ -152,10 +153,10 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
       return {results, processParams};
     } catch (error) {
 
-      return handleProcessMessageError(error, processMessage, amqpOperator);
+      return handleProcessMessageError(error, processMessage, amqpOperator, prio);
     }
 
-    async function handleProcessMessageError(error, processMessage, amqpOperator) {
+    async function handleProcessMessageError(error, processMessage, amqpOperator, prio) {
       if (error instanceof ApiError) {
         if (error.status === httpStatus.LOCKED) {
           // Nack message and loop back if process was ongoing
@@ -168,6 +169,13 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
           logger.debug(`Server temporarily unavailable, sleeping ${error503WaitTime} and back to loop!`);
           await setTimeoutPromise(error503WaitTime);
           return false;
+        }
+
+        if (error.status === httpStatus.BAD_REQUEST) {
+          if (prio) {
+            throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
+          }
+          throw new ApiError(error.status, 'Bad request from record-load-api');
         }
         logger.error('checkProcess/handleProcessMessage errored');
         logError(error);

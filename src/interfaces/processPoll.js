@@ -34,6 +34,12 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
+    // Bad Request (400)
+    if (response.status === httpStatus.BAD_REQUEST) { // eslint-disable-line functional/no-conditional-statement
+      logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
+      throw new ApiError(httpStatus.BAD_REQUEST);
+    }
+
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
 
