@@ -10,13 +10,14 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   return {poll, requestFileClear};
 
-  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile, recordAmount}) {
+  async function poll({correlationId, pActiveLibrary, processId, loaderProcessId, pLogFile, pRejectFile, recordAmount}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
     const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
       processId,
+      loaderProcessId,
       pLogFile: pLogFile || null,
       pRejectFile: pRejectFile || null
     });
@@ -59,7 +60,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
       logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, handledAll};
+      const loadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, handledAll};
       const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
       logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 

@@ -34,8 +34,11 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
     const catalogerName = cataloger.id || cataloger;
 
+    // Note: pRejectFile & pLogFile are combined reject and logFiles for whole batch of records
+    // useLoaderProcessId: name aleph-record-load-api:s files by unique loaderProcessId instead of correlationId
     const query = new URLSearchParams({
       correlationId,
+      useLoaderProcessId: '1',
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
       pFixType: prio ? 'API' : 'INSB',

@@ -45,7 +45,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     await setTimeoutPromise(200); // (S)Nack time!
     // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
 
-    const {processId, pLogFile, pRejectFile} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
+    const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
 
@@ -63,7 +63,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
       data: {
         correlationId,
         pActiveLibrary: recordLoadParams ? recordLoadParams.pActiveLibrary : recordLoadLibrary,
-        processId, pRejectFile, pLogFile,
+        processId, pRejectFile, pLogFile, loaderProcessId,
         recordAmount
       }
     });
