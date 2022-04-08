@@ -287,7 +287,7 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
 
         const status = 'UNKNOWN';
         const responsePayload = {
-          message: `LoaderProcess did not return MelindaIds for all records in chunk.`,
+          message: `LoaderProcess did not return databaseIds for all records in chunk.`,
           ids: handledIds
         };
 
