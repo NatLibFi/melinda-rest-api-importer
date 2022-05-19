@@ -1,15 +1,16 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
-import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItem} from '@natlibfi/melinda-rest-api-commons';
+import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItem, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 import httpStatus from 'http-status';
-import {promisify} from 'util';
+import {promisify, inspect} from 'util';
 import processOperatorFactory from './processPoll';
 
-export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, keepLoadProcessReports}) {
+export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, keepLoadProcessReports, mongoUri}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
   const processOperator = processOperatorFactory({recordLoadApiKey, recordLoadUrl});
+  const mongoLogOperator = await mongoLogFactory(mongoUri);
 
   return {loopCheck};
 
@@ -68,6 +69,16 @@ export default function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWai
     const {handledIds, rejectedIds, loadProcessReport} = results.payloads;
 
     await mongoOperator.pushIds({correlationId, handledIds, rejectedIds});
+
+    const loadProcessLogItem = {
+      logItemType: 'LOAD_PROCESS_LOG',
+      correlationId,
+      ...loadProcessReport
+    };
+
+    logger.debug(`${inspect(loadProcessLogItem, {depth: 6})}`);
+    const result = mongoLogOperator.addLogItem(loadProcessLogItem);
+    logger.debug(result);
 
     const keepLoadProcessReport = checkLoadProcessReport(keepLoadProcessReports, loadProcessReport);
     if (keepLoadProcessReport) {
