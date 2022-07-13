@@ -309,8 +309,10 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
     }
 
     if (operation === OPERATIONS.UPDATE) {
-      await messages.forEach((message) => {
-        logger.debug(JSON.stringify(message));
+
+      // eslint-disable-next-line max-statements
+      await messages.forEach((message, index) => {
+        logger.debug(`${index}: ${JSON.stringify(message)}`);
         const {id, recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
         const paddedId = toAlephId(id);
@@ -328,6 +330,19 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
           const responseStatus = 'INVALID';
           const responsePayload = {message: `${notesString}LoaderProcess rejected record ${paddedId}`};
           const recordResponseItem = createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
+          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+          return;
+        }
+
+        if (handledAll) {
+          const status = 'UNKNOWN';
+          const idFromHandledIds = handledIds[index];
+          const ids = [idFromHandledIds];
+          const responsePayload = {
+            message: `${notesString}LoaderProcess did not return result for record ${paddedId}. It might have updated ${idFromHandledIds} instead.`,
+            ids
+          };
+          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
           addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
           return;
         }
