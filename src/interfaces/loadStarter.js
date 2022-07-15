@@ -22,7 +22,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
     //
     // Also, if there are two records with the same 001 after each other, they get fused together
-    const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000\n');
+    const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000 000   L 0\n');
     //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
     logger.debug(seqRecords);
 
