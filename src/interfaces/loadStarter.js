@@ -65,8 +65,8 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
     checkStatus(response);
 
     if (response.status === httpStatus.OK) {
-      logger.info('Got "OK" (200) response from record-load-api.');
       const result = await response.json();
+      logger.info(`Got "OK" (200) response from record-load-api. correlationId: ${result.correlationId}, loaderProcessId: ${result.loaderProcessId}`);
       logger.debug(`Response: ${JSON.stringify(result)}`);
       return result;
     }
