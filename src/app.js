@@ -46,9 +46,10 @@ export default async function ({
     if (queueItemInProcess) {
       // Do not spam logs
       logger.silly(`Found item in process ${queueItemInProcess.correlationId}`);
-      await processOperator.checkProcessQueueStart({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
+      // processOperator return false if process is still ongoing (or it errored) and true if the process is done
+      const result = await processOperator.checkProcessQueueStart({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
       // Hard coded wait after handling an item in process here: 100 ms = 0,1 s
-      return startCheck(true, 100);
+      return startCheck(true, result ? false : 100);
     }
 
     if (prio) {

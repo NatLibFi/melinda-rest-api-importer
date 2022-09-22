@@ -16,13 +16,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   async function checkProcessQueueStart({correlationId, operation, mongoOperator, prio}) {
 
-    // when are we waiting in loopCheck?
-    /* if (wait) {
-      logger.debug(`loopCheck: Waiting ${pollWaitTime}`);
-      await setTimeoutPromise(pollWaitTime);
-      return loopCheck({correlationId, operation, mongoOperator, prio, wait: false});
-    } */
-
     logger.silly(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
     const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator, prio});
     // handle checkProcessQueue errors ???
@@ -32,7 +25,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     if (!processQueueResults) {
       // false: there's a process in process queue that is not ready yet (importJobState: IN_PROCESS) or
       // false: processQueue errored (queueItemState was set to ERROR)
-      return;
+      return false;
     }
 
     await handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator});
@@ -52,7 +45,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     if (messagesHandled) {
       logger.verbose(`Requesting file cleaning for ${JSON.stringify(processParams.data)}`);
       await processOperator.requestFileClear(processParams.data);
-      return;
+      return true;
     }
 
     // There was a message in processQueue for queueItem, but no messages in operationQueue for correlation id
