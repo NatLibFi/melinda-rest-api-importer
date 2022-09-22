@@ -6,21 +6,22 @@ import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
 import processOperatorFactory from './processPoll';
 
-export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, keepLoadProcessReports, mongoUri}) {
+export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, error503WaitTime, keepLoadProcessReports, mongoUri}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
   const processOperator = processOperatorFactory({recordLoadApiKey, recordLoadUrl});
   const mongoLogOperator = await mongoLogFactory(mongoUri);
 
-  return {loopCheck};
+  return {checkProcessQueueStart};
 
-  async function loopCheck({correlationId, operation, mongoOperator, prio, wait = false}) {
+  async function checkProcessQueueStart({correlationId, operation, mongoOperator, prio}) {
 
-    if (wait) {
-      logger.debug(`Waiting ${pollWaitTime}`);
+    // when are we waiting in loopCheck?
+    /* if (wait) {
+      logger.debug(`loopCheck: Waiting ${pollWaitTime}`);
       await setTimeoutPromise(pollWaitTime);
       return loopCheck({correlationId, operation, mongoOperator, prio, wait: false});
-    }
+    } */
 
     logger.silly(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
     const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator, prio});
@@ -76,7 +77,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
       ...loadProcessReport
     };
 
-    logger.debug(`${inspect(loadProcessLogItem, {depth: 6})}`);
+    logger.silly(`${inspect(loadProcessLogItem, {depth: 6})}`);
     const result = mongoLogOperator.addLogItem(loadProcessLogItem);
     logger.debug(result);
 
@@ -211,7 +212,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
     logger.silly(`messages: ${messages}`);
 
     if (messages) {
-      logger.verbose('Handling operation.correlationId messages based on results got from process polling');
+      logger.verbose(`Handling ${operation}.${correlationId} messages based on results got from process polling`);
       // Handle separation of all ready done records
       const ackMessages = await separateMessages(messages, results.ackOnlyLength);
 
@@ -239,7 +240,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
 
   async function handleMessagesBoth({operation, messages, results, queue, correlationId, mongoOperator, amqpOperator, prio}) {
     logger.debug(`Acking for ${messages.length} messages.`);
-    logger.debug(JSON.stringify(results));
+    logger.silly(JSON.stringify(results));
 
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
     const {handledIds, rejectedIds} = results.payloads;
@@ -265,7 +266,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
 
       const status = 'CREATED';
       await messages.forEach((message, index) => {
-        logger.debug(JSON.stringify(message));
+        logger.silly(JSON.stringify(message));
         const {id, recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
@@ -312,7 +313,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, p
 
       // eslint-disable-next-line max-statements
       await messages.forEach((message, index) => {
-        logger.debug(`${index}: ${JSON.stringify(message)}`);
+        logger.silly(`${index}: ${JSON.stringify(message)}`);
         const {id, recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
         const paddedId = toAlephId(id);

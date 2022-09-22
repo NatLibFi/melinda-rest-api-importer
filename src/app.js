@@ -24,6 +24,7 @@ export default async function ({
 
   async function startCheck(checkInProcessItems = true, wait = false) {
     if (wait) {
+      logger.debug(`startCheck: Waiting ${wait}`);
       await setTimeoutPromise(wait);
       return startCheck();
     }
@@ -45,7 +46,8 @@ export default async function ({
     if (queueItemInProcess) {
       // Do not spam logs
       logger.silly(`Found item in process ${queueItemInProcess.correlationId}`);
-      await processOperator.loopCheck({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
+      await processOperator.checkProcessQueueStart({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
+      // Hard coded wait after handling an item in process here: 100 ms = 0,1 s
       return startCheck(true, 100);
     }
 
@@ -87,8 +89,9 @@ export default async function ({
       return checkItemImportingAndInQueue(false);
     }
 
-    logger.silly(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck `);
-    return startCheck(true, 3000);
+    logger.silly(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck, waiting ${pollWaitTime} ms = ${pollWaitTime / 1000} s`);
+    // we should use pollWaitTimeHere
+    return startCheck(true, pollWaitTime);
 
     async function checkImportJobStateIMPORTING() {
       const itemImportingImporting = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IMPORTING, true)});
@@ -106,7 +109,7 @@ export default async function ({
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.DONE, true)});
       if (queueItem) {
         logger.debug(`Found item in importing ${queueItem.correlationId}, ImportJobState: {${operation}: DONE}`);
-        logger.debug(inspect(queueItem));
+        logger.silly(inspect(queueItem));
 
         const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
         const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
@@ -153,7 +156,7 @@ export default async function ({
 
       if (queueItem && queueItem.importJobState[operation] === IMPORT_JOB_STATE.EMPTY) {
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId} but importJobState for ${operation} is ${queueItem.importJobState[operation]}`);
-        logger.debug(JSON.stringify(queueItem.importJobState));
+        logger.silly(JSON.stringify(queueItem.importJobState));
 
         // check whether also the other queue is EMPTY or a final state
         const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
