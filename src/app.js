@@ -104,14 +104,13 @@ export default async function ({
     }
 
     logger.silly(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck, waiting ${pollWaitTime} ms = ${pollWaitTime / 1000} s`);
-    // we should use pollWaitTimeHere
     return startCheck({checkInProcess: true, wait: pollWaitTime, waitSinceLastOp});
 
     async function checkImportJobStateIMPORTING({waitSinceLastOp}) {
       const itemImportingImporting = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IMPORTING, true)});
 
       if (itemImportingImporting) {
-        //logger.debug(`We found a job after ${waitSinceLastOp / 1000} s of waiting`);
+
         logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ImportJobState: {${operation}: PROCESSING} ${waitTimePrint(waitSinceLastOp)}`);
         await itemImportingHandler({item: itemImportingImporting, operation});
         return true;
@@ -164,11 +163,6 @@ export default async function ({
     async function checkQueueItemStateINQUEUE({waitSinceLastOp}) {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
 
-      // eslint-disable-next-line functional/no-conditional-statement
-      if (queueItem) {
-        logger.debug(`We found a job after ${prettyPrint(waitSinceLastOp)} of waiting`);
-      }
-
       if (queueItem && queueItem.operationSettings.noop === true) {
         logger.verbose(`QueueItem ${queueItem.correlationId} has operationSettings.noop ${queueItem.operationSettings.noop} - not running importer for this job`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Noop for queueItem true, item in importer???`});
@@ -177,7 +171,7 @@ export default async function ({
       }
 
       if (queueItem && queueItem.importJobState[operation] === IMPORT_JOB_STATE.IN_QUEUE) {
-        logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
+        logger.debug(`Found item in q ueue to be imported${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
         return true;
       }
@@ -197,6 +191,7 @@ export default async function ({
           return true;
         }
 
+        logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
         return true;
       }
