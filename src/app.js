@@ -4,7 +4,6 @@ import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATION
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting';
 import checkProcess from './interfaces/checkProcess';
-//import {prettyMilliseconds} from 'pretty-ms';
 import prettyPrint from 'pretty-print-ms';
 
 export default async function ({
