@@ -170,7 +170,7 @@ export default async function ({
       }
 
       if (queueItem && queueItem.importJobState[operation] === IMPORT_JOB_STATE.IN_QUEUE) {
-        logger.debug(`Found item in q ueue to be imported${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
+        logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
         return true;
       }
