@@ -1,4 +1,4 @@
-import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {createLogger, logWait} from '@natlibfi/melinda-backend-commons';
 import recordLoadFactory from './interfaces/loadStarter';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
@@ -27,7 +27,7 @@ export default async function ({
     if (wait) {
       await setTimeoutPromise(wait);
       const nowWaited = parseInt(wait, 10) + parseInt(waitSinceLastOp, 10);
-      logWait(nowWaited);
+      logWait(logger, nowWaited);
       return startCheck({waitSinceLastOp: nowWaited});
     }
 
@@ -196,18 +196,5 @@ export default async function ({
       }
       return false;
     }
-  }
-
-  // We should move this to some commons
-  function logWait(waitTime) {
-    // 3600000ms = 1h
-    if (waitTime % 3600000 === 0) {
-      return logger.verbose(`Total wait: ${prettyPrint(waitTime)}`);
-    }
-    // 60000ms = 1min
-    if (waitTime % 60000 === 0) {
-      return logger.debug(`Total wait: ${prettyPrint(waitTime)}`);
-    }
-    return logger.silly(`Total wait: ${prettyPrint(waitTime)}`);
   }
 }
