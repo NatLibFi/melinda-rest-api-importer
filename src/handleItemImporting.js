@@ -40,6 +40,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     const recordAmount = records.length;
     // recordLoadParams have pOldNew - is this used or is operation caught from importer?
     const {correlationId, recordLoadParams} = item;
+
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
     await setTimeoutPromise(200); // (S)Nack time!
