@@ -51,7 +51,6 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     // set here importJobState: {<OPERATION>: PROCESSING}
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
-    //await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
 
     // send here to queue PROCESS.<OPERATION>.correlationId
     const processQueue = `PROCESS.${operation}.${correlationId}`;

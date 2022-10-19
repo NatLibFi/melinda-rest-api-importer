@@ -102,6 +102,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return false;
   }
 
+  // eslint-disable-next-line max-statements
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
@@ -128,12 +129,17 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
       if (error instanceof ApiError) {
 
-        // should this do something for importJobState?
+        // We error the whole queueItem here
         await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
-        // We are erroring the whole job here
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
-        await amqpOperator.ackMessages([processMessage]);
-        await setTimeoutPromise(100);
+
+        // If we errored because we didn't have a process message, let's not try to ack non-existing message
+        if (processMessage) {
+          await amqpOperator.ackMessages([processMessage]);
+          await setTimeoutPromise(100);
+          return false;
+        }
+
         return false;
       }
       // processMessage get un-(n)acked in this case?
