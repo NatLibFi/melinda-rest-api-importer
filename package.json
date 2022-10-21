@@ -36,7 +36,7 @@
     "@natlibfi/marc-record-serializers": "^9.0.1",
     "@natlibfi/melinda-backend-commons": "^2.1.0",
     "@natlibfi/melinda-commons": "^12.0.5",
-    "@natlibfi/melinda-rest-api-commons": "^2.3.2-alpha.6",
+    "@natlibfi/melinda-rest-api-commons": "file:/Users/ammsalme/melinda-rest-api-local/melinda-rest-api-commons",
     "http-status": "^1.5.3",
     "moment": "^2.29.4",
     "node-fetch": "^2.6.7",
