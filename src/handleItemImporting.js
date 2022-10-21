@@ -40,6 +40,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     const recordAmount = records.length;
     // recordLoadParams have pOldNew - is this used or is operation caught from importer?
     const {correlationId, recordLoadParams} = item;
+
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
     await setTimeoutPromise(200); // (S)Nack time!
@@ -48,10 +49,6 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
-
-    // set here importJobState: {<OPERATION>: PROCESSING}
-    await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
-    //await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IN_PROCESS});
 
     // send here to queue PROCESS.<OPERATION>.correlationId
     const processQueue = `PROCESS.${operation}.${correlationId}`;
@@ -67,6 +64,10 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
         recordAmount
       }
     });
+
+    // set here importJobState: {<OPERATION>: PROCESSING}
+    await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
+
     return;
   }
 

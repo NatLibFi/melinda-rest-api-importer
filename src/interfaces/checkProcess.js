@@ -1,6 +1,6 @@
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
-import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItem, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
+import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
 import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
@@ -102,6 +102,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return false;
   }
 
+  // eslint-disable-next-line max-statements
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
@@ -128,12 +129,17 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
       if (error instanceof ApiError) {
 
-        // should this do something for importJobState?
+        // We error the whole queueItem here
         await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
-        // We are erroring the whole job here
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: error.payload, errorStatus: error.status});
-        await amqpOperator.ackMessages([processMessage]);
-        await setTimeoutPromise(100);
+
+        // If we errored because we didn't have a process message, let's not try to ack non-existing message
+        if (processMessage) {
+          await amqpOperator.ackMessages([processMessage]);
+          await setTimeoutPromise(100);
+          return false;
+        }
+
         return false;
       }
       // processMessage get un-(n)acked in this case?
@@ -258,7 +264,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     if (handledAll && operation === OPERATIONS.CREATE) {
 
       const status = 'CREATED';
-      await messages.forEach((message, index) => {
+      const recordResponseItems = await messages.map((message, index) => {
         logger.silly(JSON.stringify(message));
         const {id, recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
@@ -268,15 +274,16 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
         const responsePayload = {message: `${notesString}Created record ${idFromHandledIds}.`};
 
-        const recordResponseItem = createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id: idFromHandledIds});
-        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+        return createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id: idFromHandledIds});
       });
+
+      addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
       return;
     }
 
     if (!handledAll && operation === OPERATIONS.CREATE) {
 
-      await messages.forEach((message) => {
+      const recordResponseItems = await messages.map((message) => {
         const {recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
         const {blobSequence} = recordMetadata;
@@ -285,9 +292,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         if (rejectedIds.includes(alephSeqId)) {
           const rejectedStatus = 'INVALID';
           const responsePayload = {message: `${notesString}LoaderProcess rejected record ${alephSeqId}`};
-          const recordResponseItem = createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id: '000000000', responsePayload});
-          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
-          return;
+          return createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id: '000000000', responsePayload});
         }
 
         const status = 'UNKNOWN';
@@ -296,16 +301,16 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
           ids: handledIds
         };
 
-        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id: '000000000', responsePayload});
-        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+        return createRecordResponseItem({responseStatus: status, recordMetadata, id: '000000000', responsePayload});
       });
+      addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
       return;
     }
 
     if (operation === OPERATIONS.UPDATE) {
 
       // eslint-disable-next-line max-statements
-      await messages.forEach((message, index) => {
+      const recordResponseItems = messages.map((message, index) => {
         logger.silly(`${index}: ${JSON.stringify(message)}`);
         const {id, recordMetadata, notes} = message.properties.headers;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
@@ -315,17 +320,13 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         if (handledIds.includes(paddedId)) {
           const responseStatus = 'UPDATED';
           const responsePayload = {message: `${notesString}Updated record ${paddedId}`};
-          const recordResponseItem = createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
-          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
-          return;
+          return createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
         }
 
         if (rejectedIds.includes(paddedId)) {
           const responseStatus = 'INVALID';
           const responsePayload = {message: `${notesString}LoaderProcess rejected record ${paddedId}`};
-          const recordResponseItem = createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
-          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
-          return;
+          return createRecordResponseItem({responseStatus, recordMetadata, id, responsePayload});
         }
 
         if (handledAll) {
@@ -336,17 +337,15 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
             message: `${notesString}LoaderProcess did not return result for record ${paddedId}. It might have updated ${idFromHandledIds} instead.`,
             ids
           };
-          const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
-          addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
-          return;
+          return createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
         }
 
         const status = 'UNKNOWN';
         const responsePayload = {message: `${notesString}LoaderProcess did not return result for record ${paddedId}`};
-        const recordResponseItem = createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
-        addRecordResponseItem({recordResponseItem, mongoOperator, correlationId});
+        return createRecordResponseItem({responseStatus: status, recordMetadata, id, responsePayload});
       });
 
+      addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
       return;
     }
   }
