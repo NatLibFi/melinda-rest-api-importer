@@ -50,9 +50,6 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
 
-    // set here importJobState: {<OPERATION>: PROCESSING}
-    await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
-
     // send here to queue PROCESS.<OPERATION>.correlationId
     const processQueue = `PROCESS.${operation}.${correlationId}`;
 
@@ -67,6 +64,10 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
         recordAmount
       }
     });
+
+    // set here importJobState: {<OPERATION>: PROCESSING}
+    await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
+
     return;
   }
 

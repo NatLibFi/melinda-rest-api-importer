@@ -110,7 +110,7 @@ export default async function ({
 
       if (itemImportingImporting) {
 
-        logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ImportJobState: {${operation}: PROCESSING} ${waitTimePrint(waitSinceLastOp)}`);
+        logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ImportJobState: {${operation}: IMPORTING} ${waitTimePrint(waitSinceLastOp)}`);
         await itemImportingHandler({item: itemImportingImporting, operation});
         return true;
       }
