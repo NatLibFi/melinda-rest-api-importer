@@ -26,7 +26,7 @@
     "lint": "eslint ./src",
     "lint:dev": "eslint ./src --fix",
     "test": "npm run lint",
-    "dev": "NODE_ENV=development cross-env DEBUG=1 nodemon",
+    "dev": "NODE_ENV=development cross-env nodemon",
     "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist",
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
@@ -36,7 +36,7 @@
     "@natlibfi/marc-record-serializers": "^9.0.1",
     "@natlibfi/melinda-backend-commons": "^2.1.0",
     "@natlibfi/melinda-commons": "^12.0.5",
-    "@natlibfi/melinda-rest-api-commons": "^2.3.2-alpha.7",
+    "@natlibfi/melinda-rest-api-commons": "^2.3.2-alpha.9",
     "http-status": "^1.5.3",
     "moment": "^2.29.4",
     "node-fetch": "^2.6.7",

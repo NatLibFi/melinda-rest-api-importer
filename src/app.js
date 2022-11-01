@@ -12,7 +12,8 @@ export default async function ({
 }) {
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
-  const amqpOperator = await amqpFactory(amqpUrl);
+  // second parameter for running amqpHealthCheck
+  const amqpOperator = await amqpFactory(amqpUrl, true);
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
@@ -21,7 +22,9 @@ export default async function ({
   const bulkItemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperatorBulk, recordLoadOperator, {prio: false, error503WaitTime, recordLoadLibrary});
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
-  startCheck({});
+
+  const server = await startCheck({});
+  return server;
 
   async function startCheck({checkInProcessItems = true, wait = false, waitSinceLastOp = 0}) {
     if (wait) {
