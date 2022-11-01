@@ -84,3 +84,16 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+
+  openshift-webhook:
+    name: OpenShift webhook for image builder
+    needs: [build-node-versions, njsscan]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/add-merge'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_TEST }}
+          body: '{}'
