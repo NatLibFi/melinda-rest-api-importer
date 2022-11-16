@@ -93,7 +93,7 @@ jobs:
     steps:
       - name: Test webhook
         uses: joelwmale/webhook-action@master
-        if: github.ref == 'refs/heads/add-merge'
+        if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_TEST }}
           body: '{}'
