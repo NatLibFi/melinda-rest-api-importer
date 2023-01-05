@@ -11,7 +11,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [12.x, 14.x, 16.x, 18.x]
+        node-version: [16.x, 18.x, 19.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
@@ -24,7 +24,6 @@ jobs:
         cache: 'npm'
       env:
         NPM_CONFIG_IGNORE_SCRIPTS: true
-    - run: npm update
     - run: npm audit --package-lock-only --production --audit-level=high
     - run: npm ci
     - run: npm test
@@ -96,4 +95,10 @@ jobs:
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_TEST }}
+          body: '{}'
+      - name: Production auth names webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/master'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUTH_PROD }}
           body: '{}'
