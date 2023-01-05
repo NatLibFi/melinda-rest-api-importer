@@ -96,3 +96,9 @@ jobs:
         with:
           url: ${{ secrets.WEBHOOK_URL_TEST }}
           body: '{}'
+      - name: Production auth names webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/master'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUTH_PROD }}
+          body: '{}'
