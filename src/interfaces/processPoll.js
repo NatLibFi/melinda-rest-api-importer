@@ -10,13 +10,14 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
   return {poll, requestFileClear};
 
-  async function poll({correlationId, pActiveLibrary, processId, pLogFile, pRejectFile, recordAmount}) {
+  async function poll({correlationId, pActiveLibrary, processId, loaderProcessId, pLogFile, pRejectFile, recordAmount}) {
 
     // Pass correlationId to record-load-api so it can use same name in log files
     const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
       processId,
+      loaderProcessId,
       pLogFile: pLogFile || null,
       pRejectFile: pRejectFile || null
     });
@@ -32,6 +33,12 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     }).catch(error => handleConectionError(error));
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
+
+    // Bad Request (400)
+    if (response.status === httpStatus.BAD_REQUEST) { // eslint-disable-line functional/no-conditional-statement
+      logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
+      throw new ApiError(httpStatus.BAD_REQUEST);
+    }
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
@@ -55,10 +62,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const processedAmount = handledAmount + rejectedAmount;
       const notProcessedAmout = recordAmount - processedAmount;
       const processedAll = processedAmount === recordAmount;
+      const handledAll = handledAmount === recordAmount;
 
       logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}`);
 
-      const loadProcessReport = {status: response.status, processId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages};
+      const loadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, handledAll};
       const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
       logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
