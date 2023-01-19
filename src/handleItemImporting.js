@@ -53,6 +53,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     // send here to queue PROCESS.<OPERATION>.correlationId
     const processQueue = `PROCESS.${operation}.${correlationId}`;
+    logger.debug(`Sending process information for loading process ${processId} / ${loaderProcessId} to ${processQueue}`);
 
     // what happens if sendToQueue errors?
     await amqpOperator.sendToQueue({
