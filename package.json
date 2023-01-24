@@ -31,12 +31,12 @@
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
-    "@babel/runtime": "^7.20.7",
+    "@babel/runtime": "^7.20.13",
     "@natlibfi/marc-record": "^7.2.2",
     "@natlibfi/marc-record-serializers": "^9.0.4",
     "@natlibfi/melinda-backend-commons": "^2.1.0",
     "@natlibfi/melinda-commons": "^12.0.7",
-    "@natlibfi/melinda-rest-api-commons": "^3.0.4",
+    "@natlibfi/melinda-rest-api-commons": "^3.0.6",
     "http-status": "^1.6.2",
     "moment": "^2.29.4",
     "node-fetch": "^2.6.8",
