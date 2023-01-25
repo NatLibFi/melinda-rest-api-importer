@@ -43,16 +43,19 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
-    await setTimeoutPromise(200); // (S)Nack time!
+    // await setTimeoutPromise(200); // (S)Nack time! - we have timeout later after sending the processMessage to the processQueue
     // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
 
+    // what happens if recordLoadOperator errors?
     const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
 
     // send here to queue PROCESS.<OPERATION>.correlationId
     const processQueue = `PROCESS.${operation}.${correlationId}`;
+    logger.debug(`Sending process information for loading process ${processId} / ${loaderProcessId} to ${processQueue}`);
 
+    // what happens if sendToQueue errors?
     await amqpOperator.sendToQueue({
       queue: processQueue,
       correlationId,
@@ -64,6 +67,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
         recordAmount
       }
     });
+    await setTimeoutPromise(200); // (S)Nack time! - wait here to avoid polling of a process queue that would have not received process message yet
 
     // set here importJobState: {<OPERATION>: PROCESSING}
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
