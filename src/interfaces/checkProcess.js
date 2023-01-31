@@ -60,9 +60,9 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     // Assume that all messages are for same correlation id, no need to pushId for every message
 
     logger.silly(`Pushing load process results to mongo for ${operation} ${correlationId}.`);
-    const {handledIds, rejectedIds, loadProcessReport} = results.payloads;
+    const {handledIds, rejectedIds, loadProcessReport, erroredAmount} = results.payloads;
 
-    await mongoOperator.pushIds({correlationId, handledIds, rejectedIds});
+    await mongoOperator.pushIds({correlationId, handledIds, rejectedIds, erroredAmount});
 
     const loadProcessLogItem = {
       logItemType: 'LOAD_PROCESS_LOG',
@@ -242,17 +242,17 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.silly(JSON.stringify(results));
 
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
-    const {handledIds, rejectedIds} = results.payloads;
+    const {handledIds, rejectedIds, erroredAmount, possibleHandledIds} = results.payloads;
     const {handledAll} = results.payloads.loadProcessReport;
 
-    await createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds});
+    await createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds, erroredAmount, possibleHandledIds});
     // ack messages
     await amqpOperator.ackMessages(messages);
 
     // handle queueItem and amqp queues
     if (prio) {
       const status = operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
-      const prioStatus = handledIds.length < 1 ? httpStatus.UNPROCESSABLE_ENTITY : status;
+      const prioStatus = getPrioStatus(status, handledIds, erroredAmount);
       const prioPayloads = handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
 
       return prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator});
@@ -260,7 +260,21 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator});
   }
 
-  async function createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds}) {
+  function getPrioStatus(status, handledIds, erroredAmount) {
+    // OraErrors: return 503 so that the client can try again
+    if (erroredAmount > 0) {
+      return httpStatus.SERVICE_UNAVAILABLE;
+    }
+    // We did not get an id, probably rejected
+    if (handledIds.length < 1) {
+      return httpStatus.UNPROCESSABLE_ENTITY;
+    }
+    return status;
+  }
+
+
+  async function createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds, possibleHandledIds, erroredAmount}) {
+    // CREATEs which have handledId for all records and no oraErrors
     if (handledAll && operation === OPERATIONS.CREATE) {
 
       const status = 'CREATED';
@@ -281,6 +295,30 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
 
+    // CREATEs which have an ora error or rejectedId for all records
+    if (!handledAll && erroredAmount + rejectedIds.length >= messages.length && operation === OPERATIONS.CREATE) {
+
+      const recordResponseItems = await messages.map((message) => {
+        const {recordMetadata, notes} = message.properties.headers;
+        const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
+        const {blobSequence} = recordMetadata;
+        const alephSeqId = toAlephId(blobSequence.toString());
+        if (rejectedIds.includes(alephSeqId)) {
+          const rejectedStatus = 'INVALID';
+          const responsePayload = {message: `${notesString}LoaderProcess rejected record ${alephSeqId}`};
+          return createRecordResponseItem({responseStatus: rejectedStatus, recordMetadata, id: '000000000', responsePayload});
+        }
+        const status = 'ERROR';
+        const responsePayload = {
+          message: `${notesString}LoaderProcess errored creating the record. Try again.`
+        };
+        return createRecordResponseItem({responseStatus: status, recordMetadata, id: '000000000', responsePayload});
+      });
+      addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
+      return;
+    }
+
+    // CREATEs which have handledId to some records (and oraErrors or rejectedIds to other records)
     if (!handledAll && operation === OPERATIONS.CREATE) {
 
       const recordResponseItems = await messages.map((message) => {
@@ -296,9 +334,10 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         }
 
         const status = 'UNKNOWN';
+        const ids = possibleHandledIds.length > 0 ? possibleHandledIds : handledIds;
         const responsePayload = {
           message: `LoaderProcess did not return databaseIds for all records in chunk.`,
-          ids: handledIds
+          ids
         };
 
         return createRecordResponseItem({responseStatus: status, recordMetadata, id: '000000000', responsePayload});
@@ -307,6 +346,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
 
+    // We expect no oraErrors for UPDATEs
     if (operation === OPERATIONS.UPDATE) {
 
       // eslint-disable-next-line max-statements

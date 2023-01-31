@@ -69,6 +69,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
       logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}, erroredAmount: ${erroredAmount}`);
 
+      logger.debug(`handledAmount: ${handledAmount}, erroredAmount: ${erroredAmount}`);
+
       const loadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, erroredAmount, handledAll};
       const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
       logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
@@ -83,16 +85,19 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       // Ack all messages for sent records
 
       // eslint-disable-next-line functional/no-conditional-statement
-      if (processedAmount === 0) {
-        logger.info(`Got ${responseStatusString} response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length})`);
+      if (processedAmount === 0 || processedAmount < 0) {
+        logger.info(`Got ${responseStatusString} response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount: ${erroredAmount}`);
       }
       // eslint-disable-next-line functional/no-conditional-statement
       if (processedAmount > 0) {
         logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount (${erroredAmount})`);
       }
 
+      const certainHandledIdList = erroredAmount > 0 ? [] : handledIdList;
+      const possibleHandledIdList = erroredAmount > 0 ? handledIdList : [];
+
       logger.debug(`Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}. ErroredAmount: ${erroredAmount}`);
-      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
+      return {payloads: {handledIds: certainHandledIdList, possibleIds: possibleHandledIdList, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
     }
 
     // 500 from aleph-record-load-api goes here (not in utils::checkStatus)
