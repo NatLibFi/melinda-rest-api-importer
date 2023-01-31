@@ -47,7 +47,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     checkStatus(response);
 
     // OK (200)
-    // R-L-A has crashed (409)
+    // R-L-A has crashed (409) or encountered one or more oraErrors
 
     if (response.status === httpStatus.OK || response.status === httpStatus.CONFLICT) {
       const {handledIds, rejectedIds, rejectMessages, errorIdCount} = await response.json();
