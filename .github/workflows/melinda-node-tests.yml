@@ -103,3 +103,9 @@ jobs:
         with:
           url: ${{ secrets.WEBHOOK_URL_AUTH_PROD }}
           body: '{}'
+      - name: Production bib webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/master'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_BIB_PROD_FROM_MASTER }}
+          body: '{}'
