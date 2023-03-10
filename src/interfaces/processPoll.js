@@ -41,7 +41,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     }
 
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
-    // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": []}}
+    // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": [], "errorIdCount": 1}}
 
     // 401, 403, 404, 406, 423, 503 responses from checkStatus
     checkStatus(response);
@@ -58,7 +58,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
 
       // Mark here those handledIds that are identical to the previous handledId as ERRORs
-      const handledIdListWithErrors = handledIdList.map((id, index, array) => {
+      const handledIdListWithErrors = await handledIdList.map((id, index, array) => {
         if (array[index - 1] === id) {
           return `ERROR-${id}`;
         }
