@@ -239,7 +239,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   async function handleMessagesBoth({operation, messages, results, queue, correlationId, mongoOperator, amqpOperator, prio}) {
     logger.debug(`Acking for ${messages.length} messages.`);
-    logger.debug(JSON.stringify(results));
+    logger.silly(JSON.stringify(results));
 
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
     const {handledIds, rejectedIds, erroredAmount} = results.payloads;
@@ -276,7 +276,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   // eslint-disable-next-line max-statements
   async function createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds, erroredAmount}) {
     logger.debug(`${messages.length}, ${operation}, ${handledAll}, ${handledIds.length}, ${rejectedIds.length}, ${erroredAmount}`);
-    logger.debug('FOO');
 
     if (operation === OPERATIONS.CREATE) {
       if (handledAll) {
