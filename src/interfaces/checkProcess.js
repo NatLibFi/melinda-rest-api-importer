@@ -279,41 +279,43 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.debug('FOO');
 
     if (operation === OPERATIONS.CREATE) {
-      await createRecordResponsesForCreateOperation();
+      if (handledAll) {
+        await createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds});
+        return;
+      }
+      await createRecordResponsesForCreateOperationNotHandledAll({mongoOperator, correlationId, messages, handledIds, rejectedIds, erroredAmount});
       return;
     }
 
     if (operation === OPERATIONS.UPDATE) {
-      await createRecordResponsesForUpdateOperation();
+      await createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds});
       return;
     }
 
-    return;
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
 
-    // eslint-disable-next-line max-statements
-    async function createRecordResponsesForCreateOperation() {
+    async function createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds}) {
     // CREATEs which have handledId for all records and no oraErrors
-      if (handledAll) {
-        logger.debug(`We have a CREATE operation which handled all records normally.`);
-        const status = 'CREATED';
-        const recordResponseItems = await messages.map((message, index) => {
-          logger.silly(JSON.stringify(message));
-          const {id, recordMetadata, notes} = message.properties.headers;
-          const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
+      logger.debug(`We have a CREATE operation which handled all records normally.`);
+      const status = 'CREATED';
+      const recordResponseItems = await messages.map((message, index) => {
+        logger.silly(JSON.stringify(message));
+        const {id, recordMetadata, notes} = message.properties.headers;
+        const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
-          const idFromHandledIds = handledIds[index];
+        const idFromHandledIds = handledIds[index];
 
-          logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
-          const responsePayload = {message: `${notesString}Created record ${idFromHandledIds}.`};
+        logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
+        const responsePayload = {message: `${notesString}Created record ${idFromHandledIds}.`};
 
-          return createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id: idFromHandledIds});
-        });
+        return createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id: idFromHandledIds});
+      });
 
-        addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
-        return;
-      }
+      addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
+      return;
+    }
 
-      // !handledAll
+    async function createRecordResponsesForCreateOperationNotHandledAll({mongoOperator, correlationId, messages, handledIds, rejectedIds, erroredAmount}) {
 
       // CREATEs which have a (possible) handled id for all records (and !handledAll because of oraErrors)
       if (handledIds.length === messages.length) {
@@ -376,7 +378,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
 
-    async function createRecordResponsesForUpdateOperation() {
+    async function createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds}) {
 
       // eslint-disable-next-line max-statements
       const recordResponseItems = await messages.map((message, index) => {

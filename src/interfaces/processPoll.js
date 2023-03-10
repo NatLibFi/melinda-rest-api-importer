@@ -69,6 +69,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
       const handledAmount = handledIdList.length || 0;
       const rejectedAmount = rejectedIdList.length || 0;
+      // if we didn't get errorIdCount => erroredAmount = 0
       const erroredAmount = errorIdCount || 0;
       // errored records were NOT handled, even if they are listed in handledId list (Aleph updates syslog before trying to create the record)
       const processedAmount = handledAmount + rejectedAmount - erroredAmount;
