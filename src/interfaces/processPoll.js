@@ -56,6 +56,15 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
       // This should check that payloads make sense (ie. are arrays)
       const handledIdList = handledIds.map(id => formatRecordId(pActiveLibrary, id));
+
+      // Mark here those handledIds that are identical to the previous handledId as ERRORs
+      const handledIdListWithErrors = handledIdList.map((id, index, array) => {
+        if (array[index - 1] === id) {
+          return `ERROR-${id}`;
+        }
+        return id;
+      });
+
       const rejectedIdList = rejectedIds.map(id => formatRecordId(pActiveLibrary, id));
 
       const handledAmount = handledIdList.length || 0;
@@ -93,11 +102,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
         logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount (${erroredAmount})`);
       }
 
-      const certainHandledIdList = erroredAmount > 0 ? [] : handledIdList;
-      const possibleHandledIdList = erroredAmount > 0 ? handledIdList : [];
-
-      logger.debug(`Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}. ErroredAmount: ${erroredAmount}`);
-      return {payloads: {handledIds: certainHandledIdList, possibleIds: possibleHandledIdList, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
+      logger.debug(`Ids (${handledIdListWithErrors.length}): ${handledIdListWithErrors}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}. ErroredAmount: ${erroredAmount}`);
+      return {payloads: {handledIds: handledIdListWithErrors, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
     }
 
     // 500 from aleph-record-load-api goes here (not in utils::checkStatus)
