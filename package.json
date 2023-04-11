@@ -31,28 +31,28 @@
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
-    "@babel/runtime": "^7.20.13",
+    "@babel/runtime": "^7.21.0",
     "@natlibfi/marc-record": "^7.2.2",
-    "@natlibfi/marc-record-serializers": "^9.0.4",
+    "@natlibfi/marc-record-serializers": "^10.0.4",
     "@natlibfi/melinda-backend-commons": "^2.1.0",
-    "@natlibfi/melinda-commons": "^12.0.7",
-    "@natlibfi/melinda-rest-api-commons": "^3.0.6",
+    "@natlibfi/melinda-commons": "^13.0.2",
+    "@natlibfi/melinda-rest-api-commons": "^4.0.3",
     "http-status": "^1.6.2",
     "moment": "^2.29.4",
-    "node-fetch": "^2.6.8",
+    "node-fetch": "^2.6.9",
     "pretty-print-ms": "^1.0.5"
   },
   "devDependencies": {
-    "@babel/cli": "^7.20.7",
-    "@babel/core": "^7.20.12",
-    "@babel/eslint-parser": "^7.19.1",
+    "@babel/cli": "^7.21.0",
+    "@babel/core": "^7.21.4",
+    "@babel/eslint-parser": "^7.21.3",
     "@babel/node": "^7.20.7",
-    "@babel/preset-env": "^7.20.2",
-    "@babel/register": "^7.18.9",
+    "@babel/preset-env": "^7.21.4",
+    "@babel/register": "^7.21.0",
     "@natlibfi/eslint-config-melinda-backend": "^2.0.2",
     "cross-env": "^7.0.3",
-    "eslint": "^8.32.0",
-    "nodemon": "^2.0.20"
+    "eslint": "^8.38.0",
+    "nodemon": "^2.0.22"
   },
   "eslintConfig": {
     "extends": "@natlibfi/melinda-backend"
