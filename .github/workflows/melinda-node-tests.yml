@@ -109,3 +109,9 @@ jobs:
         with:
           url: ${{ secrets.WEBHOOK_URL_BIB_PROD_FROM_MASTER }}
           body: '{}'
+      - name: Test autnames webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/test'
+        with:
+            url: ${{ secrets.WEBHOOK_URL_AUTNAMES_TEST_FROM_TEST }}
+            body: '{}'
