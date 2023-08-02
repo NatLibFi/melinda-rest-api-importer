@@ -35,7 +35,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
     // Bad Request (400)
-    if (response.status === httpStatus.BAD_REQUEST) { // eslint-disable-line functional/no-conditional-statement
+    if (response.status === httpStatus.BAD_REQUEST) { // eslint-disable-line functional/no-conditional-statements
       logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
       throw new ApiError(httpStatus.BAD_REQUEST);
     }
@@ -94,11 +94,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       // What should we do in cases where R-L-A crashed and did not process any/all records?
       // Ack all messages for sent records
 
-      // eslint-disable-next-line functional/no-conditional-statement
+      // eslint-disable-next-line functional/no-conditional-statements
       if (processedAmount === 0 || processedAmount < 0) {
         logger.info(`Got ${responseStatusString} response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount: ${erroredAmount}`);
       }
-      // eslint-disable-next-line functional/no-conditional-statement
+      // eslint-disable-next-line functional/no-conditional-statements
       if (processedAmount > 0) {
         logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount (${erroredAmount})`);
       }
