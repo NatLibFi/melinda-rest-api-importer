@@ -14,7 +14,7 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "AGPL-3.0+",
-  "version": "3.0.11-alpha.1",
+  "version": "3.0.11-alpha.4",
   "main": "./dist/index.js",
   "engines": {
     "node": ">=18"
@@ -32,14 +32,14 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.22.10",
-    "@natlibfi/marc-record": "^7.3.0",
+    "@natlibfi/marc-record": "^7.3.1",
     "@natlibfi/marc-record-serializers": "^10.1.0",
     "@natlibfi/melinda-backend-commons": "^2.2.1",
     "@natlibfi/melinda-commons": "^13.0.5",
-    "@natlibfi/melinda-rest-api-commons": "^4.0.9",
+    "@natlibfi/melinda-rest-api-commons": "^4.0.10-alpha.2",
     "http-status": "^1.6.2",
     "moment": "^2.29.4",
-    "node-fetch": "^2.6.13",
+    "node-fetch": "^2.7.0",
     "pretty-print-ms": "^1.0.5"
   },
   "devDependencies": {
