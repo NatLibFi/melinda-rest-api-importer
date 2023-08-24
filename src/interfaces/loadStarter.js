@@ -84,12 +84,14 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
   }
 
   function createSeqRecords(records) {
-    // Note: we error the whole bulkjob, if even one of them errors serialization
-    // We probably should do this validation in validator?
+    // Note: we error the whole batch in bulkjob, if even one of them errors serialization
+    // Note: errored batch of records is not getting a recordResponse currently
+    // Validator tries conversion for single records, so they should not end up here
     try {
     // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
     //
     // Also, if there are two records with the same 001 after each other, they get fused together
+    // We avoid this by adding a separator line between records
       const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000 000   L 0\n');
       //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
       logger.silly(seqRecords);
