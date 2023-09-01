@@ -18,13 +18,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
 
   async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
     const recordCount = records.length;
-
-    // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
-    //
-    // Also, if there are two records with the same 001 after each other, they get fused together
-    const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000 000   L 0\n');
-    //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
-    logger.silly(seqRecords);
+    const seqRecords = createSeqRecords(records);
 
     logger.debug(correlationId, records.length, operation, cataloger, recordLoadParams, prio);
     // This should check that concurrent update and create jobs with the same correlationId won't mix up their files
@@ -88,4 +82,24 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
         .year();
     }
   }
+
+  function createSeqRecords(records) {
+    // Note: we error the whole batch in bulkjob, if even one of them errors serialization
+    // Note: errored batch of records is not getting a recordResponse currently
+    // Validator tries conversion for single records, so they should not end up here
+    try {
+    // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
+    //
+    // Also, if there are two records with the same 001 after each other, they get fused together
+    // We avoid this by adding a separator line between records
+      const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000 000   L 0\n');
+      //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
+      logger.silly(seqRecords);
+      return seqRecords;
+    } catch (err) {
+      logger.debug(`createSeqRecords errored: ${err}`);
+      throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, err.message);
+    }
+  }
 }
+

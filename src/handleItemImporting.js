@@ -28,6 +28,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
       throw new Error(`Empty queue ${operation}.${correlationId}`);
     } catch (error) {
       logger.error('app/handleItemImporting errored: ');
+      logger.silly(JSON.stringify(error));
       logError(error);
       await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator});
 
@@ -43,7 +44,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
-    // await setTimeoutPromise(200); // (S)Nack time! - we have timeout later after sending the processMessage to the processQueue
+    await setTimeoutPromise(200); // (S)Nack time! - we need this timeout here to catch errors from loadRecord
     // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
 
     // what happens if recordLoadOperator errors?
@@ -75,8 +76,11 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     return;
   }
 
+  // eslint-disable-next-line max-statements
   async function sendErrorResponses({error, correlationId, queue, mongoOperator}) {
     logger.debug('app/sendErrorResponses: Sending error responses');
+    logger.silly(`error: ${JSON.stringify(error)}`);
+    logger.silly(`correalationId: ${correlationId}, queue: ${queue}`);
 
     // get next chunk of 100 messages {headers, messages} where cataloger is the same
     // no need for transforming messages to records
@@ -93,12 +97,21 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
       // Send responses back if BULK and error is something else than 503
 
       // eslint-disable-next-line no-extra-parens
-      if (prio || (!prio && error.status !== 503)) {
+      if (prio || (!prio && error.status !== 503 && error.status !== 422)) {
 
         await amqpOperator.ackMessages(messages);
         await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
         return;
       }
+
+      // ack messages, if BULK and error is 422
+      if (!prio && error.status === 422) {
+        await amqpOperator.ackMessages(messages);
+        await setTimeoutPromise(200); // wait for messages to get acked
+        logger.debug(`app/sendErrorResponses Got 422 for bulk. Ack messages to try loading/polling next batch`);
+        return;
+      }
+
 
       // Nack messages and sleep, if BULK and error is 503
       if (!prio && error.status === 503) {
