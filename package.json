@@ -14,7 +14,7 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "AGPL-3.0+",
-  "version": "3.0.12-alpha.1",
+  "version": "3.0.12-alpha.2",
   "main": "./dist/index.js",
   "engines": {
     "node": ">=18"
@@ -67,10 +67,10 @@
       ]
     ],
     "plugins": [
-			[
-				"@babel/transform-runtime"
-			]
-		]
+      [
+        "@babel/transform-runtime"
+      ]
+    ]
   },
   "nodemonConfig": {
     "exec": "npm run lint:dev && npm run start:dev",
