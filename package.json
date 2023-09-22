@@ -36,7 +36,7 @@
     "@natlibfi/marc-record-serializers": "^10.1.1",
     "@natlibfi/melinda-backend-commons": "^2.2.1",
     "@natlibfi/melinda-commons": "^13.0.6",
-    "@natlibfi/melinda-rest-api-commons": "^4.0.13",
+    "@natlibfi/melinda-rest-api-commons": "^4.0.15",
     "http-status": "^1.7.0",
     "moment": "^2.29.4",
     "node-fetch": "^2.7.0",
@@ -44,14 +44,14 @@
   },
   "devDependencies": {
     "@babel/cli": "^7.22.15",
-    "@babel/core": "^7.22.15",
+    "@babel/core": "^7.22.20",
     "@babel/eslint-parser": "^7.22.15",
-    "@babel/node": "^7.22.15",
-    "@babel/preset-env": "^7.22.15",
+    "@babel/node": "^7.22.19",
+    "@babel/preset-env": "^7.22.20",
     "@babel/register": "^7.22.15",
-    "@natlibfi/eslint-config-melinda-backend": "^3.0.1",
+    "@natlibfi/eslint-config-melinda-backend": "^3.0.2",
     "cross-env": "^7.0.3",
-    "eslint": "^8.48.0",
+    "eslint": "^8.49.0",
     "nodemon": "^3.0.1"
   },
   "eslintConfig": {
