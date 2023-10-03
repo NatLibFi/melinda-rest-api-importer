@@ -7,7 +7,7 @@ import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {checkStatus, handleConectionError} from '../utils';
 
-export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
+export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}) {
   const logger = createLogger();
   const INDEXING_PRIORITY = {
     HIGH: 1,
@@ -36,7 +36,7 @@ export default function (recordLoadApiKey, recordLoadLibrary, recordLoadUrl) {
       useLoaderProcessId: '1',
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
       pOldNew: operation === OPERATIONS.CREATE ? 'NEW' : 'OLD',
-      pFixType: prio ? 'API' : 'INSB',
+      pFixType: prio ? fixPrio : fixBulk,
       pCatalogerIn: recordLoadParams.pCatalogerIn ? recordLoadParams.pCatalogerIn.toUpperCase() : catalogerName.toUpperCase(),
       pZ07PriorityYear: generateIndexingPriority(INDEXING_PRIORITY.HIGH, operation, prio),
       pRejectFile: recordLoadParams.pRejectFile && recordLoadParams.pRejectFile !== '' ? recordLoadParams.pRejectFile : null,
