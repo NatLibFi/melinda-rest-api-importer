@@ -21,6 +21,8 @@ While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` f
 | LOG_LEVEL           | No        | Log information level                                                                                              |
 | ERROR_503_WAIT_TIME | No        | A number value presenting time in ms for waiting before trying again when receiving 503 error from aleph-record-load-api |
 | KEEP_LOAD_PROCESS_RESULTS | No  | A string telling in which cases load process details are saved in Mongo. Defaults to `NON_HANDLED`. Options: `ALL`, `NONE`, `NON_PROCESSED`, `NON_HANDLED`. |
+| FIX_PRIO            | No | Defaults to `API`|
+| FIX_BULK            | No | Defaults to `INSB`|
 
 
 ### Mongo
