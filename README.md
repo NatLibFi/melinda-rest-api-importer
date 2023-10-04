@@ -5,7 +5,7 @@
 
 ## Usage
 
-While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` for `OPERATION`, prioritizing prio jobs. When a job is found, the record(s) belonging to it are fetched from it's AMQP queue (`OPERATION.correalationId`) in suitable chunks of records and the record file is forwarded to record-load-api for actual importing to Melinda. When all loadprocesses for a job are done, the job is transitioned to state `DONE` in Mongo. 
+While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` for `OPERATION`, prioritizing prio jobs. When a job is found, the record(s) belonging to it are fetched from it's AMQP queue (`OPERATION.correlationId`) in suitable chunks of records and the record file is forwarded to record-load-api for actual importing to Melinda. When all loadprocesses for a job are done, the job is transitioned to state `DONE` in Mongo. 
 
 ### Environment variables
 | Name                | Mandatory | Description                                                                                                        |
