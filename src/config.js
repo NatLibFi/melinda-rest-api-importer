@@ -4,6 +4,8 @@ import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons/';
 export const recordLoadUrl = readEnvironmentVariable('RECORD_LOAD_URL');
 export const recordLoadApiKey = readEnvironmentVariable('RECORD_LOAD_API_KEY');
 export const recordLoadLibrary = readEnvironmentVariable('RECORD_LOAD_LIBRARY');
+export const fixPrio = readEnvironmentVariable('FIX_PRIO', {defaultValue: 'API'});
+export const fixBulk = readEnvironmentVariable('FIX_BULK', {defaultValue: 'INSB'});
 
 // Amqp variables to priority
 export const amqpUrl = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672/'});

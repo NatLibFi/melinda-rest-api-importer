@@ -5,7 +5,7 @@
 
 ## Usage
 
-While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` for `OPERATION`, prioritizing prio jobs. When a job is found, the record(s) belonging to it are fetched from it's AMQP queue (`OPERATION.correalationId`) in suitable chunks of records and the record file is forwarded to record-load-api for actual importing to Melinda. When all loadprocesses for a job are done, the job is transitioned to state `DONE` in Mongo. 
+While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` for `OPERATION`, prioritizing prio jobs. When a job is found, the record(s) belonging to it are fetched from it's AMQP queue (`OPERATION.correlationId`) in suitable chunks of records and the record file is forwarded to record-load-api for actual importing to Melinda. When all loadprocesses for a job are done, the job is transitioned to state `DONE` in Mongo. 
 
 ### Environment variables
 | Name                | Mandatory | Description                                                                                                        |
@@ -21,6 +21,8 @@ While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` f
 | LOG_LEVEL           | No        | Log information level                                                                                              |
 | ERROR_503_WAIT_TIME | No        | A number value presenting time in ms for waiting before trying again when receiving 503 error from aleph-record-load-api |
 | KEEP_LOAD_PROCESS_RESULTS | No  | A string telling in which cases load process details are saved in Mongo. Defaults to `NON_HANDLED`. Options: `ALL`, `NONE`, `NON_PROCESSED`, `NON_HANDLED`. |
+| FIX_PRIO            | No | Defaults to `API`|
+| FIX_BULK            | No | Defaults to `INSB`|
 
 
 ### Mongo
