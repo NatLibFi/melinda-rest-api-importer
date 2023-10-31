@@ -92,7 +92,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     //
     // Also, if there are two records with the same 001 after each other, they get fused together
     // We avoid this by adding a separator line between records
-      const seqRecords = records.map(record => AlephSequential.to(record)).join('000000000 000   L 0\n');
+      const seqRecords = records.map(record => AlephSequential.to(record), {subfieldValues: false}).join('000000000 000   L 0\n');
       //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
       logger.silly(seqRecords);
       return seqRecords;
