@@ -32,11 +32,11 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.23.2",
-    "@natlibfi/marc-record": "^8.0.0",
+    "@natlibfi/marc-record": "^8.1.0-alpha.2",
     "@natlibfi/marc-record-serializers": "^10.1.2",
     "@natlibfi/melinda-backend-commons": "^2.2.2",
     "@natlibfi/melinda-commons": "^13.0.7",
-    "@natlibfi/melinda-rest-api-commons": "^4.0.18",
+    "@natlibfi/melinda-rest-api-commons": "^4.1.0-alpha.4",
     "http-status": "^1.7.3",
     "moment": "^2.29.4",
     "node-fetch": "^2.7.0",
