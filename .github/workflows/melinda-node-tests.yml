@@ -10,17 +10,18 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         #remove 16.x to avoid typescript incompability error
         #node-version: [16.x, 18.x, 19.x]
-        node-version: [16.x, 18.x, 20.x]
+        node-version: [18.x, 19.x, 20.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
     - name: Checkout the code
       uses: actions/checkout@v4
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -93,12 +94,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test webhook
-        uses: joelwmale/webhook-action@master
-        if: github.ref == 'refs/heads/test'
-        with:
-          url: ${{ secrets.WEBHOOK_URL_TEST }}
-          body: '{}'
       - name: Production auth names webhook
         uses: joelwmale/webhook-action@master
         if: github.ref == 'refs/heads/master'
@@ -111,9 +106,33 @@ jobs:
         with:
           url: ${{ secrets.WEBHOOK_URL_BIB_PROD_FROM_MASTER }}
           body: '{}'
-      - name: Test autnames webhook
+      - name: Test aut aux webhook
         uses: joelwmale/webhook-action@master
         if: github.ref == 'refs/heads/test'
         with:
-            url: ${{ secrets.WEBHOOK_URL_AUTNAMES_TEST_FROM_TEST }}
-            body: '{}'
+          url: ${{ secrets.WEBHOOK_URL_AUT_AUX_TEST_FROM_TEST }}
+          body: '{}'
+      - name: Test aut names webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/test'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_NAMES_TEST_FROM_TEST }}
+          body: '{}'
+      - name: Test aut subjects webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/test'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_SUBJECTS_TEST_FROM_TEST }}
+          body: '{}'
+      - name: Test aut works webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/test'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_WORKS_TEST_FROM_TEST }}
+          body: '{}'
+      - name: Test bib webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/test'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_BIB_TEST_FROM_TEST }}
+          body: '{}'
