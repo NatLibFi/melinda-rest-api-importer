@@ -14,7 +14,7 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "AGPL-3.0+",
-  "version": "3.0.17",
+  "version": "3.0.18-alpha.1",
   "main": "./dist/index.js",
   "engines": {
     "node": ">=18"
