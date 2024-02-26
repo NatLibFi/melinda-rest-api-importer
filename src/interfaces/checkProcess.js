@@ -44,6 +44,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
     if (messagesHandled) {
       logger.verbose(`Requesting file cleaning for ${JSON.stringify(processParams.data)}`);
+      // aleph-record-load-api probably doesn't actually do this...
       await processOperator.requestFileClear(processParams.data);
       return true;
     }
@@ -52,35 +53,45 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
   }
 
+  // eslint-disable-next-line max-statements
   async function handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator}) {
     const {results, processParams} = processQueueResults;
+    const {handledIds, rejectedIds, loadProcessReport, erroredAmount} = results.payloads;
+    const {status} = results;
+
     logger.silly(`results: ${JSON.stringify(results)}`);
     logger.silly(`processParams: ${JSON.stringify(processParams)}`);
 
-    // Assume that all messages are for same correlation id, no need to pushId for every message
-
-    logger.silly(`Pushing load process results to mongo for ${operation} ${correlationId}.`);
-    const {handledIds, rejectedIds, loadProcessReport, erroredAmount} = results.payloads;
-
-    await mongoOperator.pushIds({correlationId, handledIds, rejectedIds, erroredAmount});
-
-    const loadProcessLogItem = {
-      logItemType: 'LOAD_PROCESS_LOG',
-      correlationId,
-      ...loadProcessReport
-    };
-
-    logger.silly(`${inspect(loadProcessLogItem, {depth: 6})}`);
-    const result = mongoLogOperator.addLogItem(loadProcessLogItem);
-    logger.debug(result);
-
-    const keepLoadProcessReport = checkLoadProcessReport(keepLoadProcessReports, loadProcessReport);
-    if (keepLoadProcessReport) {
-      await mongoOperator.pushMessages({correlationId, messageField: 'loaderProcessReports', messages: [loadProcessReport]});
+    if ([OPERATIONS.FIX].includes(operation)) {
+      logger.debug(`Status: ${status}`);
       return;
     }
 
-    return;
+    if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+      // Assume that all messages are for same correlation id, no need to pushId for every message
+      logger.silly(`Pushing load process results to mongo for ${operation} ${correlationId}.`);
+
+      await mongoOperator.pushIds({correlationId, handledIds, rejectedIds, erroredAmount});
+
+      const loadProcessLogItem = {
+        logItemType: 'LOAD_PROCESS_LOG',
+        correlationId,
+        ...loadProcessReport
+      };
+
+      logger.silly(`${inspect(loadProcessLogItem, {depth: 6})}`);
+      const result = mongoLogOperator.addLogItem(loadProcessLogItem);
+      logger.debug(result);
+
+      const keepLoadProcessReport = checkLoadProcessReport(keepLoadProcessReports, loadProcessReport);
+      if (keepLoadProcessReport) {
+        await mongoOperator.pushMessages({correlationId, messageField: 'loaderProcessReports', messages: [loadProcessReport]});
+        return;
+      }
+
+      return;
+    }
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
   }
 
   function checkLoadProcessReport(keepLoadProcessReports, loadProcessReport) {
@@ -116,8 +127,8 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         // handleProcessMessage returns: {results, processParams} if successful - ack processMessage
         // false if process is locked - nack processMessage
         // otherwise throws error
-        const result = await handleProcessMessage(processMessage, correlationId, prio);
-        return result;
+        const processMessageResult = await handleProcessMessage(operation, processMessage, correlationId, prio);
+        return processMessageResult;
       }
       // This could remove empty PROCESS.operation.correlationId queue
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Empty ${processQueue} queue`);
@@ -147,21 +158,22 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     }
   }
 
-  async function handleProcessMessage(processMessage, correlationId, prio) {
+  async function handleProcessMessage(operation, processMessage, correlationId, prio) {
     logger.silly(`handleProcessMessage: ${JSON.stringify(processMessage)} for ${correlationId}`);
     try {
       const processParams = await JSON.parse(processMessage.content.toString());
       logger.silly(`handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
 
       // Ask aleph-record-load-api about the process
-      const results = await processOperator.poll(processParams.data);
-      logger.silly(`ProcessPoll results: ${JSON.stringify(results)}`);
+      // We should ask differently for loadProcess/vs fixProcess?
+      const processPollResults = await processOperator.poll({operation, params: processParams.data});
+      logger.silly(`ProcessPoll results: ${JSON.stringify(processPollResults)}`);
       // should this check that results exist/are sane?
 
       await amqpOperator.ackMessages([processMessage]);
       await setTimeoutPromise(100);
 
-      return {results, processParams};
+      return {processPollResults, processParams};
     } catch (error) {
 
       return handleProcessMessageError(error, processMessage, amqpOperator, prio);
@@ -241,40 +253,95 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.debug(`Acking for ${messages.length} messages.`);
     logger.silly(JSON.stringify(results));
 
-    //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
-    const {handledIds, rejectedIds, erroredAmount} = results.payloads;
-    const {handledAll} = results.payloads.loadProcessReport;
-
-    await createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds, erroredAmount});
+    await createRecordResponses({messages, operation, mongoOperator, correlationId, results});
     // ack messages
     await amqpOperator.ackMessages(messages);
 
     // handle queueItem and amqp queues
     if (prio) {
-      const status = operation === OPERATIONS.CREATE ? 'CREATED' : 'UPDATED';
-      const prioStatus = getPrioStatus(status, handledIds, erroredAmount);
-      const prioPayloads = handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
-
+      const {prioStatus, prioPayloads} = getPrioStatusAndPayloads(operation, results);
       return prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator});
     }
     return bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator});
+
   }
 
-  function getPrioStatus(status, handledIds, erroredAmount) {
+  function getPrioStatusAndPayloads(operation, results) {
+    const {handledIds, rejectedIds, erroredAmount} = results.payloads;
+    const {rlaStatus} = results;
+    const prioStatus = getPrioStatus(operation, rlaStatus, handledIds, erroredAmount);
+    const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds);
+
+    return {prioStatus, prioPayloads};
+
+    function getPrioStatus(operation, rlaStatus, handledIds = undefined, erroredAmount = undefined) {
     // OraErrors: return 503 so that the client can try again
-    if (erroredAmount > 0) {
-      return httpStatus.SERVICE_UNAVAILABLE;
+      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
+        return httpStatus.SERVICE_UNAVAILABLE;
+      }
+      // We did not get an id, probably rejected
+      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && handledIds !== undefined && handledIds.length < 1) {
+        return httpStatus.UNPROCESSABLE_ENTITY;
+      }
+
+      if (operation === OPERATIONS.CREATE) {
+        return 'CREATED';
+      }
+      if (operation === OPERATIONS.UPDATE) {
+        return 'UPDATED';
+      }
+      if (operation === OPERATIONS.FIX) {
+        if (rlaStatus === httpStatus.CONFLICT) {
+          return 'UNKNOWN';
+        }
+        return 'FIXED';
+      }
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation}.`);
     }
-    // We did not get an id, probably rejected
-    if (handledIds.length < 1) {
-      return httpStatus.UNPROCESSABLE_ENTITY;
+
+    function getPrioPayloads(operation, handledIds, rejectedIds) {
+      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+        return handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
+      }
+      return handledIds[0] || 'No loadProcess information for record';
     }
-    return status;
+
   }
 
+  function createRecordResponses({messages, operation, mongoOperator, correlationId, results}) {
+    // separate handling of UPDATE/CREATE loadProcess and FIX fixProcessResults
+    if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+      return createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results});
+    }
+    if ([OPERATIONS.FIX].includes(operation)) {
+      return createRecordResponsesForFix({messages, rlaStatus: results.rlaStatus, operation, mongoOperator, correlationId});
+    }
+  }
+
+  async function createRecordResponsesForFix({messages, rlaStatus, operation, mongoOperator, correlationId}) {
+    logger.debug(`${messages.length}, ${rlaStatus}, ${operation}`);
+    logger.debug(`We have a FIX operation`);
+    const status = rlaStatus === httpStatus.OK ? 'FIXED' : 'UNKNOWN';
+    const recordResponseItems = await messages.map((message) => {
+      logger.silly(JSON.stringify(message));
+      const {id, recordMetadata, notes} = message.properties.headers;
+      const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
+      //DEVELOP: get here Removed / Recovered / Fixed depending on FIX-operations pFixType
+      const responsePayload = rlaStatus === httpStatus.OK ? {message: `${notesString}Fixed record ${id}.`} : {message: `${notesString}Tried to fix record ${id}. Result unknown.`};
+
+      return createRecordResponseItem({responseStatus: status, responsePayload, recordMetadata, id});
+    });
+
+    addRecordResponseItems({recordResponseItems, mongoOperator, correlationId});
+    return;
+  }
 
   // eslint-disable-next-line max-statements
-  async function createRecordResponses({messages, operation, handledAll, mongoOperator, correlationId, handledIds, rejectedIds, erroredAmount}) {
+  async function createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results}) {
+    //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
+    const {handledIds, rejectedIds, erroredAmount} = results.payloads;
+    const {handledAll} = results.payloads.loadProcessReport;
+
     logger.debug(`${messages.length}, ${operation}, ${handledAll}, ${handledIds.length}, ${rejectedIds.length}, ${erroredAmount}`);
 
     if (operation === OPERATIONS.CREATE) {

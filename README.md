@@ -11,7 +11,7 @@ While service is in use it polls Mongo for jobs is state `'IMPORTER.IN_QUEUE'` f
 | Name                | Mandatory | Description                                                                                                        |
 |---------------------|-----------|--------------------------------------------------------------------------------------------------------------------|
 | AMQP_URL            | Yes       | A serialized object of AMQP connection config                                                                      |
-| OPERATION           | Yes       | A string state of passing operations. Enum: `'CREATE'` or `'UPDATE'`                                               |
+| OPERATION           | Yes       | A string state of passing operations. Enum: `'CREATE'`, `'UPDATE'` or `'FIX'`                                               |
 | RECORD_LOAD_API_KEY | Yes       | A string key authorized to use the API                                                                             |
 | RECORD_LOAD_LIBRARY | Yes       | A string                                                                                                           |
 | RECORD_LOAD_URL     | Yes       | A serialized URL address of Melinda-record-load-api                                                                |
