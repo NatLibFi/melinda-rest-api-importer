@@ -228,13 +228,21 @@ export default async function ({
             await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
             return true;
           }
-          // WHY THIS? Shouldn't other LOAD-IMPORTED CATCH this?
-          logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
-          await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+          // WHY THIS? Shouldn't other LOAD-IMPORTER CATCH this?
+          //logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
+          //await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+          return false;
+        }
+        return false;
+      }
+      if (queueItem) {
+        logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
+        await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+        if (operation === OPERATIONS.FIX && queueItem.importJobState.OPERATIONS.FIX === undefined) {
+          await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
           return true;
         }
-
-        return false;
+        return true;
       }
       return false;
     }

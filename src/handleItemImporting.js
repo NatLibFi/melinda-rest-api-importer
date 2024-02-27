@@ -12,7 +12,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
   async function handleItemImporting({item, operation}) {
 
-    if (![OPERATIONS.FIX].includes(operation)) {
+    if (![OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
       throw new Error(`Wrong operation ${operation}`);
     }
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
@@ -35,7 +35,8 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
       logger.error('app/handleItemImporting errored: ');
       logger.silly(JSON.stringify(error));
       logError(error);
-      await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio, error503WaitTime, operation});
+      logger.debug(`we have ${operation} , ${correlationId}`);
+      await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio, error503WaitTime, operation, amqpOperator});
 
       return;
     }

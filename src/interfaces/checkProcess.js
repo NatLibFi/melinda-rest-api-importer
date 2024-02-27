@@ -16,7 +16,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   async function checkProcessQueueStart({correlationId, operation, mongoOperator, prio}) {
 
-    logger.debug(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
+    logger.silly(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
     const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator, prio});
     // handle checkProcessQueue errors ???
     // if checkProcessQueue errored with error that's not an ApiError, processMessage is not acked/nacked
@@ -119,7 +119,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   // eslint-disable-next-line max-statements
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
-    logger.debug(`Checking process queue: ${processQueue} for ${correlationId}`);
+    logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
     const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
 
     try {

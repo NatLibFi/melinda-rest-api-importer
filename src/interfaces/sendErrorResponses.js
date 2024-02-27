@@ -8,8 +8,8 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
   const setTimeoutPromise = promisify(setTimeout);
 
   logger.debug('app/sendErrorResponses: Sending error responses');
-  logger.silly(`error: ${JSON.stringify(error)}`);
-  logger.silly(`correalationId: ${correlationId}, queue: ${queue}`);
+  logger.debug(`error: ${JSON.stringify(error)}`);
+  logger.debug(`correalationId: ${correlationId}, queue: ${queue}`);
 
   // get next chunk of 100 messages {headers, messages} where cataloger is the same
   // no need for transforming messages to records
