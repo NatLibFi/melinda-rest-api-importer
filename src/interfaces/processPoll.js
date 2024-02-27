@@ -60,13 +60,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
-    // Bad Request (400)
-    if (response.status === httpStatus.BAD_REQUEST) {
-      logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
-      throw new ApiError(httpStatus.BAD_REQUEST);
-    }
-
-    // 401, 403, 404, 406, 423, 503 responses from checkStatus
+    // 400, 401, 403, 404, 406, 423, 503 responses from checkStatus
     checkStatus(response);
 
     // OK (200)

@@ -64,7 +64,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     const {handledIds, rejectedIds, loadProcessReport, erroredAmount} = results.payloads;
     const {status} = results;
 
-
     if ([OPERATIONS.FIX].includes(operation)) {
       // DEVELOP: should we log process for FIXes too?
       logger.debug(`Status: ${status}`);
@@ -346,7 +345,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return;
   }
 
-  // eslint-disable-next-line max-statements
   async function createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results}) {
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
     const {handledIds, rejectedIds, erroredAmount} = results.payloads;

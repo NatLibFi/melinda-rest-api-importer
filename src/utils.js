@@ -7,6 +7,12 @@ import {logError} from '@natlibfi/melinda-rest-api-commons';
 export function checkStatus(response) {
   const logger = createLogger();
 
+  // Bad Request (400)
+  if (response.status === httpStatus.BAD_REQUEST) {
+    logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
+    throw new ApiError(httpStatus.BAD_REQUEST);
+  }
+
   // Unauthorized (401)
   if (response.status === httpStatus.UNAUTHORIZED) { // eslint-disable-line functional/no-conditional-statements
     logger.info('Got "UNAUTHORIZED" (401) response from record-load-api.');

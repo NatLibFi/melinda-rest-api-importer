@@ -3,7 +3,6 @@ import {QUEUE_ITEM_STATE, IMPORT_JOB_STATE} from '@natlibfi/melinda-rest-api-com
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {promisify} from 'util';
 
-// eslint-disable-next-line max-statements
 export async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio, error503WaitTime, amqpOperator, operation}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
@@ -18,9 +17,9 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
 
   if (messages) { // eslint-disable-line functional/no-conditional-statements
     logger.debug(`Got back messages (${messages.length}) for ${correlationId} from ${queue}`);
-
+    logger.debug(`${JSON.stringify(error)}`);
     const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
-    const responsePayload = error.payload ? error.payload : 'unknown error';
+    const responsePayload = error.payload ? error.payload : 'Unknown error';
 
     logger.silly(`app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
     // Send response back if PRIO
