@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import httpStatus from 'http-status';
-import {createLogger, OPERATIONS} from '@natlibfi/melinda-backend-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {checkStatus, handleConectionError} from '../utils';
 
@@ -12,8 +13,10 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
   async function poll({operation, params}) {
 
     const {correlationId, pActiveLibrary, processId, loaderProcessId, pLogFile = null, pRejectFile = null} = params;
-
+    logger.silly(`poll parameters: operation: ${JSON.stringify(operation)}, params: ${JSON.stringify(params)}`);
+    logger.silly(`${JSON.stringify(OPERATIONS)}`);
     if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+      logger.silly(`We have loadProcess operation: ${operation}`);
       const query = new URLSearchParams({
         correlationId,
         pActiveLibrary,
@@ -24,9 +27,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       });
 
       const response = await pollQuery(query);
-      return pollLoad({response, ...params});
+      logger.silly(`We got a loadProcess response.`);
+      return pollLoad({response, operation, ...params});
     }
     if ([OPERATIONS.FIX].includes(operation)) {
+      logger.silly(`We have fixProcess operation: ${operation}`);
       const query = new URLSearchParams({
         correlationId,
         pActiveLibrary,
@@ -35,7 +40,8 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       });
 
       const response = await pollQuery(query);
-      return pollFix({response, ...params});
+      logger.silly(`We got a fixProcess response.`);
+      return pollFix({response, operation, ...params});
     }
   }
 
@@ -113,7 +119,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.silly(`processPoll/poll recordAmount: ${recordAmount}, processedAmount: ${processedAmount}, notProcessedAmount: ${notProcessedAmout}, erroredAmount: ${erroredAmount}`);
 
-    logger.debug(`handledAmount: ${handledAmount}, erroredAmount: ${erroredAmount}`);
+    logger.silly(`handledAmount: ${handledAmount}, erroredAmount: ${erroredAmount}`);
 
     const loadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, erroredAmount, handledAll};
     const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
@@ -122,7 +128,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     if (processedAll) {
       logger.info(`Got ${responseStatusString} response from record-load-api. All records processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}).`);
       logger.silly(`Ids (${handledIdList.length}): ${handledIdList}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}`);
-      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount};
+      return {payloads: {handledIds: handledIdList, rejectedIds: rejectedIdList, loadProcessReport}, ackOnlyLength: processedAmount, status: response.status};
     }
 
     // What should we do in cases where R-L-A crashed and did not process any/all records?
@@ -137,19 +143,19 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount (${erroredAmount})`);
     }
 
-    logger.debug(`Ids (${handledIdListWithErrors.length}): ${handledIdListWithErrors}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}. ErroredAmount: ${erroredAmount}`);
+    logger.silly(`Ids (${handledIdListWithErrors.length}): ${handledIdListWithErrors}. RejectedIds (${rejectedIdList.length}): ${rejectedIdList}. ErroredAmount: ${erroredAmount}`);
     return {payloads: {handledIds: handledIdListWithErrors, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
   }
 
-  async function pollFix({response, pActiveLibrary, recordAmount}) {
-    logger.silly(`Got response for process poll! Status: ${response.status}`);
+  async function pollFix({response, operation, pActiveLibrary, recordAmount}) {
+    logger.silly(`Got response for process poll (${operation})! Status: ${response.status}`);
 
     // response: {"status":200,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"]}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"]}}
 
     const {handledIds} = await response.json();
     logger.silly(`processPoll/pollFix handledIds: ${handledIds}`);
-    const handledIdList = mapHandledIds(response.handledIds, pActiveLibrary);
+    const handledIdList = mapHandledIds(handledIds, pActiveLibrary);
 
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors
@@ -157,12 +163,13 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     // FixProcessess handledIds is a guess from inputFile
     if (response.status === httpStatus.CONFLICT) {
       // we should somehow return also status - these are all status UNKNOWN
-      return {payloads: {handledIds: handledIdList, ackOnlyLength: recordAmount}};
+      return {payloads: {handledIds: handledIdList}, ackOnlyLength: recordAmount, status: response.status};
     }
 
     if (response.status === httpStatus.OK) {
-      return {payloads: {handledIds: handledIdList, ackOnlyLength: recordAmount}};
+      return {payloads: {handledIds: handledIdList}, ackOnlyLength: recordAmount, status: response.status};
     }
+
   }
 
   function mapHandledIds(handledIds, pActiveLibrary) {
@@ -179,7 +186,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
 
-    logger.debug(`Sending file clearing request: ${url.toString()}`);
+    logger.silly(`Sending file clearing request: ${url.toString()}`);
 
     const response = await fetch(url, {
       method: 'delete',

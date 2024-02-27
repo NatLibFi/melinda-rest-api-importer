@@ -10,12 +10,14 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   return {fixLoadRecord};
 
   async function fixLoadRecord({correlationId = undefined, recordList, operation, cataloger, fixType, recordLoadParams = {}, prio}) {
-    //logger.debug(`Records: ${JSON.stringify(records)}`);
-    logger.debug(`RecordList: ${JSON.stringify(recordList)}`);
+    //logger.silly(`Records: ${JSON.stringify(records)}`);
+    logger.silly(`RecordList: ${JSON.stringify(recordList)}`);
+    logger.silly(`RecordLoadParams: ${JSON.stringify(recordLoadParams)}`);
+    logger.silly(`RecordLoadLibrary: ${recordLoadLibrary}`);
     const pActiveLibrary = recordLoadParams.pActiveLibrary || recordLoadLibrary;
-    const recordSysList = createRecordSysListString(recordList);
-    logger.debug(correlationId, recordList.length, operation, cataloger, recordLoadParams, prio);
-
+    const recordSysList = createRecordSysListString(recordList, pActiveLibrary);
+    logger.silly(correlationId, recordList.length, operation, cataloger, recordLoadParams, prio);
+    logger.silly(recordSysList);
     // why we had here cataloger.toUpperCase - where have we made a change?
     // cataloger.id from prio, cataloger from bulk
 
@@ -57,6 +59,6 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   }
 
   function createRecordSysListString(recordList, pActiveLibrary) {
-    return recordList.map(record => `${record}${pActiveLibrary}`).join('\n');
+    return recordList.map(record => `${record}${pActiveLibrary.toUpperCase()}`).join('\n');
   }
 }

@@ -137,9 +137,9 @@ export default async function ({
     }
 
     async function checkImportJobStateDONE({waitSinceLastOp}) {
+      // We get queueItem, whose import job state for this importer is DONE
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.DONE, true)});
       if (queueItem) {
-
         logger.debug(`Found item in importing ${queueItem.correlationId}, ImportJobState: {${operation}: DONE} ${waitTimePrint(waitSinceLastOp)}`);
         logger.silly(inspect(queueItem));
 
@@ -149,7 +149,7 @@ export default async function ({
           return true;
         }
 
-        // Only CREATEs and UPDATEs can exist in the same queueItem
+        // Only CREATEs and UPDATEs can exist in the same queueItem, they are not DONE if the other job is not also done
         if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
           const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
           const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
@@ -162,7 +162,6 @@ export default async function ({
           }
           return false;
         }
-
         logger.debug(`WARNING! unknown operation ${operation}`);
       }
       return false;
@@ -190,8 +189,7 @@ export default async function ({
     // eslint-disable-next-line max-statements
     async function checkQueueItemStateINQUEUE({waitSinceLastOp}) {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
-      logger.debug(`checkQueueItemStateINQUEUE`);
-      logger.debug(JSON.stringify(queueItem));
+      logger.silly(`checkQueueItemStateINQUEUE:  ${JSON.stringify(queueItem)}`);
 
       if (queueItem && queueItem.operationSettings.noop === true) {
         logger.verbose(`QueueItem ${queueItem.correlationId} has operationSettings.noop ${queueItem.operationSettings.noop} - not running importer for this job`);
@@ -209,21 +207,34 @@ export default async function ({
       if (queueItem && queueItem.importJobState[operation] === IMPORT_JOB_STATE.EMPTY) {
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)} but importJobState for ${operation} is ${queueItem.importJobState[operation]}`);
         logger.silly(JSON.stringify(queueItem.importJobState));
+        logger.debug(`QueueItem has operation: ${queueItem.operation}`);
 
-        // check whether also the other queue is EMPTY or a final state
-        const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
-        const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
-        logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
-
-        if ([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
-          logger.debug(`Other importJob (${otherOperationImportJobState}) in not ongoing/pending, importing done`);
+        if ([OPERATIONS.FIX].includes(operation) && [OPERATIONS.FIX].includes(queueItem.operation)) {
+          logger.debug(`Fix process has just FIX importer, we shouldn't have empty import job state!`);
+          // Should we error this?
           await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
           return true;
         }
 
-        logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
-        await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
-        return true;
+        // Only CREATEs and UPDATEs can exist in the same queueItem
+        if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(queueItem.operation)) {
+          // check whether also the other queues are EMPTY or a final state
+          const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
+          const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
+          logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
+
+          if ([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
+            logger.debug(`Other importJob (${otherOperationImportJobState}) in not ongoing/pending, importing done`);
+            await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
+            return true;
+          }
+          // WHY THIS? Shouldn't other LOAD-IMPORTED CATCH this?
+          logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
+          await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+          return true;
+        }
+
+        return false;
       }
       return false;
     }

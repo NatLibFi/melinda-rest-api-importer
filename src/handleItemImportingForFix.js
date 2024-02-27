@@ -44,7 +44,7 @@ export function createItemImportingFixHandler(amqpOperator, mongoOperator, recor
     logger.debug(`importFixRecords: Headers: ${JSON.stringify(headers)}, Messages (${messages.length})`);
     const recordList = messages.map(message => message.properties.headers.id);
 
-    logger.debug(`${JSON.stringify(messages[0].properties)}`);
+    //logger.debug(`${JSON.stringify(messages[0].properties)}`);
     const recordAmount = messages.length;
     const {correlationId, recordLoadParams} = item;
 
