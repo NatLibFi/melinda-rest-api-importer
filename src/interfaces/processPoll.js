@@ -177,12 +177,14 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     return handledIds.map(id => formatRecordId(pActiveLibrary, id));
   }
 
-  async function requestFileClear({correlationId, pActiveLibrary, processId}) {
+  // Note that aleph-record-load-api doesn't currently do anything with delete requests!!!
+  async function requestFileClear({correlationId, pActiveLibrary, processId, loaderProcessId}) {
     // Pass correlationId to record-load-api so it can use same name in log files
     const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
-      processId
+      processId,
+      loaderProcessId
     });
     const url = new URL(`${recordLoadUrl}?${query}`);
 

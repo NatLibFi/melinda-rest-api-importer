@@ -1,8 +1,7 @@
-import httpStatus from 'http-status';
-import {logError, QUEUE_ITEM_STATE, IMPORT_JOB_STATE} from '@natlibfi/melinda-rest-api-commons';
+import {logError, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {promisify} from 'util';
-import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons/dist/constants';
+import {sendErrorResponses} from './interfaces/sendErrorResponses';
 
 export function createItemImportingFixHandler(amqpOperator, mongoOperator, recordLoadOperator, {prio, error503WaitTime, recordLoadLibrary}) {
   const purgeQueues = false;
@@ -28,13 +27,14 @@ export function createItemImportingFixHandler(amqpOperator, mongoOperator, recor
       }
 
       logger.debug(`handleItemImportingForFix: No messages found in ${operation}.${correlationId}`);
+      await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
       await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Importer: empty queue: ${operation}.${correlationId}`});
       throw new Error(`Empty queue ${operation}.${correlationId}`);
     } catch (error) {
       logger.error('handleItemImportingForFix errored: ');
       logger.silly(JSON.stringify(error));
       logError(error);
-      await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator});
+      await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, amqpOperator, prio, error503WaitTime, operation});
 
       return;
     }
@@ -81,56 +81,5 @@ export function createItemImportingFixHandler(amqpOperator, mongoOperator, recor
     await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.PROCESSING});
 
     return;
-  }
-
-  // eslint-disable-next-line max-statements
-  async function sendErrorResponses({error, correlationId, queue, mongoOperator}) {
-    logger.debug('app/sendErrorResponses: Sending error responses');
-    logger.silly(`error: ${JSON.stringify(error)}`);
-    logger.silly(`correalationId: ${correlationId}, queue: ${queue}`);
-
-    // get next chunk of 100 messages {headers, messages} where cataloger is the same
-    // no need for transforming messages to records
-    const {messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecords: false, purge: false});
-
-    if (messages) { // eslint-disable-line functional/no-conditional-statements
-      logger.debug(`Got back messages (${messages.length}) for ${correlationId} from ${queue}`);
-
-      const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
-      const responsePayload = error.payload ? error.payload : 'unknown error';
-
-      logger.silly(`app/sendErrorResponses Status: ${responseStatus}, Messages: ${messages.length}, Payloads: ${responsePayload}`);
-      // Send response back if PRIO
-      // Send responses back if BULK and error is something else than 503
-
-      // eslint-disable-next-line no-extra-parens
-      if (prio || (!prio && error.status !== 503 && error.status !== 422)) {
-
-        await amqpOperator.ackMessages(messages);
-        await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorMessage: responsePayload, errorStatus: responseStatus});
-        return;
-      }
-
-      // ack messages, if BULK and error is 422
-      if (!prio && error.status === 422) {
-        await amqpOperator.ackMessages(messages);
-        await setTimeoutPromise(200); // wait for messages to get acked
-        logger.debug(`app/sendErrorResponses Got 422 for bulk. Ack messages to try loading/polling next batch`);
-        return;
-      }
-
-
-      // Nack messages and sleep, if BULK and error is 503
-      if (!prio && error.status === 503) {
-        await amqpOperator.nackMessages(messages);
-        logger.debug(`app/sendErrorResponses Got 503 for bulk. Nack messages to try loading/polling again after sleeping ${error503WaitTime} ms`);
-        await setTimeoutPromise(error503WaitTime);
-        return;
-      }
-
-      throw new Error('app/sendErrorMessages: What to do with these error responses?');
-    }
-    logger.debug(`app/sendErrorResponses: Did not get back any messages: ${messages} from ${queue}`);
-    // should this throw an error?
   }
 }
