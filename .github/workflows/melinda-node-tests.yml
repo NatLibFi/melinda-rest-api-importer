@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.MELINDA_QUAY_IO_USERNAME }}
           password: ${{ secrets.MELINDA_QUAY_IO_PASSWORD }}
       - name: Build and publish image to Quay.io
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
