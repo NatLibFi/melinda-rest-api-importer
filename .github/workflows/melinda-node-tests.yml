@@ -92,11 +92,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Production auth names webhook
+      - name: Production aut-names webhook
         uses: joelwmale/webhook-action@master
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         with:
-          url: ${{ secrets.WEBHOOK_URL_AUTH_PROD }}
+          url: ${{ secrets.WEBHOOK_URL_AUT_NAMES_PROD_FROM_MAIN }}
           body: '{}'
       - name: Production bib webhook
         uses: joelwmale/webhook-action@master
