@@ -92,17 +92,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Production auth names webhook
-        uses: joelwmale/webhook-action@master
-        if: github.ref == 'refs/heads/master'
-        with:
-          url: ${{ secrets.WEBHOOK_URL_AUTH_PROD }}
-          body: '{}'
       - name: Production bib webhook
         uses: joelwmale/webhook-action@master
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_BIB_PROD_FROM_MAIN }}
+          body: '{}'
+      - name: Production aut-aux webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/main'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_AUX_PROD_FROM_MAIN }}
+          body: '{}'
+      - name: Production aut-names webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/main'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_NAMES_PROD_FROM_MAIN }}
+          body: '{}'
+      - name: Production aut-subjects webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/main'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_SUBJECTS_PROD_FROM_MAIN }}
+          body: '{}'
+      - name: Production aut-works webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/main'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_AUT_WORKS_PROD_FROM_MAIN }}
           body: '{}'
       - name: Test aut aux webhook
         uses: joelwmale/webhook-action@master
