@@ -10,23 +10,29 @@ import prettyPrint from 'pretty-print-ms';
 
 export default async function ({
   amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
-  recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk,
+  recordLoadApiKey, recordLoadLibrary, recordLoadUrl, recordLoadFixPath, recordLoadLoadPath, fixPrio, fixBulk,
   keepLoadProcessReports
 }) {
+
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
   // second parameter for running amqpHealthCheck
   const amqpOperator = await amqpFactory(amqpUrl, true);
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
-  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
-  const recordLoadOperator = recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk});
-  const recordFixLoadOperator = recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl});
+
+  logger.debug(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
+  const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
+  logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}}`);
+
+  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl: recordLoadUrlWithPath, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
+  const recordLoadOperator = recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath, fixPrio, fixBulk});
+  const recordFixLoadOperator = recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath});
+
   const prioItemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperatorPrio, recordLoadOperator, {prio: true, error503WaitTime, recordLoadLibrary});
   const bulkItemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperatorBulk, recordLoadOperator, {prio: false, error503WaitTime, recordLoadLibrary});
   const prioItemImportingHandlerForFix = createItemImportingFixHandler(amqpOperator, mongoOperatorPrio, recordFixLoadOperator, {prio: true, error503WaitTime, recordLoadLibrary});
   const bulkItemImportingHandlerForFix = createItemImportingFixHandler(amqpOperator, mongoOperatorBulk, recordFixLoadOperator, {prio: false, error503WaitTime, recordLoadLibrary});
-
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
 
@@ -58,8 +64,10 @@ export default async function ({
     if (queueItemInProcess) {
       // Do not spam logs
       logger.silly(`Found item in process ${queueItemInProcess.correlationId}`);
+
       // processOperator return false if process is still ongoing (or it errored) and true if the process is done
       const result = await processOperator.checkProcessQueueStart({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
+
       if (result) {
         logger.debug(`Process done with ${prettyPrint(waitSinceLastOp)} of waiting`);
         return startCheck({checkInProcessItems: true});
