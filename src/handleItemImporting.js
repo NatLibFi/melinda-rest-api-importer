@@ -3,7 +3,7 @@ import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {promisify} from 'util';
 import {sendErrorResponses} from './interfaces/sendErrorResponses';
 
-export function createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperators, {error503WaitTime, recordLoadLibrary}) {
+export function createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator, {error503WaitTime, recordLoadLibrary}) {
   const purgeQueues = false;
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
@@ -55,9 +55,6 @@ export function createItemImportingHandler(amqpOperator, mongoOperators, recordL
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
     await setTimeoutPromise(200); // (S)Nack time! - we need this timeout here to catch errors from loadRecord
-
-    // Choose recordLoadOperator: load-type or fix-type
-    const recordLoadOperator = [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) ? recordLoadOperators.load : recordLoadOperators.fix;
 
     // what happens if recordLoadOperator errors?
     // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}

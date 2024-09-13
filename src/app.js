@@ -15,35 +15,37 @@ export default async function ({
 
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
+
+  const recordLoadUrlWithPath = getUrlWithPath({operation, recordLoadUrl, recordLoadFixPath, recordLoadLoadPath});
+
   // second parameter for running amqpHealthCheck
   const amqpOperator = await amqpFactory(amqpUrl, true);
-  const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
-  const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
 
   const mongoOperators = {
-    prio: mongoOperatorPrio,
-    bulk: mongoOperatorBulk
+    prio: await mongoFactory(mongoUri, 'prio'),
+    bulk: await mongoFactory(mongoUri, 'bulk')
   };
-
-  logger.silly(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
-  const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
-  logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}`);
 
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl: recordLoadUrlWithPath, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
-  const recordLoadOperator = recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath, fixPrio, fixBulk});
-  const recordFixLoadOperator = recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath});
 
-  const recordLoadOperators = {
-    load: recordLoadOperator,
-    fix: recordFixLoadOperator
-  };
+  const recordLoadOperator =
+    [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)
+      ? recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath, fixPrio, fixBulk})
+      : recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath});
 
-  const itemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperators, {prio: undefined, error503WaitTime, recordLoadLibrary});
+  const itemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator, {error503WaitTime, recordLoadLibrary});
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
 
   const server = await startCheck({});
   return server;
+
+  function getUrlWithPath({operation, recordLoadUrl, recordLoadLoadPath, recordLoadFixPath}) {
+    logger.silly(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
+    const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
+    logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}`);
+    return recordLoadUrlWithPath;
+  }
 
   async function startCheck({checkInProcessItems = true, wait = false, waitSinceLastOp = 0}) {
     if (wait) {
@@ -61,7 +63,7 @@ export default async function ({
   }
 
   async function checkInProcess({prio = true, waitSinceLastOp}) {
-    const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
+    const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
     // Items in aleph-record-load-api
 
     const queueItemInProcess = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.PROCESSING, true)});
@@ -93,7 +95,7 @@ export default async function ({
 
   // eslint-disable-next-line max-statements
   async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}) {
-    const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
+    const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
 
     // Items in importer to be send to aleph-record-load-api
     // ImportJobStates: EMPTY, QUEUING, IN_QUEUE, PROCESSING, DONE, ERROR, ABORT
@@ -242,6 +244,8 @@ export default async function ({
       if (queueItem) {
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
+
+        // Why we have this here?
         if (operation === OPERATIONS.FIX && queueItem.importJobState.OPERATIONS.FIX === undefined) {
           await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
           return true;
