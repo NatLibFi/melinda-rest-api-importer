@@ -4,7 +4,6 @@ import recordFixFactory from './interfaces/fixLoadStarter';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting';
-import {createItemImportingFixHandler} from './handleItemImportingForFix';
 import checkProcess from './interfaces/checkProcess';
 import prettyPrint from 'pretty-print-ms';
 
@@ -21,18 +20,25 @@ export default async function ({
   const mongoOperatorPrio = await mongoFactory(mongoUri, 'prio');
   const mongoOperatorBulk = await mongoFactory(mongoUri, 'bulk');
 
+  const mongoOperators = {
+    prio: mongoOperatorPrio,
+    bulk: mongoOperatorBulk
+  };
+
   logger.debug(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
   const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
-  logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}}`);
+  logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}`);
 
   const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl: recordLoadUrlWithPath, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
   const recordLoadOperator = recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath, fixPrio, fixBulk});
   const recordFixLoadOperator = recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath});
 
-  const prioItemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperatorPrio, recordLoadOperator, {prio: true, error503WaitTime, recordLoadLibrary});
-  const bulkItemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperatorBulk, recordLoadOperator, {prio: false, error503WaitTime, recordLoadLibrary});
-  const prioItemImportingHandlerForFix = createItemImportingFixHandler(amqpOperator, mongoOperatorPrio, recordFixLoadOperator, {prio: true, error503WaitTime, recordLoadLibrary});
-  const bulkItemImportingHandlerForFix = createItemImportingFixHandler(amqpOperator, mongoOperatorBulk, recordFixLoadOperator, {prio: false, error503WaitTime, recordLoadLibrary});
+  const recordLoadOperators = {
+    load: recordLoadOperator,
+    fix: recordFixLoadOperator
+  };
+
+  const itemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperators, {prio: undefined, error503WaitTime, recordLoadLibrary});
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
 
@@ -85,20 +91,11 @@ export default async function ({
     return startCheck({checkInProcessItems: false, waitSinceLastOp});
   }
 
-  function getItemImportingHandler(operation, prio) {
-    if ([OPERATIONS.UPDATE, OPERATIONS.CREATE].includes(operation)) {
-      return prio ? prioItemImportingHandler : bulkItemImportingHandler;
-    }
-    if ([OPERATIONS.FIX].includes(operation)) {
-      return prio ? prioItemImportingHandlerForFix : bulkItemImportingHandlerForFix;
-    }
-    throw new Error(`Unknown operation ${operation}`);
-  }
-
   // eslint-disable-next-line max-statements
   async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}) {
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
-    const itemImportingHandler = getItemImportingHandler(operation, prio);
+    //const itemImportingHandler = getItemImportingHandler(operation, prio);
+
     // Items in importer to be send to aleph-record-load-api
     // ImportJobStates: EMPTY, QUEUING, IN_QUEUE, PROCESSING, DONE, ERROR, ABORT
     // get here {<OPERATION>: IN_QUEUE}
@@ -138,7 +135,7 @@ export default async function ({
 
       if (itemImportingImporting) {
         logger.debug(`Found item in importing ${itemImportingImporting.correlationId}, ImportJobState: {${operation}: IMPORTING} ${waitTimePrint(waitSinceLastOp)}`);
-        await itemImportingHandler({item: itemImportingImporting, operation});
+        await itemImportingHandler({item: itemImportingImporting, operation, prio});
         return true;
       }
       return false;

@@ -3,27 +3,29 @@ import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {promisify} from 'util';
 import {sendErrorResponses} from './interfaces/sendErrorResponses';
 
-export function createItemImportingHandler(amqpOperator, mongoOperator, recordLoadOperator, {prio, error503WaitTime, recordLoadLibrary}) {
+export function createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperators, {error503WaitTime, recordLoadLibrary}) {
   const purgeQueues = false;
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
 
   return handleItemImporting;
 
-  async function handleItemImporting({item, operation}) {
+  async function handleItemImporting({item, operation, prio}) {
 
-    if (![OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
-      throw new Error(`Wrong operation ${operation}`);
-    }
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
     const {correlationId} = item;
 
+    const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
+
     try {
+      // load-type operations need records, fix-type operations do not need records
+      const toRecords = [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation);
+
       // basic: get next chunk of 100 messages {headers, records, messages}
-      const {headers, records, messages} = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: true, purge: purgeQueues});
+      const {headers, records, messages} = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: toRecords, purge: purgeQueues});
       /// 1-100 messages from 1-10000 messages
       if (headers && messages) {
-        await importRecords({headers, operation, records, messages, item, correlationId});
+        await importRecords({mongoOperator, headers, operation, records, messages, item, correlationId, prio});
         return;
       }
 
@@ -42,19 +44,24 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
     }
   }
 
-  async function importRecords({headers, operation, records, messages, item}) {
-    logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records.length}`);
-    const recordAmount = records.length;
-    // recordLoadParams have pOldNew - is this used or is operation caught from importer?
+  async function importRecords({mongoOperator, headers, operation, records, messages, item, prio}) {
+    logger.debug(`app/handleItemImporting: Headers: ${JSON.stringify(headers)}, Messages (${messages.length}), Records: ${records?.length}`);
+    const recordList = messages.map(message => message.properties.headers.id);
+    const recordAmount = messages.length;
     const {correlationId, recordLoadParams} = item;
+    const {fixType} = headers.operationSettings;
+    const {cataloger} = headers;
 
     // messages nacked to wait results - should these go to some other queue PROCESS.correaltionId ?
     await amqpOperator.nackMessages(messages);
     await setTimeoutPromise(200); // (S)Nack time! - we need this timeout here to catch errors from loadRecord
-    // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
+
+    // Choose recordLoadOperator: load-type or fix-type
+    const recordLoadOperator = [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) ? recordLoadOperators.load : recordLoadOperators.fix;
 
     // what happens if recordLoadOperator errors?
-    const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, ...headers, records, recordLoadParams, prio});
+    // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
+    const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, records, recordList, fixType, recordLoadParams, cataloger, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
 
@@ -81,4 +88,5 @@ export function createItemImportingHandler(amqpOperator, mongoOperator, recordLo
 
     return;
   }
+
 }
