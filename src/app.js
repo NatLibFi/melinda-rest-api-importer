@@ -25,7 +25,7 @@ export default async function ({
     bulk: mongoOperatorBulk
   };
 
-  logger.debug(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
+  logger.silly(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
   const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
   logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}`);
 

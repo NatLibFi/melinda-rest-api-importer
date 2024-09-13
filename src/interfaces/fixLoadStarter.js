@@ -13,17 +13,18 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   // -> records are not used but fix-type loads, but are used for load-type loads
   // eslint-disable-next-line max-statements
   async function loadRecord({correlationId = undefined, recordList, operation, fixType, recordLoadParams = {}, cataloger, prio}) {
-    logger.debug(`loadRecord from fixLoadStarter`);
-    logger.debug(`RecordList: ${JSON.stringify(recordList)}`);
-    logger.debug(`RecordLoadParams: ${JSON.stringify(recordLoadParams)}`);
-    logger.debug(`RecordLoadLibrary: ${recordLoadLibrary}`);
-    logger.debug(`FixType: ${fixType}`);
+    logger.silly(`loadRecord from fixLoadStarter`);
+    logger.silly(`RecordList: ${JSON.stringify(recordList)}`);
+    logger.silly(`RecordLoadParams: ${JSON.stringify(recordLoadParams)}`);
+    logger.silly(`RecordLoadLibrary: ${recordLoadLibrary}`);
+    logger.silly(`FixType: ${fixType}`);
     const pActiveLibrary = recordLoadParams.pActiveLibrary || recordLoadLibrary;
     const recordSysList = createRecordSysListString(recordList, pActiveLibrary);
-    logger.debug(correlationId, recordList.length, operation, cataloger, recordLoadParams, prio);
-    logger.debug(recordSysList);
+    logger.silly(`${correlationId}, ${recordList.length}, ${operation}, ${cataloger}, ${fixType} ${recordLoadParams}, ${prio}`);
+    logger.silly(`${recordSysList}`);
+
     // why we had here cataloger.toUpperCase - where have we made a change?
-    // cataloger.id from prio, cataloger from bulk
+    // cataloger.id from prio, cataloger from bulk (DEVELOP: more consistent handling of cataloger?)
 
     const catalogerName = cataloger.id || cataloger;
 

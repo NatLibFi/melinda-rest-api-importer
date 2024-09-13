@@ -22,7 +22,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     const recordCount = records.length;
     const seqRecords = createSeqRecords(records);
 
-    logger.debug(`${correlationId}, ${records.length}, ${operation}, ${cataloger}, ${recordLoadParams}, ${prio}`);
+    logger.silly(`${correlationId}, ${records.length}, ${operation}, ${cataloger}, ${recordLoadParams}, ${prio}`);
     // This should check that concurrent update and create jobs with the same correlationId won't mix up their files
     // pOldNew from recordLoadParams is not used, its caught from operation
 
