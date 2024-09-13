@@ -94,7 +94,6 @@ export default async function ({
   // eslint-disable-next-line max-statements
   async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}) {
     const mongoOperator = prio ? mongoOperatorPrio : mongoOperatorBulk;
-    //const itemImportingHandler = getItemImportingHandler(operation, prio);
 
     // Items in importer to be send to aleph-record-load-api
     // ImportJobStates: EMPTY, QUEUING, IN_QUEUE, PROCESSING, DONE, ERROR, ABORT
