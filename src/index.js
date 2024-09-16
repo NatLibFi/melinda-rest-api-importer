@@ -32,6 +32,7 @@ async function run() {
 
     function logMessage(message) {
       if (message) {
+        logError(`Are we here?`);
         logError('No catch error!');
         return logError(message);
       }
