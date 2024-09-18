@@ -2,7 +2,7 @@ import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons/';
 
 // Record-load-api to save data
 export const recordLoadUrl = readEnvironmentVariable('RECORD_LOAD_URL');
-export const recordLoadFixPath = readEnvironmentVariable('RECORD_LOAD_FIX_PATH', {defaultValue: ''});
+export const recordLoadFixPath = readEnvironmentVariable('RECORD_LOAD_FIX_PATH', {defaultValue: '/fix'});
 export const recordLoadLoadPath = readEnvironmentVariable('RECORD_LOAD_LOAD_PATH', {defaultValue: ''});
 export const recordLoadApiKey = readEnvironmentVariable('RECORD_LOAD_API_KEY');
 export const recordLoadLibrary = readEnvironmentVariable('RECORD_LOAD_LIBRARY');
