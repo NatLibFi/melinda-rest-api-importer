@@ -58,7 +58,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperators, recordL
 
     // what happens if recordLoadOperator errors?
     // Response: {"correlationId":"97bd7027-048c-425f-9845-fc8603f5d8ce","pLogFile":null,"pRejectFile":null,"processId":12014}
-    const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, records, recordList, fixType, recordLoadParams, cataloger, prio});
+    const {processId, pLogFile, pRejectFile, loaderProcessId} = await recordLoadOperator.loadRecord({correlationId, records, recordList, operation, fixType, recordLoadParams, cataloger, prio});
 
     logger.silly(`app/handleItemImporting: setState and send to process queue`);
 
