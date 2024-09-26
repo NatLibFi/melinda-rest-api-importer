@@ -16,11 +16,13 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
 
   return {loadRecord};
 
-  async function loadRecord({correlationId = undefined, records, operation, cataloger, recordLoadParams = {}, prio}) {
+  // -> loadRecord({correlationId, records, recordList, fixType, recordLoadParams, cataloger: headers.cataloger, prio})
+  // -> recordList and fixType from parameters are not used but load-type loads, but are used for fix-type loads
+  async function loadRecord({correlationId = undefined, records, operation, recordLoadParams = {}, cataloger, prio}) {
     const recordCount = records.length;
     const seqRecords = createSeqRecords(records);
 
-    logger.debug(correlationId, records.length, operation, cataloger, recordLoadParams, prio);
+    logger.silly(`${correlationId}, ${records.length}, ${operation}, ${cataloger}, ${recordLoadParams}, ${prio}`);
     // This should check that concurrent update and create jobs with the same correlationId won't mix up their files
     // pOldNew from recordLoadParams is not used, its caught from operation
 
