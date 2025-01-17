@@ -53,6 +53,9 @@
     "eslint": "^8.57.0",
     "nodemon": "^3.1.4"
   },
+  "overrides": {
+		"nanoid": "^3.3.8"
+	},
   "eslintConfig": {
     "extends": "@natlibfi/melinda-backend"
   },
