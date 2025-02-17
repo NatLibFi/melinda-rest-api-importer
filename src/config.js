@@ -16,8 +16,8 @@ export const amqpUrl = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp:
 export const mongoUri = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1:27017/db'});
 
 // Operation variables
-export const pollWaitTime = readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000});
-export const error503WaitTime = readEnvironmentVariable('ERROR_503_WAIT_TIME', {defaultValue: 10000});
+export const pollWaitTime = parseInt(readEnvironmentVariable('POLL_WAIT_TIME', {defaultValue: 1000}), 10);
+export const error503WaitTime = parseInt(readEnvironmentVariable('ERROR_503_WAIT_TIME', {defaultValue: 10000}), 10);
 
 export const operation = readEnvironmentVariable('OPERATION');
 
