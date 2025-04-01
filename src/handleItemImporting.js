@@ -10,7 +10,7 @@ export function createItemImportingHandler(amqpOperator, mongoOperators, recordL
 
   return handleItemImporting;
 
-  async function handleItemImporting({item, operation, prio}) {
+  async function handleItemImporting({item, operation, prio, waited = false}) {
 
     logger.silly(`Item in importing: ${JSON.stringify(item)}`);
     const {correlationId} = item;
@@ -28,11 +28,8 @@ export function createItemImportingHandler(amqpOperator, mongoOperators, recordL
         await importRecords({mongoOperator, headers, operation, records, messages, item, correlationId, prio});
         return;
       }
+      await handleNoMessages({item, operation, prio, waited});
 
-      logger.debug(`app/handleItemImporting: No messages found in ${operation}.${correlationId}`);
-      await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
-      await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Importer: empty queue: ${operation}.${correlationId}`});
-      throw new Error(`Empty queue ${operation}.${correlationId}`);
     } catch (error) {
       logger.error('app/handleItemImporting errored: ');
       logger.silly(JSON.stringify(error));
@@ -41,6 +38,20 @@ export function createItemImportingHandler(amqpOperator, mongoOperators, recordL
       await sendErrorResponses({error, correlationId, queue: `${operation}.${correlationId}`, mongoOperator, prio, error503WaitTime, operation, amqpOperator});
 
       return;
+    }
+
+    async function handleNoMessages({item, operation, prio, waited}) {
+      logger.debug(`app/handleItemImporting: No messages found in ${operation}.${correlationId}`);
+
+      if (!waited) {
+        logger.debug(`app/handleItemImporting: Waiting 200 ms and trying again`);
+        await setTimeoutPromise(200); // Let's see if we have messages after waiting
+        return handleItemImporting({item, operation, prio, waited: true});
+      }
+
+      await mongoOperator.setImportJobState({correlationId, operation, importJobState: IMPORT_JOB_STATE.ERROR});
+      await mongoOperator.setState({correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Importer: empty queue: ${operation}.${correlationId}`});
+      throw new Error(`Empty queue ${operation}.${correlationId}`);
     }
   }
 
