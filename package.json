@@ -14,7 +14,7 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "MIT",
-  "version": "3.1.1",
+  "version": "3.1.2-alpha.1",
   "main": "./dist/index.js",
   "engines": {
     "node": ">=18"
@@ -31,7 +31,7 @@
     "prod": "NODE_ENV=production npm run build && npm run start"
   },
   "dependencies": {
-    "@babel/runtime": "^7.26.9",
+    "@babel/runtime": "^7.27.0",
     "@natlibfi/marc-record-serializers": "^10.1.5",
     "@natlibfi/melinda-backend-commons": "^2.3.6",
     "@natlibfi/melinda-commons": "^13.0.19",
@@ -42,10 +42,10 @@
     "pretty-print-ms": "^1.0.5"
   },
   "devDependencies": {
-    "@babel/cli": "^7.26.4",
-    "@babel/core": "^7.26.9",
+    "@babel/cli": "^7.27.0",
+    "@babel/core": "^7.26.10",
     "@babel/node": "^7.26.0",
-    "@babel/plugin-transform-runtime": "^7.26.9",
+    "@babel/plugin-transform-runtime": "^7.26.10",
     "@babel/preset-env": "^7.26.9",
     "@babel/register": "^7.25.9",
     "@natlibfi/eslint-config-melinda-backend": "^3.0.5",
