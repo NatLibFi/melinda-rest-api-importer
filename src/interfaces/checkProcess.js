@@ -117,7 +117,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   }
 
   // eslint-disable-next-line max-statements
-  async function checkProcessQueue({correlationId, operation, mongoOperator, prio}) {
+  async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
     const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
@@ -133,6 +133,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         const processMessageResult = await handleProcessMessage(operation, processMessage, correlationId, prio);
         return processMessageResult;
       }
+
+      // wait and check once again, because we should have a message!
+      if (!waited) {
+        logger.debug(`app/checkProcessQueue: Waiting 200 ms and trying again`);
+        await setTimeoutPromise(200); // Let's see if we have messages after waiting
+        return checkProcessQueue({correlationId, operation, mongoOperator, prio, waited: true});
+      }
+
       // This could remove empty PROCESS.operation.correlationId queue
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Empty ${processQueue} queue`);
 
