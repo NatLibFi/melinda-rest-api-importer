@@ -1,4 +1,4 @@
-import httpStatus, {INTERNAL_SERVER_ERROR} from 'http-status';
+import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
@@ -257,7 +257,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     //logger.silly(`We have ${messages.length} messages to separate`);
     //logger.silly(`We want to ack  ${ackOnlyLength} messages`);
     if (!ackOnlyLength || ackOnlyLength > messages.length) {
-      throw new ApiError(INTERNAL_SERVER_ERROR);
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
     }
     const ack = messages.slice(0, ackOnlyLength);
     const nack = messages.slice(ackOnlyLength);
