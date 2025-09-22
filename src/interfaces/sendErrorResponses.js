@@ -15,7 +15,7 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
   // no need for transforming messages to records
   const {messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecords: false, purge: false});
 
-  if (messages) { // eslint-disable-line functional/no-conditional-statements
+  if (messages) {
     logger.debug(`Got back messages (${messages.length}) for ${correlationId} from ${queue}`);
     logger.debug(`${JSON.stringify(error)}`);
     const responseStatus = error.status ? error.status : httpStatus.INTERNAL_SERVER_ERROR;
