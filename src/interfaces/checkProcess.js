@@ -1,10 +1,10 @@
+import httpStatus, {INTERNAL_SERVER_ERROR} from 'http-status';
+import {promisify, inspect} from 'util';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
-import httpStatus, {INTERNAL_SERVER_ERROR} from 'http-status';
-import {promisify, inspect} from 'util';
-import processOperatorFactory from './processPoll';
+import processOperatorFactory from './processPoll.js';
 
 export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, error503WaitTime, keepLoadProcessReports, mongoUri}) {
   const logger = createLogger();
@@ -293,7 +293,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return {prioStatus, prioPayloads};
 
     function getPrioStatus(operation, rlaStatus, handledIds = undefined, erroredAmount = undefined) {
-    // OraErrors: return 503 so that the client can try again
+      // OraErrors: return 503 so that the client can try again
       if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
         return httpStatus.SERVICE_UNAVAILABLE;
       }
@@ -377,7 +377,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
 
     async function createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds}) {
-    // CREATEs which have handledId for all records and no oraErrors
+      // CREATEs which have handledId for all records and no oraErrors
       logger.debug(`We have a CREATE operation which handled all records normally.`);
       const status = 'CREATED';
       const recordResponseItems = await messages.map((message, index) => {
