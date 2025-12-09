@@ -53,7 +53,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
   }
 
-  // eslint-disable-next-line max-statements
   async function handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator}) {
     logger.silly(`processQueueResults: ${JSON.stringify(processQueueResults)}`);
     const results = processQueueResults.processPollResults;
@@ -116,7 +115,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return false;
   }
 
-  // eslint-disable-next-line max-statements
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
@@ -412,7 +410,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
           logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
 
           const errorRegex = /^ERROR-/u;
-          // eslint-disable-next-line no-extra-parens
           if ((idFromHandledIds && errorRegex.test(idFromHandledIds)) || erroredAmount === handledIds.length) {
             const responsePayload = {message: `${notesString}Errored creating record ${idFromHandledIds}.`};
             return createRecordResponseItem({responseStatus: 'ERROR', responsePayload, recordMetadata, id: '000000000'});
@@ -462,7 +459,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
     async function createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds}) {
 
-      // eslint-disable-next-line max-statements
       const recordResponseItems = await messages.map((message, index) => {
         logger.silly(`${index}: ${JSON.stringify(message)}`);
         const {id, recordMetadata, notes} = message.properties.headers;

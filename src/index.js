@@ -23,7 +23,7 @@ async function run() {
 
     function handleTermination({code = 0, message}) {
       logMessage(message);
-      process.exit(code); // eslint-disable-line no-process-exit
+      process.exit(code);
     }
 
     function handleSignal(signal) {

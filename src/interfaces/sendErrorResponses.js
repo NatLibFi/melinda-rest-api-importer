@@ -25,7 +25,6 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
     // Send response back if PRIO
     // Send responses back if BULK and error is something else than 503
 
-    // eslint-disable-next-line no-extra-parens
     if (prio || (!prio && error.status !== 503 && error.status !== 422)) {
 
       await amqpOperator.ackMessages(messages);

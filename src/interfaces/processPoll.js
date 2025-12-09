@@ -73,7 +73,6 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
-  // eslint-disable-next-line max-statements
   async function pollLoad({response, pActiveLibrary, processId, loaderProcessId, recordAmount}) {
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors

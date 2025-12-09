@@ -34,16 +34,16 @@
     "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
   },
   "dependencies": {
-    "@natlibfi/marc-record-serializers": "^11.0.0",
-    "@natlibfi/melinda-backend-commons": "^3.0.0",
+    "@natlibfi/marc-record-serializers": "^11.0.1",
+    "@natlibfi/melinda-backend-commons": "^3.0.1",
     "@natlibfi/melinda-commons": "^14.0.1",
-    "@natlibfi/melinda-rest-api-commons": "^5.0.0",
+    "@natlibfi/melinda-rest-api-commons": "^5.0.1",
     "http-status": "^2.1.0",
     "moment": "^2.30.1"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "esbuild": "^0.27.0",
+    "esbuild": "^0.27.1",
     "eslint": "^9.39.1"
   },
   "overrides": {
