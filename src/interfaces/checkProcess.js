@@ -1,10 +1,10 @@
+import httpStatus from 'http-status';
+import {promisify, inspect} from 'util';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
-import {logError} from '@natlibfi/melinda-rest-api-commons/dist/utils';
-import httpStatus, {INTERNAL_SERVER_ERROR} from 'http-status';
-import {promisify, inspect} from 'util';
-import processOperatorFactory from './processPoll';
+import {logError} from '@natlibfi/melinda-rest-api-commons';
+import processOperatorFactory from './processPoll.js';
 
 export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, error503WaitTime, keepLoadProcessReports, mongoUri}) {
   const logger = createLogger();
@@ -53,7 +53,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
   }
 
-  // eslint-disable-next-line max-statements
   async function handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator}) {
     logger.silly(`processQueueResults: ${JSON.stringify(processQueueResults)}`);
     const results = processQueueResults.processPollResults;
@@ -116,7 +115,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return false;
   }
 
-  // eslint-disable-next-line max-statements
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
@@ -257,7 +255,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     //logger.silly(`We have ${messages.length} messages to separate`);
     //logger.silly(`We want to ack  ${ackOnlyLength} messages`);
     if (!ackOnlyLength || ackOnlyLength > messages.length) {
-      throw new ApiError(INTERNAL_SERVER_ERROR);
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
     }
     const ack = messages.slice(0, ackOnlyLength);
     const nack = messages.slice(ackOnlyLength);
@@ -293,7 +291,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return {prioStatus, prioPayloads};
 
     function getPrioStatus(operation, rlaStatus, handledIds = undefined, erroredAmount = undefined) {
-    // OraErrors: return 503 so that the client can try again
+      // OraErrors: return 503 so that the client can try again
       if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
         return httpStatus.SERVICE_UNAVAILABLE;
       }
@@ -377,7 +375,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
 
     async function createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds}) {
-    // CREATEs which have handledId for all records and no oraErrors
+      // CREATEs which have handledId for all records and no oraErrors
       logger.debug(`We have a CREATE operation which handled all records normally.`);
       const status = 'CREATED';
       const recordResponseItems = await messages.map((message, index) => {
@@ -412,7 +410,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
           logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
 
           const errorRegex = /^ERROR-/u;
-          // eslint-disable-next-line no-extra-parens
           if ((idFromHandledIds && errorRegex.test(idFromHandledIds)) || erroredAmount === handledIds.length) {
             const responsePayload = {message: `${notesString}Errored creating record ${idFromHandledIds}.`};
             return createRecordResponseItem({responseStatus: 'ERROR', responsePayload, recordMetadata, id: '000000000'});
@@ -462,7 +459,6 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
     async function createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds}) {
 
-      // eslint-disable-next-line max-statements
       const recordResponseItems = await messages.map((message, index) => {
         logger.silly(`${index}: ${JSON.stringify(message)}`);
         const {id, recordMetadata, notes} = message.properties.headers;

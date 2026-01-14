@@ -1,7 +1,7 @@
 import {logError, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {promisify} from 'util';
-import {sendErrorResponses} from './interfaces/sendErrorResponses';
+import {sendErrorResponses} from './interfaces/sendErrorResponses.js';
 
 export function createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator, {error503WaitTime, recordLoadLibrary}) {
   const purgeQueues = false;

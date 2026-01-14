@@ -1,11 +1,10 @@
 import httpStatus from 'http-status';
 import moment from 'moment';
-import fetch from 'node-fetch';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {checkStatus, handleConectionError} from '../utils';
+import {checkStatus, handleConectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}) {
   const logger = createLogger();
@@ -90,10 +89,10 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     // Note: errored batch of records is not getting a recordResponse currently
     // Validator tries conversion for single records, so they should not end up here
     try {
-    // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
-    //
-    // Also, if there are two records with the same 001 after each other, they get fused together
-    // We avoid this by adding a separator line between records
+      // If incoming records do not have 001, they all get aleph seq sys '000000000' and fuse together as one record
+      //
+      // Also, if there are two records with the same 001 after each other, they get fused together
+      // We avoid this by adding a separator line between records
       const seqRecords = records.map(record => AlephSequential.to(record), {subfieldValues: false}).join('000000000 000   L 0\n');
       //  const seqRecords = records.map(record => AlephSequential.to(record)).join('');
       logger.silly(seqRecords);

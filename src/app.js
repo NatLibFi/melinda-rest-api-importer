@@ -1,12 +1,13 @@
-import {createLogger, logWait} from '@natlibfi/melinda-backend-commons';
-import recordLoadFactory from './interfaces/loadStarter';
-import recordFixFactory from './interfaces/fixLoadStarter';
+import {createLogger, logWait, millisecondsToString} from '@natlibfi/melinda-backend-commons';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
-import {createItemImportingHandler} from './handleItemImporting';
-import checkProcess from './interfaces/checkProcess';
-import prettyPrint from 'pretty-print-ms';
+import {createItemImportingHandler} from './handleItemImporting.js';
+import checkProcess from './interfaces/checkProcess.js';
+import recordFixFactory from './interfaces/fixLoadStarter.js';
+import recordLoadFactory from './interfaces/loadStarter.js';
 
+
+// eslint-disable-next-line max-lines-per-function
 export default async function ({
   amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
   recordLoadApiKey, recordLoadLibrary, recordLoadUrl, recordLoadFixPath, recordLoadLoadPath, fixPrio, fixBulk,
@@ -77,7 +78,7 @@ export default async function ({
       const result = await processOperator.checkProcessQueueStart({correlationId: queueItemInProcess.correlationId, operation, mongoOperator, prio});
 
       if (result) {
-        logger.debug(`Process done with ${prettyPrint(waitSinceLastOp)} of waiting`);
+        logger.debug(`Process done with ${millisecondsToString(waitSinceLastOp)} of waiting`);
         return startCheck({checkInProcessItems: true});
       }
       // Hard coded wait if the items loaderProcess is still ongoing or if it errored (100 ms = 0,1 s)
@@ -93,7 +94,7 @@ export default async function ({
     return startCheck({checkInProcessItems: false, waitSinceLastOp});
   }
 
-  // eslint-disable-next-line max-statements
+  // eslint-disable-next-line max-lines-per-function
   async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}) {
     const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
 
@@ -187,12 +188,11 @@ export default async function ({
 
     function waitTimePrint(waitTime) {
       if (waitTime > 0) {
-        return `after ${prettyPrint(waitTime)} of waiting`;
+        return `after ${millisecondsToString(waitTime)} of waiting`;
       }
       return '';
     }
 
-    // eslint-disable-next-line max-statements
     async function checkQueueItemStateINQUEUE({waitSinceLastOp}) {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
       logger.silly(`checkQueueItemStateINQUEUE:  ${JSON.stringify(queueItem)}`);

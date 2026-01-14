@@ -1,9 +1,8 @@
-import fetch from 'node-fetch';
 import httpStatus from 'http-status';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils';
+import {checkStatus, handleConectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const logger = createLogger();
@@ -74,7 +73,6 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
-  // eslint-disable-next-line max-statements
   async function pollLoad({response, pActiveLibrary, processId, loaderProcessId, recordAmount}) {
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors
@@ -128,11 +126,10 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     // What should we do in cases where R-L-A crashed and did not process any/all records?
     // Ack all messages for sent records
 
-    // eslint-disable-next-line functional/no-conditional-statements
     if (processedAmount === 0 || processedAmount < 0) {
       logger.info(`Got ${responseStatusString} response from record-load-api, but NO records were processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount: ${erroredAmount}`);
     }
-    // eslint-disable-next-line functional/no-conditional-statements
+
     if (processedAmount > 0) {
       logger.info(`Got ${responseStatusString} response from record-load-api, but all records were NOT processed ${processedAmount}/${recordAmount}. HandledIds (${handledIdList.length}). RejectedIds (${rejectedIdList.length}). ErroredAmount (${erroredAmount})`);
     }

@@ -12,14 +12,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x, 22.x, v23.x]
+        node-version: [22.x, v24.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -33,63 +33,33 @@ jobs:
   license-scan:
     name: License compliance check
     runs-on: ubuntu-latest
+    container: node:22
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: mikaelvesavuori/license-compliance-action@v1.0.3
+      - uses: actions/checkout@v5
+      - uses: mikaelvesavuori/license-compliance-action@v1
         with:
           exclude_pattern: /^@natlibfi/
 
   njsscan:
     name: Njsscan check
     runs-on: ubuntu-latest
+    container: node:22
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: nodejsscan scan
       id: njsscan
       uses: ajinabraham/njsscan-action@master
       with:
         args: '.'
 
-  quayio:
-    name: Quay.io image builder & publisher
-    needs: [build-node-versions, njsscan]
-    runs-on: ubuntu-latest
-    if: github.actor!= 'dependabot[bot]'   # ignore the pull request which comes from user dependabot, because it does not access to secrets
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: quay.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-      - name: Login to Quay.io
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.MELINDA_QUAY_IO_USERNAME }}
-          password: ${{ secrets.MELINDA_QUAY_IO_PASSWORD }}
-      - name: Build and publish image to Quay.io
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-
   openshift-webhook:
     name: OpenShift webhook for image builder
     needs: [build-node-versions, njsscan]
     runs-on: ubuntu-latest
+    container: node:22
 
     steps:
       - name: Production bib webhook

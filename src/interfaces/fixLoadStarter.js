@@ -1,8 +1,7 @@
 import httpStatus from 'http-status';
-import fetch from 'node-fetch';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils';
+import {checkStatus, handleConectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   const logger = createLogger();
@@ -11,7 +10,6 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
 
   // -> loadRecord({correlationId, records, recordList, fixType, recordLoadParams, cataloger: headers.cataloger, prio})
   // -> records are not used but fix-type loads, but are used for load-type loads
-  // eslint-disable-next-line max-statements
   async function loadRecord({correlationId = undefined, recordList, operation, fixType, recordLoadParams = {}, cataloger, prio}) {
     logger.silly(`loadRecord from fixLoadStarter`);
     logger.silly(`RecordList: ${JSON.stringify(recordList)}`);

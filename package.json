@@ -14,72 +14,39 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "MIT",
-  "version": "3.1.4",
+  "version": "4.0.0-alpha.3",
+  "type": "module",
   "main": "./dist/index.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "private": true,
   "scripts": {
-    "start": "node ./dist/index",
-    "start:dev": "babel-node ./src/index",
+    "build": "esbuild \"src/**/*.js\" --sourcemap --platform=node --outdir=dist",
+    "start": "node ./dist/index.js",
+    "cli": "node ./dist/cli.js",
     "lint": "eslint ./src",
-    "lint:dev": "eslint ./src --fix",
-    "test": "npm run lint",
-    "dev": "NODE_ENV=development cross-env nodemon",
-    "build": "babel src --source-maps --copy-files --delete-dir-on-start --out-dir=dist",
-    "prod": "NODE_ENV=production npm run build && npm run start"
+    "lint:dev": "eslint --fix ./src",
+    "test:base": "node --test --test-force-exit --experimental-test-coverage --test-reporter=spec './src/**/*.test.js'",
+    "test": "npm run lint && npm run test:base",
+    "watch:test": "cross-env DEBUG=@natlibfi/* NODE_ENV=test node --watch --test --experimental-test-coverage --test-reporter=spec './src/**/*.test.js'",
+    "dev": "npm run watch:test",
+    "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
   },
   "dependencies": {
-    "@babel/runtime": "^7.27.6",
-    "@natlibfi/marc-record-serializers": "^10.1.6",
-    "@natlibfi/melinda-backend-commons": "^2.3.8",
-    "@natlibfi/melinda-commons": "^13.0.20",
-    "@natlibfi/melinda-rest-api-commons": "^4.2.5",
+    "@natlibfi/marc-record-serializers": "^11.0.1",
+    "@natlibfi/melinda-backend-commons": "^3.0.2",
+    "@natlibfi/melinda-commons": "^14.0.2",
+    "@natlibfi/melinda-rest-api-commons": "^5.0.4",
     "http-status": "^2.1.0",
-    "moment": "^2.30.1",
-    "node-fetch": "^2.7.0",
-    "pretty-print-ms": "^1.0.5"
+    "moment": "^2.30.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.27.2",
-    "@babel/core": "^7.27.4",
-    "@babel/node": "^7.27.1",
-    "@babel/plugin-transform-runtime": "^7.27.4",
-    "@babel/preset-env": "^7.27.2",
-    "@babel/register": "^7.27.1",
-    "@natlibfi/eslint-config-melinda-backend": "^3.0.5",
-    "cross-env": "^7.0.3",
-    "eslint": "^8.57.1",
-    "nodemon": "^3.1.10"
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.27.2",
+    "eslint": "^9.39.2"
   },
   "overrides": {
     "nanoid": "^3.3.8"
-  },
-  "eslintConfig": {
-    "extends": "@natlibfi/melinda-backend"
-  },
-  "babel": {
-    "presets": [
-      [
-        "@babel/preset-env",
-        {
-          "targets": "maintained node versions"
-        }
-      ]
-    ],
-    "plugins": [
-      [
-        "@babel/transform-runtime"
-      ]
-    ]
-  },
-  "nodemonConfig": {
-    "exec": "npm run lint:dev && npm run start:dev",
-    "watch": [
-      "src/*"
-    ],
-    "ext": "js",
-    "delay": 2.5
   }
 }
