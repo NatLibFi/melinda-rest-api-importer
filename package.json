@@ -14,7 +14,7 @@
     "url": "git@github.com:NatLibFi/melinda-rest-api-importer.git"
   },
   "license": "MIT",
-  "version": "4.0.0",
+  "version": "4.0.1-alpha.1",
   "type": "module",
   "main": "./dist/index.js",
   "engines": {
