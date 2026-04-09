@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@natlibfi/marc-record-serializers": "^11.0.1",
-    "@natlibfi/melinda-backend-commons": "^3.0.2",
+    "@natlibfi/melinda-backend-commons": "^3.0.5",
     "@natlibfi/melinda-commons": "^14.0.2",
     "@natlibfi/melinda-rest-api-commons": "^5.0.4",
     "http-status": "^2.1.0",
