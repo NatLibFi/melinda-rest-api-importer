@@ -33,3 +33,4 @@ node_modules/
 
 # private scratch workspace (nested git repo, never publish)
 workspace/
+.issues/
