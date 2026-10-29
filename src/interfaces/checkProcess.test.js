@@ -1,7 +1,7 @@
 import {test, describe, beforeEach, afterEach, after} from 'node:test';
 import {strict as assert} from 'node:assert';
 import httpStatus from 'http-status';
-import {Error as ApiError} from '@natlibfi/melinda-commons';
+import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient} from 'mongodb';
 import checkProcessFactory from './checkProcess.js';
 
@@ -39,7 +39,7 @@ const RECORD_LOAD_URL = 'http://record-load-api';
 const API_KEY = ['api', 'key'].join('');
 const MONGO_URI = 'mongodb://test/mongo';
 const CORRELATION_ID = 'CID-1';
-const AUTH_HEADER = `Basic ${Buffer.from(`${API_KEY}:`, 'utf8').toString('base64')}`;
+const AUTH_HEADER = generateAuthorizationHeader(API_KEY);
 
 const originalFetch = globalThis.fetch;
 
