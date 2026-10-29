@@ -1,4 +1,4 @@
-import {createLogger, logWait, millisecondsToString} from '@natlibfi/melinda-backend-commons';
+import {createLogger, logWait, millisecondsToString} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.js';

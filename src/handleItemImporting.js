@@ -1,5 +1,5 @@
 import {logError, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {createLogger} from '@natlibfi/melinda-commons';
 import {promisify} from 'util';
 import {sendErrorResponses} from './interfaces/sendErrorResponses.js';
 

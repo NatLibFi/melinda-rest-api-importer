@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
 import {QUEUE_ITEM_STATE, IMPORT_JOB_STATE} from '@natlibfi/melinda-rest-api-commons';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {createLogger} from '@natlibfi/melinda-commons';
 import {promisify} from 'util';
 
 export async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio, error503WaitTime, amqpOperator, operation}) {

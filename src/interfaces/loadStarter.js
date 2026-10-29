@@ -1,8 +1,7 @@
 import httpStatus from 'http-status';
 import moment from 'moment';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
+import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {checkStatus, handleConectionError} from '../utils.js';
 
