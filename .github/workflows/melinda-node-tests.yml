@@ -33,7 +33,7 @@ jobs:
   license-scan:
     name: License compliance check
     runs-on: ubuntu-latest
-    container: node:22
+    container: node:24
 
     steps:
       - uses: actions/checkout@v5
@@ -46,7 +46,7 @@ jobs:
   njsscan:
     name: Njsscan check
     runs-on: ubuntu-latest
-    container: node:22
+    container: node:24
 
     steps:
     - name: Checkout the code
@@ -59,67 +59,68 @@ jobs:
 
   openshift-webhook:
     name: OpenShift webhook for image builder
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test'
     needs: [build-node-versions, njsscan]
     runs-on: ubuntu-latest
-    container: node:22
+    container: node:24
 
     steps:
       - name: Production bib webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_BIB_PROD_FROM_MAIN }}
           body: '{}'
       - name: Production aut-aux webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_AUX_PROD_FROM_MAIN }}
           body: '{}'
       - name: Production aut-names webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_NAMES_PROD_FROM_MAIN }}
           body: '{}'
       - name: Production aut-subjects webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_SUBJECTS_PROD_FROM_MAIN }}
           body: '{}'
       - name: Production aut-works webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/main'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_WORKS_PROD_FROM_MAIN }}
           body: '{}'
       - name: Test aut aux webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_AUX_TEST_FROM_TEST }}
           body: '{}'
       - name: Test aut names webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_NAMES_TEST_FROM_TEST }}
           body: '{}'
       - name: Test aut subjects webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_SUBJECTS_TEST_FROM_TEST }}
           body: '{}'
       - name: Test aut works webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_AUT_WORKS_TEST_FROM_TEST }}
           body: '{}'
       - name: Test bib webhook
-        uses: joelwmale/webhook-action@master
+        uses: joelwmale/webhook-action@v2
         if: github.ref == 'refs/heads/test'
         with:
           url: ${{ secrets.WEBHOOK_URL_BIB_TEST_FROM_TEST }}
