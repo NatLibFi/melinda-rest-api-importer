@@ -227,27 +227,28 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.silly(`Check queue: ${JSON.stringify(queue)}`);
     // note: headers are headers for the first message in chunk
     const {headers: firstMessageHeaders, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
+    // checkQueue returns plain false for an empty queue: guard before any use of messages
+    if (!messages) {
+      logger.verbose(`No messages in ${queue} to handle. Continuing the loop`);
+      return false;
+    }
+
     logger.silly(`firstMessageHeaders: ${JSON.stringify(firstMessageHeaders)}, messages: ${messages.length}`);
     logger.silly(`messages: ${JSON.stringify(messages)}`);
 
-    if (messages) {
-      logger.verbose(`Handling ${operation}.${correlationId} messages (total: ${messages.length}) based on results got from process polling`);
-      logger.debug(`${JSON.stringify(results)}`);
-      logger.silly(`${JSON.stringify(results.ackOnlyLength)}`);
-      // Handle separation of all ready done records
-      const ackMessages = await separateMessages(messages, results.ackOnlyLength);
+    logger.verbose(`Handling ${operation}.${correlationId} messages (total: ${messages.length}) based on results got from process polling`);
+    logger.debug(`${JSON.stringify(results)}`);
+    logger.silly(`${JSON.stringify(results.ackOnlyLength)}`);
+    // Handle separation of all ready done records
+    const ackMessages = await separateMessages(messages, results.ackOnlyLength);
 
-      if (ackMessages === undefined || ackMessages.length < 1) {
-        // If there are no messages to ack, continue the loop
-        logger.verbose(`There was no messages to ack!!!`);
-        return false;
-      }
-
-      return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
+    if (ackMessages === undefined || ackMessages.length < 1) {
+      // If there are no messages to ack, continue the loop
+      logger.verbose(`There was no messages to ack!!!`);
+      return false;
     }
 
-    logger.verbose(`No messages in ${queue} to handle: ${messages}. Continuing the loop`);
-    return false;
+    return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
   }
 
   async function separateMessages(messages, ackOnlyLength) {

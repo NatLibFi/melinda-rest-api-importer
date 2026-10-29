@@ -963,31 +963,31 @@ describe('checkProcess/bulkEnd (remaining items in the bulk queue)', () => {
 });
 
 describe('checkProcess/handleMessages and separateMessages edge cases', () => {
-  test('operation queue empty (checkQueue returns false): handleMessages crashes before guard', async () => {
-    // Known bug: line 231 logs `messages.length` before the `if (messages)`
-    // guard on line 234. The real amqpOperator.checkQueue returns `false`
-    // for an empty queue, so messages is undefined and `.length` throws a
-    // TypeError. The guard (and the 422 path below it) can therefore never
-    // protect the real empty-queue case. Tested as the code actually behaves.
+  test('operation queue empty (checkQueue returns false): handleMessages returns false -> ApiError 422', async () => {
+    // The real amqpOperator.checkQueue (style 'basic') returns plain false
+    // for an empty queue, so `messages` is undefined. handleMessages guards
+    // for that before any use of messages and returns false, and
+    // checkProcessQueueStart then throws the "No messages" ApiError (422).
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams({recordAmount: 1})),
       pollStatus: 200,
       pollBody: {handledIds: ['000999999FIN']},
       operationQueueResult: false
     });
-    await assert.rejects(run, (error) => error instanceof TypeError);
+    const isUnprocessable = (error) =>
+      error instanceof ApiError && error.status === httpStatus.UNPROCESSABLE_ENTITY;
+    await assert.rejects(run, isUnprocessable);
 
-    // handleProcessQueueResults ran before the crash, so ids were already pushed
+    // handleProcessQueueResults ran before handleMessages, so ids were already pushed
     assert.equal(run.mongo.calls.filter((call) => call[0] === 'pushIds').length, 1);
     assert.equal(recordResponseCalls(run.mongo).length, 0);
     assert.equal(run.fetchCalls.length, 1); // poll only, no file clearing
   });
 
   test('operation queue with falsy messages: handleMessages returns false -> ApiError 422', async () => {
-    // The only way to reach the `if (messages)` guard (line 234) is a
-    // truthy checkQueue result whose `messages` property is falsy; with
-    // `messages: false` the guard returns false and checkProcessQueueStart
-    // throws the "No messages" ApiError.
+    // A truthy checkQueue result whose `messages` property is falsy hits
+    // the same `if (!messages)` guard and returns false, and
+    // checkProcessQueueStart throws the "No messages" ApiError.
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams({recordAmount: 1})),
       pollStatus: 200,
