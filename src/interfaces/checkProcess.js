@@ -284,13 +284,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   function getPrioStatusAndPayloads(operation, results) {
     const {handledIds, rejectedIds, erroredAmount} = results.payloads;
-    const {rlaStatus} = results;
-    const prioStatus = getPrioStatus(operation, rlaStatus, handledIds, erroredAmount);
+    // processPoll returns the record-load-api status as results.status
+    const {status} = results;
+    const prioStatus = getPrioStatus(operation, status, handledIds, erroredAmount);
     const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds);
 
     return {prioStatus, prioPayloads};
 
-    function getPrioStatus(operation, rlaStatus, handledIds = undefined, erroredAmount = undefined) {
+    function getPrioStatus(operation, status, handledIds = undefined, erroredAmount = undefined) {
       // OraErrors: return 503 so that the client can try again
       if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
         return httpStatus.SERVICE_UNAVAILABLE;
@@ -307,7 +308,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         return 'UPDATED';
       }
       if (operation === OPERATIONS.FIX) {
-        if (rlaStatus === httpStatus.CONFLICT) {
+        if (status === httpStatus.CONFLICT) {
           return 'UNKNOWN';
         }
         return 'FIXED';

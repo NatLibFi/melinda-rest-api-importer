@@ -801,13 +801,11 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
     ]);
   });
 
-  test('409 CONFLICT: UNKNOWN record result, but prio end is DONE (rlaStatus bug)', async () => {
-    // Known bug: getPrioStatusAndPayloads reads results.rlaStatus, but
-    // processPoll's pollFix returns results.status. rlaStatus is always
-    // undefined, so the `rlaStatus === httpStatus.CONFLICT` branch of
-    // getPrioStatus is unreachable and FIX prio always ends 'FIXED'/DONE,
-    // even when the record-load-api answered 409. Tested as the code
-    // actually behaves.
+  test('409 CONFLICT: UNKNOWN record result, UNKNOWN prio end, queueItem errored', async () => {
+    // processPoll's pollFix returns results.status, so a 409 answer from
+    // record-load-api reaches the CONFLICT branch of getPrioStatus: FIX prio
+    // ends 'UNKNOWN', which prioEnd treats as a failed prio (ERROR states)
+    // even though the record responses were written as UNKNOWN.
     const run = runCheckProcessQueueStart({
       operation: 'FIX',
       prio: true,
@@ -831,11 +829,12 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
         ids: []
       }
     ]);
+    // prioStatus 'UNKNOWN' is a failed prio: import job and queueItem ERROR
     assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
-      ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'DONE'}]
+      ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'ERROR'}]
     ]);
     assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
-      ['setState', {correlationId: CORRELATION_ID, state: 'DONE'}]
+      ['setState', {correlationId: CORRELATION_ID, state: 'ERROR', errorMessage: '000999999', errorStatus: 'UNKNOWN'}]
     ]);
     assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
       ['removeQueue', `FIX.${CORRELATION_ID}`],
