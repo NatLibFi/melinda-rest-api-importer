@@ -113,6 +113,8 @@ function makeFakes() {
   };
 
   const channel = {
+    // rest-api-commons 6 attaches error/close listeners to the channel
+    on: () => {},
     assertQueue: (name) => {
       if (name === 'HEALTHCHECK') {
         // Park the commons amqp healthCheck recursion (it would otherwise
@@ -150,6 +152,8 @@ function makeFakes() {
   };
 
   const connection = {
+    // rest-api-commons 6 attaches error/close listeners to the connection
+    on: () => {},
     createChannel: async () => channel,
     close: async () => {}
   };

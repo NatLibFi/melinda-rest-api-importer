@@ -1,6 +1,5 @@
 import httpStatus from 'http-status';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError} from '@natlibfi/melinda-commons';
+import {createLogger, Error as ApiError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
 export function checkStatus(response) {

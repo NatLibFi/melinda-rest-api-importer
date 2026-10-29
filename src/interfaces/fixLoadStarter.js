@@ -1,6 +1,5 @@
 import httpStatus from 'http-status';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
+import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {checkStatus, handleConectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
