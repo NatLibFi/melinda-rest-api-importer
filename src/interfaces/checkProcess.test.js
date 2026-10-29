@@ -472,9 +472,8 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSSED (the code value) with processedAll false: keeps the report', async () => {
-    // The code value has THREE s's: NON_ + PROCESSED. The value documented
-    // in config.js (NON_ + PROCESSED, two s's) is different - see the
-    // "falls through" test below this block.
+    // The code value (and the one documented in config.js and the README)
+    // has THREE s's: NON_ + PROCESSED.
     const run = runReportFlow('NON_PROCESSSED', notProcessedAll);
     await run;
     assert.equal(reportCalls(run.mongo).length, 1);
@@ -486,10 +485,10 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
     assert.equal(reportCalls(run.mongo).length, 0);
   });
 
-  test('NON_PROCESSED (the config.js documented value): falls through and does not keep', async () => {
-    // config.js documents 'ALL/NONE/NON_PROCESSED/NON_HANDLED' (two s's).
-    // The code compares against 'NON_PROCESSSED' (three s's), so a
-    // deployment configured with the documented value never keeps a report.
+  test('NON_PROCESSED (undocumented two-s spelling): falls through and does not keep', async () => {
+    // The code (and config.js/README) compare against 'NON_PROCESSSED'
+    // (three s's). The two-s spelling 'NON_PROCESSED' is not accepted and
+    // falls through to "not keeping".
     const run = runReportFlow('NON_PROCESSED', notProcessedAll);
     await run;
     assert.equal(reportCalls(run.mongo).length, 0);
