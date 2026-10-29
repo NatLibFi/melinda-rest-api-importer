@@ -245,8 +245,9 @@ export default async function ({
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
 
-        // Why we have this here?
-        if (operation === OPERATIONS.FIX && queueItem.importJobState.OPERATIONS.FIX === undefined) {
+        // importJobState is a flat {operation: state} map; initialize a missing
+        // FIX import-job state for a FIX item reaching this branch
+        if (operation === OPERATIONS.FIX && queueItem.importJobState[OPERATIONS.FIX] === undefined) {
           await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
           return true;
         }
