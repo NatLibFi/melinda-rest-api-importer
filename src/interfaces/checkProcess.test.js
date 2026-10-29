@@ -398,23 +398,21 @@ describe('checkProcess/checkProcessQueue (empty PROCESS queue handling)', () => 
     assert.equal(fetchQuery(run.fetchCalls, run.fetchCalls.length - 1).get('correlationId'), CORRELATION_ID);
   });
 
-  test('checkQueue throws a non-ApiError: it propagates (checkQueue is outside the try)', async () => {
-    // In checkProcessQueue the `amqpOperator.checkQueue` call happens BEFORE
-    // the try block, so a non-ApiError from it is never converted into an
-    // error state and escapes checkProcessQueueStart as-is (the source even
-    // has a "handle checkProcessQueue errors ???" comment about this).
-    // Note the non-ApiError catch branch further down (lines 165-167) can
-    // only ever be reached by a setTimeout rejection in practice, since
-    // handleProcessMessage wraps all its errors in ApiError and the real
-    // amqpOperator converts its errors to ApiError too - dead in practice.
+  test('checkQueue throws a non-ApiError: caught, logged, no error state, returns false', async () => {
+    // The `amqpOperator.checkQueue` call is INSIDE checkProcessQueue's try
+    // block, so a non-ApiError from it is caught, logged (not sent to the
+    // queueItem as an error state) and the function returns undefined;
+    // checkProcessQueueStart treats a falsy result as "not ready yet"
+    // and returns false, so the loop just re-polls.
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams()),
       pollStatus: 200,
       pollBody: {handledIds: []},
       processQueueError: new Error('simulated amqp connection error')
     });
-    await assert.rejects(run, (error) => error.message === 'simulated amqp connection error');
+    const result = await run;
 
+    assert.equal(result, false);
     assert.equal(run.mongo.calls.length, 0);
     assert.equal(ackCallsOf(run.amqp).length, 0);
     assert.equal(run.amqp.calls.filter((call) => call[0] === 'nackMessages').length, 0);
@@ -1021,17 +1019,12 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
   // - handleMessages: the `ackMessages === undefined || ackMessages.length < 1`
   //   fallback is unreachable: separateMessages throws ApiError(500) first
   //   whenever ackOnlyLength is 0/falsy or exceeds messages.length, so it can
-  //   never return an empty array. (The `messages.length` log on line 231
-  //   crashes before the `if (messages)` guard - see the dedicated test.)
+  //   never return an empty array.
   // - handleProcessQueueResults / createRecordResponsesForLoad /
   //   getPrioStatus: the `Unknown OPERATION` throws are defensive dead code -
   //   the only operations that ever reach them (CREATE/UPDATE/FIX) are exactly
   //   the ones poll supports, so operation can never be anything else.
-  // - getPrioStatus: the `rlaStatus === httpStatus.CONFLICT` branch is
-  //   unreachable - results has `status`, never `rlaStatus` (see the FIX 409
-  //   test), so FIX prio never ends 'UNKNOWN'.
-  // - checkProcessQueue: the non-ApiError catch branch is unreachable in
-  //   practice (checkQueue errors escape before the try; everything inside
-  //   the try either throws ApiError or could only fail via a setTimeout
-  //   rejection).
+  // - checkProcessQueue: the non-ApiError catch branch does not error the
+  //   queueItem and returns undefined; checkProcessQueueStart treats that as
+  //   "not ready yet" (see the checkQueue non-ApiError test above).
 });

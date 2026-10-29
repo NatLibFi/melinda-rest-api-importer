@@ -361,6 +361,35 @@ const idleCycleQueries = operation => [
 const nulls = count => Array.from({length: count}, () => null);
 
 describe('app/startCheck loop control', () => {
+  test('transient Mongo error mid-cycle: survives with backoff, keeps polling', async () => {
+    // Non-ApiError rejections (e.g. a Mongo/AMQP driver error) are contained:
+    // logged, counted, and the next cycle is re-scheduled with capped
+    // exponential backoff (100 ms base). The service does not exit.
+    // (The backoff waits themselves are not observable through the fakes -
+    // findOne does not record timestamps - so this asserts survival and
+    // continued polling only.)
+    const makeInfraError = () => new Error('simulated Mongo connection error');
+    const reject1 = Promise.reject(makeInfraError());
+    const reject2 = Promise.reject(makeInfraError());
+    // Attach no-op handlers so the rejections can never surface as
+    // unhandledRejection before the loop awaits them
+    reject1.catch(() => {});
+    reject2.catch(() => {});
+    fakes.scriptFor('prio').push(reject1, reject2, null, ...nulls(14));
+    fakes.scriptFor('bulk').push(...nulls(15));
+    const {rejections} = runApp();
+
+    // After the two failed cycles the loop runs normal idle cycles again:
+    // 2 failing findOnes + a full 3rd cycle (prio) + part of a 4th
+    await waitFor('the loop to keep polling after two failed cycles', () =>
+      findOnes('prio').length >= 11 && findOnes('bulk').length >= 5);
+
+    // The catch handler on appPromise records any rejection immediately;
+    // the loop ran (including the two backoff waits) without crashing
+    assert.equal(rejections.length, 0);
+    fakes.park();
+  });
+
   test('starts, cascades prio -> bulk over all checks, idle loop with pollWaitTime', async () => {
     const {rejections} = runApp();
 

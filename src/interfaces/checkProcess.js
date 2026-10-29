@@ -117,9 +117,11 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
-    const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
 
+    let processMessage;
     try {
+      processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
+
       if (processMessage) {
         logger.silly(`We have processMessage: ${processMessage}`);
         logger.silly(`checkProcessQueue -> handleProcessMessage`);
