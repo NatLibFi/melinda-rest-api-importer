@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConnectionError} from '../utils.js';
+import {checkStatus, handleConnectionError} from '../utils.ts';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   const logger = createLogger();

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {buildQuery, checkStatus, handleConnectionError} from './utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from './utils.ts';
 
 test('checkStatus: throws ApiError 400 with the response body verbatim for 400', async () => {
   const response = {status: httpStatus.BAD_REQUEST, text: async () => 'Missing mandatory parameter: correlationId'};

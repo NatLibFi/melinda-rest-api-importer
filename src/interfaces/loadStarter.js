@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.ts';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}) {
   const logger = createLogger();

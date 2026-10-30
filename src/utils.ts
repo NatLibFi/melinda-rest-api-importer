@@ -1,8 +1,12 @@
+import type {Response} from 'undici-types';
 import httpStatus from 'http-status';
-import {createLogger, Error as ApiError} from '@natlibfi/melinda-commons';
+import {createLogger, Error as CommonsError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
-export async function checkStatus(response) {
+// The published .d.ts constructor requires (status, payload); the runtime constructor accepts one argument (payload undefined).
+const ApiError = CommonsError as unknown as new (status: number, payload?: unknown) => InstanceType<typeof CommonsError>;
+
+export async function checkStatus(response: Response) {
   const logger = createLogger();
 
   // Bad Request (400)
@@ -60,17 +64,18 @@ export async function checkStatus(response) {
 // "undefined" only for the ids (handleId shim); for pFixType an absent
 // value silently falls back to the default "API" fixroutine, which would
 // mask a missing fixPrio/fixBulk config that currently 400s loudly.
-export function buildQuery(params) {
+export function buildQuery(params: Record<string, string | number | null | undefined>) {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== null && value !== '' && value !== 'null') {
-      searchParams.set(key, value);
+      // Intentional: set() coerces; undefined stringifies to "undefined" by design (see the guard comment above).
+      searchParams.set(key, value as string);
     }
   }
   return searchParams;
 }
 
-export function handleConnectionError(error) {
+export function handleConnectionError(error: {cause?: {code?: unknown; message?: string}}) {
   const logger = createLogger();
   logger.info('No connection to aleph-record-load-api.');
   // Native fetch failures are TypeErrors whose .cause carries the undici reason

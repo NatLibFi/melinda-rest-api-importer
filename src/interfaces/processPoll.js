@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.ts';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const logger = createLogger();
