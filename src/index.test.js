@@ -19,7 +19,7 @@ import path from 'node:path';
 // 'No catch error!' before the real message; the assertions below use
 // 'No catch error!' as the signature of our termination handler.
 
-const INDEX_PATH = path.join(import.meta.dirname, 'index.js');
+const INDEX_PATH = path.join(import.meta.dirname, 'index.ts');
 
 // RECORD_LOAD_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY and OPERATION
 // are mandatory for importing src/config.js.
