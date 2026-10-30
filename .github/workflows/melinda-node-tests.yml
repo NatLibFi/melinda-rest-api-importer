@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v6
       with:
@@ -36,7 +36,7 @@ jobs:
     container: node:22
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: mikaelvesavuori/license-compliance-action@v1
         with:
           exclude_pattern: /^@natlibfi/
@@ -48,7 +48,7 @@ jobs:
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
     - name: nodejsscan scan
       id: njsscan
       uses: ajinabraham/njsscan-action@master
