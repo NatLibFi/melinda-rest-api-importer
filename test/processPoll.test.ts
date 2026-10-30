@@ -2,7 +2,9 @@ import {after, test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
+import type {RequestInfo} from 'undici-types';
 import processPoll from '../src/interfaces/processPoll.ts';
+import type {ProcessParamsData} from '../src/interfaces/processPoll.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const recordLoadApiKey = ['test', 'api', 'key'].join('-');
@@ -16,28 +18,33 @@ const poller = processPoll({recordLoadApiKey, recordLoadUrl});
 
 const originalFetch = globalThis.fetch;
 
-let fetchCalls = [];
+let fetchCalls: {url: any; options: any}[] = [];
 
-function stubFetch({status = httpStatus.OK, json = {}, text = '', reject = null} = {}) {
+function stubFetch({status = httpStatus.OK, json = {}, text = '', reject = null}: {
+  status?: number;
+  json?: unknown;
+  text?: string;
+  reject?: Error | null;
+} = {}) {
   fetchCalls = [];
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url: RequestInfo | URL, options?: RequestInit) => {
     fetchCalls.push({url, options});
     if (reject) {
       throw reject;
     }
-    return {status, json: async () => json, text: async () => text};
+    return {status, json: async () => json, text: async () => text} as Response;
   };
 }
 
 function lastCall() {
-  return fetchCalls[fetchCalls.length - 1];
+  return fetchCalls[fetchCalls.length - 1]!;
 }
 
-function queryParam(name) {
+function queryParam(name: string) {
   return new URL(lastCall().url).searchParams.get(name);
 }
 
-function loadParams(extra = {}) {
+function loadParams(extra: Record<string, unknown> = {}): ProcessParamsData {
   return {
     correlationId: 'correlation-1',
     pActiveLibrary: 'FIN01',
@@ -45,10 +52,10 @@ function loadParams(extra = {}) {
     loaderProcessId: 'LOADER-1',
     recordAmount: 4,
     ...extra
-  };
+  } as unknown as ProcessParamsData;
 }
 
-function loadResponse(handledIds, extra = {}) {
+function loadResponse(handledIds: string[], extra: Record<string, unknown> = {}) {
   return {
     handledIds,
     rejectedIds: [],
@@ -100,7 +107,7 @@ test('poll CREATE omits pLogFile/pRejectFile values carried as the literal "null
 
 test('poll UPDATE is treated like a load poll', async () => {
   stubFetch({json: loadResponse(['000000001FIN01'])});
-  const result = await poller.poll({operation: 'UPDATE', params: loadParams({recordAmount: 1})});
+  const result = (await poller.poll({operation: 'UPDATE', params: loadParams({recordAmount: 1})}))!;
 
   assert.equal(result.status, 200);
   assert.equal(result.ackOnlyLength, 1);
@@ -134,7 +141,7 @@ test('poll requests carry the Basic Authorization header and text/plain content 
 
 test('poll CREATE resolves on 200 and passes the response into pollLoad', async () => {
   stubFetch({json: loadResponse(['000000001FIN01'])});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 1})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 1})}))!;
 
   assert.equal(result.status, 200);
   assert.deepEqual(result.payloads.handledIds, ['000000001']);
@@ -148,10 +155,10 @@ test('poll CREATE resolves on 409 (CONFLICT) and reports status 409 in the load 
       errorIdCount: 1
     })
   });
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})}))!;
 
-  assert.equal(result.payloads.loadProcessReport.status, 409);
-  assert.equal(result.payloads.loadProcessReport.handledAll, false);
+  assert.equal(result.payloads.loadProcessReport!.status, 409);
+  assert.equal(result.payloads.loadProcessReport!.handledAll, false);
   assert.equal(result.payloads.erroredAmount, 1);
 });
 
@@ -224,7 +231,7 @@ test('pollLoad processedAll: returns stripped ids, report, and ackOnlyLength = p
       errorIdCount: 0
     })
   });
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})}))!;
 
   assert.equal(result.status, 200);
   assert.equal(result.ackOnlyLength, 4);
@@ -247,12 +254,12 @@ test('pollLoad processedAll: returns stripped ids, report, and ackOnlyLength = p
 
 test('pollLoad partial: errorIdCount reduces processedAmount, ackOnlyLength = recordAmount', async () => {
   stubFetch({json: loadResponse(['000000001FIN01', '000000002FIN01', '000000003FIN01'], {errorIdCount: 1})});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})}))!;
 
   assert.equal(result.ackOnlyLength, 3);
   assert.equal(result.status, undefined);
   assert.equal(result.payloads.erroredAmount, 1);
-  const report = result.payloads.loadProcessReport;
+  const report = result.payloads.loadProcessReport!;
   assert.equal(report.processedAll, false);
   assert.equal(report.processedAmount, 2);
   assert.equal(report.handledAmount, 3);
@@ -264,16 +271,16 @@ test('pollLoad handlesAll: errored handled ids leave the report with handledAll 
   // handledAmount 3 - erroredAmount 1 = recordAmount 2, while rejectedAmount 0
   // keeps processedAll true
   stubFetch({json: loadResponse(['000000001FIN01', '000000002FIN01', '000000003FIN01'], {errorIdCount: 1})});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 2})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 2})}))!;
 
   assert.equal(result.ackOnlyLength, 2);
-  assert.equal(result.payloads.loadProcessReport.handledAll, true);
-  assert.equal(result.payloads.loadProcessReport.processedAll, true);
+  assert.equal(result.payloads.loadProcessReport!.handledAll, true);
+  assert.equal(result.payloads.loadProcessReport!.processedAll, true);
 });
 
 test('pollLoad marks a handledId that repeats the previous one as ERROR-<id>', async () => {
   stubFetch({json: loadResponse(['000000001FIN01', '000000001FIN01'])});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})}))!;
 
   assert.deepEqual(result.payloads.handledIds, ['000000001', 'ERROR-000000001']);
   assert.equal(result.ackOnlyLength, 3);
@@ -281,24 +288,24 @@ test('pollLoad marks a handledId that repeats the previous one as ERROR-<id>', a
 
 test('pollLoad does not mark a handledId that only repeats a non-adjacent one', async () => {
   stubFetch({json: loadResponse(['000000001FIN01', '000000002FIN01', '000000001FIN01'])});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 4})}))!;
 
   assert.deepEqual(result.payloads.handledIds, ['000000001', '000000002', '000000001']);
 });
 
 test('pollLoad with zero processed records still acks all messages', async () => {
   stubFetch({json: loadResponse([], {errorIdCount: 0})});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 3})}))!;
 
   assert.equal(result.ackOnlyLength, 3);
   assert.deepEqual(result.payloads.handledIds, []);
-  assert.equal(result.payloads.loadProcessReport.processedAll, false);
-  assert.equal(result.payloads.loadProcessReport.processedAmount, 0);
+  assert.equal(result.payloads.loadProcessReport!.processedAll, false);
+  assert.equal(result.payloads.loadProcessReport!.processedAmount, 0);
 });
 
 test('pollLoad keeps handledIds without the library suffix unchanged', async () => {
   stubFetch({json: loadResponse(['000000001FIN01', '000000009'])});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 2})});
+  const result = (await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 2})}))!;
 
   assert.deepEqual(result.payloads.handledIds, ['000000001', '000000009']);
 });
@@ -310,7 +317,7 @@ test('pollLoad rejects with TypeError when the response payload has no handledId
 
 test('pollFix returns stripped handledIds with ackOnlyLength = recordAmount on 200', async () => {
   stubFetch({json: {handledIds: ['000000001FIN01', '000000002FIN01', '000000004FIN01']}});
-  const result = await poller.poll({operation: 'FIX', params: loadParams({recordAmount: 3})});
+  const result = (await poller.poll({operation: 'FIX', params: loadParams({recordAmount: 3})}))!;
 
   assert.equal(result.status, 200);
   assert.equal(result.ackOnlyLength, 3);
@@ -319,7 +326,7 @@ test('pollFix returns stripped handledIds with ackOnlyLength = recordAmount on 2
 
 test('pollFix on 409 returns the guessed handledIds with status 409', async () => {
   stubFetch({status: httpStatus.CONFLICT, json: {handledIds: ['000000001FIN01']}});
-  const result = await poller.poll({operation: 'FIX', params: loadParams({recordAmount: 1})});
+  const result = (await poller.poll({operation: 'FIX', params: loadParams({recordAmount: 1})}))!;
 
   assert.equal(result.status, httpStatus.CONFLICT);
   assert.equal(result.ackOnlyLength, 1);
@@ -341,8 +348,8 @@ test('requestFileClear sends a DELETE with four query parameters and the Authori
   await poller.requestFileClear({
     correlationId: 'correlation-9',
     pActiveLibrary: 'FIN01',
-    processId: 'PROC-9',
-    loaderProcessId: 'LOADER-9'
+    processId: 'PROC-9' as unknown as number,
+    loaderProcessId: 'LOADER-9' as unknown as number
   });
 
   assert.equal(fetchCalls.length, 1);
@@ -366,8 +373,8 @@ test('requestFileClear maps a fetch network failure to ApiError(503)', async () 
     poller.requestFileClear({
       correlationId: 'correlation-9',
       pActiveLibrary: 'FIN01',
-      processId: 'PROC-9',
-      loaderProcessId: 'LOADER-9'
+      processId: 'PROC-9' as unknown as number,
+      loaderProcessId: 'LOADER-9' as unknown as number
     }),
     (error) => {
       assert.ok(error instanceof ApiError);
@@ -383,8 +390,8 @@ test('requestFileClear resolves without a value on 200', async () => {
   const result = await poller.requestFileClear({
     correlationId: 'correlation-9',
     pActiveLibrary: 'FIN01',
-    processId: 'PROC-9',
-    loaderProcessId: 'LOADER-9'
+    processId: 'PROC-9' as unknown as number,
+    loaderProcessId: 'LOADER-9' as unknown as number
   });
 
   assert.equal(result, undefined);
@@ -396,8 +403,8 @@ test('requestFileClear rejects with ApiError when record-load-api responds with 
     poller.requestFileClear({
       correlationId: 'correlation-9',
       pActiveLibrary: 'FIN01',
-      processId: 'PROC-9',
-      loaderProcessId: 'LOADER-9'
+      processId: 'PROC-9' as unknown as number,
+      loaderProcessId: 'LOADER-9' as unknown as number
     }),
     (error) => {
       assert.ok(error instanceof ApiError);

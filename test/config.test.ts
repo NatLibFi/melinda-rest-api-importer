@@ -35,7 +35,7 @@ const MANDATORY_VARIABLES = {
   OPERATION: 'load'
 };
 
-const createChildEnv = (overrides) => {
+const createChildEnv = (overrides: Record<string, string>) => {
   const env = {...process.env};
   MANAGED_VARIABLES.forEach((variable) => delete env[variable]);
   return {...env, ...overrides};
@@ -62,7 +62,7 @@ console.log('CONFIG_DUMP ' + JSON.stringify({
 }));
 `;
 
-const runConfigDump = (overrides) => {
+const runConfigDump = (overrides: Record<string, string>) => {
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', CONFIG_DUMP_SCRIPT], {
     env: createChildEnv(overrides),
     encoding: 'utf8'
@@ -70,12 +70,12 @@ const runConfigDump = (overrides) => {
   if (result.status !== 0) {
     return {status: result.status, stdout: result.stdout, stderr: result.stderr, dump: null};
   }
-  const line = result.stdout.split('\n').find((line) => line.startsWith('CONFIG_DUMP '));
-  const dump = JSON.parse(line.slice('CONFIG_DUMP '.length));
+  const line: string | undefined = result.stdout.split('\n').find((line) => line.startsWith('CONFIG_DUMP '));
+  const dump = line ? JSON.parse(line.slice('CONFIG_DUMP '.length)) : null;
   return {status: result.status, stdout: result.stdout, stderr: result.stderr, dump};
 };
 
-const assertThrow = ({status, stderr}, message) => {
+const assertThrow = ({status, stderr}: {status: number | null; stderr: string}, message: string) => {
   assert.strictEqual(status, 1);
   assert.ok(stderr.includes(message), `expected stderr to include: ${message}`);
 };

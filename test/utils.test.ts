@@ -2,18 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
+import type {Response} from 'undici-types';
 import {buildQuery, checkStatus, handleConnectionError} from '../src/utils.ts';
 
+type ConnectionErrorParam = Parameters<typeof handleConnectionError>[0];
+
 test('checkStatus: throws ApiError 400 with the response body verbatim for 400', async () => {
-  const response = {status: httpStatus.BAD_REQUEST, text: async () => 'Missing mandatory parameter: correlationId'};
+  const response = {status: httpStatus.BAD_REQUEST, text: async () => 'Missing mandatory parameter: correlationId'} as Response;
   // The API body arrives as a quoted bare-JSON string (res.json(string)) and
   // is stored verbatim, un-parsed.
-  let thrown;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.BAD_REQUEST);
@@ -21,13 +24,13 @@ test('checkStatus: throws ApiError 400 with the response body verbatim for 400',
 });
 
 test('checkStatus: 400 with an empty body falls back to a descriptive payload', async () => {
-  const response = {status: httpStatus.BAD_REQUEST, text: async () => ''};
-  let thrown;
+  const response = {status: httpStatus.BAD_REQUEST, text: async () => ''} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.BAD_REQUEST);
@@ -35,13 +38,13 @@ test('checkStatus: 400 with an empty body falls back to a descriptive payload', 
 });
 
 test('checkStatus: throws ApiError 500 with no payload for 401', async () => {
-  const response = {status: httpStatus.UNAUTHORIZED};
-  let thrown;
+  const response = {status: httpStatus.UNAUTHORIZED} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.INTERNAL_SERVER_ERROR);
@@ -49,13 +52,13 @@ test('checkStatus: throws ApiError 500 with no payload for 401', async () => {
 });
 
 test('checkStatus: throws ApiError 500 with no payload for 403', async () => {
-  const response = {status: httpStatus.FORBIDDEN};
-  let thrown;
+  const response = {status: httpStatus.FORBIDDEN} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.INTERNAL_SERVER_ERROR);
@@ -63,13 +66,13 @@ test('checkStatus: throws ApiError 500 with no payload for 403', async () => {
 });
 
 test('checkStatus: throws ApiError 404 with "Process log not found!" for 404', async () => {
-  const response = {status: httpStatus.NOT_FOUND};
-  let thrown;
+  const response = {status: httpStatus.NOT_FOUND} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.NOT_FOUND);
@@ -77,13 +80,13 @@ test('checkStatus: throws ApiError 404 with "Process log not found!" for 404', a
 });
 
 test('checkStatus: throws ApiError 406 with "0 processed records!" for 406', async () => {
-  const response = {status: httpStatus.NOT_ACCEPTABLE};
-  let thrown;
+  const response = {status: httpStatus.NOT_ACCEPTABLE} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.NOT_ACCEPTABLE);
@@ -91,13 +94,13 @@ test('checkStatus: throws ApiError 406 with "0 processed records!" for 406', asy
 });
 
 test('checkStatus: throws ApiError 423 with "Not ready yet!" for 423', async () => {
-  const response = {status: httpStatus.LOCKED};
-  let thrown;
+  const response = {status: httpStatus.LOCKED} as Response;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.LOCKED);
@@ -105,15 +108,15 @@ test('checkStatus: throws ApiError 423 with "Not ready yet!" for 423', async () 
 });
 
 test('checkStatus: throws ApiError 503 with maintenance message for 503', async () => {
-  const response = {status: httpStatus.SERVICE_UNAVAILABLE};
+  const response = {status: httpStatus.SERVICE_UNAVAILABLE} as Response;
   const expectedPayload = 'The server is temporarily unable to service your request'
     + ' due to maintenance downtime or capacity problems. Please try again later.';
-  let thrown;
+  let thrown: ApiError;
   try {
     await checkStatus(response);
     assert.fail('Expected checkStatus to throw');
   } catch (error) {
-    thrown = error;
+    thrown = error as ApiError;
   }
   assert.ok(thrown instanceof ApiError, 'error is an ApiError');
   assert.equal(thrown.status, httpStatus.SERVICE_UNAVAILABLE);
@@ -122,7 +125,7 @@ test('checkStatus: throws ApiError 503 with maintenance message for 503', async 
 
 test('checkStatus: falls through without throwing for any other status', async () => {
   for (const status of [httpStatus.OK, httpStatus.MOVED_PERMANENTLY, httpStatus.INTERNAL_SERVER_ERROR]) {
-    const response = {status};
+    const response = {status} as Response;
     assert.equal(await checkStatus(response), undefined);
   }
 });
@@ -132,7 +135,7 @@ test('handleConnectionError: throws ApiError 503 for a plain Error (no cause)', 
   const expectedPayload = 'The server is temporarily unable to service your request'
     + ' due to maintenance downtime or capacity problems. Please try again later.';
   try {
-    handleConnectionError(error);
+    handleConnectionError(error as ConnectionErrorParam);
     assert.fail('Expected handleConnectionError to throw');
   } catch (thrown) {
     assert.ok(thrown instanceof ApiError, 'error is an ApiError');
@@ -147,7 +150,7 @@ test('handleConnectionError: maps a fetch TypeError carrying an undici cause to 
   const expectedPayload = 'The server is temporarily unable to service your request'
     + ' due to maintenance downtime or capacity problems. Please try again later.';
   try {
-    handleConnectionError(error);
+    handleConnectionError(error as ConnectionErrorParam);
     assert.fail('Expected handleConnectionError to throw');
   } catch (thrown) {
     assert.ok(thrown instanceof ApiError, 'error is an ApiError');
@@ -162,7 +165,7 @@ test('handleConnectionError: a cause without code or message still maps to ApiEr
   const expectedPayload = 'The server is temporarily unable to service your request'
     + ' due to maintenance downtime or capacity problems. Please try again later.';
   try {
-    handleConnectionError(error);
+    handleConnectionError(error as ConnectionErrorParam);
     assert.fail('Expected handleConnectionError to throw');
   } catch (thrown) {
     assert.ok(thrown instanceof ApiError, 'error is an ApiError');

@@ -1,5 +1,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
+import type {AmqpOperator, MongoOperator, QueueItem} from '@natlibfi/melinda-rest-api-commons';
+import type {WithId} from 'mongodb';
 import {createItemImportingHandler} from '../src/handleItemImporting.ts';
 
 // The module does not fetch anything itself (recordLoadOperator is injected)
@@ -11,14 +13,14 @@ import {createItemImportingHandler} from '../src/handleItemImporting.ts';
 const CORRELATION_ID = 'corr-123';
 const RECORD_LOAD_LIBRARY = 'DEFAULT-LIB';
 
-function createItem(extra = {}) {
-  return {correlationId: CORRELATION_ID, ...extra};
+function createItem(extra: Record<string, unknown> = {}): WithId<QueueItem> {
+  return {correlationId: CORRELATION_ID, ...extra} as unknown as WithId<QueueItem>;
 }
 
 // Message shape mirrors @natlibfi/melinda-rest-api-commons amqp.js, where
 // headers come from message.properties.headers and the record id is read as
 // message.properties.headers.id.
-function createMessage(id) {
+function createMessage(id: string) {
   return {content: Buffer.from(''), properties: {headers: {id}}};
 }
 
@@ -33,8 +35,11 @@ function createHeaders() {
 // calls beyond the array keep getting the last element. An Error element is
 // thrown. This mirrors the real amqpOperator.checkQueue contract
 // ({headers, records, messages} chunk, or false for an empty queue).
-function createMockOperators({checkQueueResult, loadRecordResult}) {
-  const calls = {
+function createMockOperators({checkQueueResult, loadRecordResult}: {
+  checkQueueResult: unknown[];
+  loadRecordResult: Record<string, unknown>;
+}) {
+  const calls: any = {
     checkQueue: [], ackMessages: [], nackMessages: [], sendToQueue: [],
     prioSetImportJobState: [], prioSetState: [],
     bulkSetImportJobState: [], bulkSetState: [],
@@ -42,7 +47,7 @@ function createMockOperators({checkQueueResult, loadRecordResult}) {
   };
   let checkQueueCount = 0;
   const amqpOperator = {
-    async checkQueue(args) {
+    async checkQueue(args: unknown) {
       calls.checkQueue.push(args);
       const current = checkQueueCount;
       checkQueueCount += 1;
@@ -54,13 +59,13 @@ function createMockOperators({checkQueueResult, loadRecordResult}) {
       }
       return result;
     },
-    ackMessages(messages) {
+    ackMessages(messages: unknown) {
       calls.ackMessages.push(messages);
     },
-    nackMessages(messages) {
+    nackMessages(messages: unknown) {
       calls.nackMessages.push(messages);
     },
-    sendToQueue(args) {
+    sendToQueue(args: unknown) {
       calls.sendToQueue.push(args);
     }
   };
@@ -69,7 +74,7 @@ function createMockOperators({checkQueueResult, loadRecordResult}) {
     bulk: createMockMongoOperator(calls, 'bulk')
   };
   const recordLoadOperator = {
-    async loadRecord(args) {
+    async loadRecord(args: unknown) {
       calls.loadRecord.push(args);
       return loadRecordResult;
     }
@@ -77,25 +82,26 @@ function createMockOperators({checkQueueResult, loadRecordResult}) {
   return {amqpOperator, mongoOperators, recordLoadOperator, calls};
 }
 
-function createMockMongoOperator(calls, name) {
+function createMockMongoOperator(calls: any, name: string) {
   return {
-    setImportJobState(args) {
+    setImportJobState(args: unknown) {
       calls[`${name}SetImportJobState`].push(args);
     },
-    setState(args) {
+    setState(args: unknown) {
       calls[`${name}SetState`].push(args);
     }
   };
 }
 
-function createHandler(operators) {
+function createHandler(operators: ReturnType<typeof createMockOperators>) {
   // Same construction options shape as src/app.ts:
   // createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator,
-  // {error503WaitTime, recordLoadLibrary})
+  // {error503WaitTime, recordLoadLibrary}). Boundary casts: the mocks only
+  // implement the members the handler under test actually calls.
   return createItemImportingHandler(
-    operators.amqpOperator,
-    operators.mongoOperators,
-    operators.recordLoadOperator,
+    operators.amqpOperator as unknown as AmqpOperator,
+    operators.mongoOperators as unknown as {prio: MongoOperator; bulk: MongoOperator},
+    operators.recordLoadOperator as unknown as Parameters<typeof createItemImportingHandler>[2],
     {error503WaitTime: 10, recordLoadLibrary: RECORD_LOAD_LIBRARY}
   );
 }

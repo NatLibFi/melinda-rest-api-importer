@@ -46,7 +46,7 @@
     "noEmit": false,
     // Customized options
     "allowJs": true,
-    "checkJs": false, // TEMP: relaxed during the JS to TypeScript migration; restored to true once all of src/ is TypeScript
+    "checkJs": true,
     "esModuleInterop": true,
     "allowUnreachableCode": false,
     "strictFunctionTypes": true,

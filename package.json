@@ -27,8 +27,9 @@
     "cli": "node ./dist/cli.js",
     "lint": "eslint ./src ./test",
     "lint:dev": "eslint ./src ./test --fix",
+    "typecheck": "tsc -p tsconfig.test.json",
     "test:base": "node --test --test-force-exit --experimental-test-coverage --test-reporter=spec --test-coverage-include=src/** --test-coverage-lines=88 --test-coverage-branches=88 --test-coverage-functions=90 'test/*.test.ts'",
-    "test": "npm run lint && npm run test:base",
+    "test": "npm run lint && npm run typecheck && npm run test:base",
     "watch:test": "cross-env DEBUG=@natlibfi/* NODE_ENV=test node --watch --test --experimental-test-coverage --test-reporter=spec 'test/*.test.ts'",
     "dev": "npm run watch:test",
     "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
