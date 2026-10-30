@@ -3,7 +3,7 @@ import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATION
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.js';
 import checkProcess from './interfaces/checkProcess.js';
-import recordFixFactory from './interfaces/fixLoadStarter.js';
+import recordFixFactory from './interfaces/fixLoadStarter.ts';
 import recordLoadFactory from './interfaces/loadStarter.js';
 
 // Containment of infrastructure errors (Mongo/AMQP driver rejections) in the

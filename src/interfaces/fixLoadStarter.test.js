@@ -2,7 +2,7 @@ import {afterEach, beforeEach, test} from 'node:test';
 import assert from 'node:assert/strict';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import fixLoadStarter from './fixLoadStarter.js';
+import fixLoadStarter from './fixLoadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {
@@ -95,7 +95,7 @@ test('builds full URL, headers and sys-list body (all params set, library upperc
 });
 
 test('stringifies unset params as literal "undefined" (documented URLSearchParams coercion, not a fix)', async () => {
-  // fixLoadStarter.js:17-36: correlationId defaults to undefined; when omitted and fixType is
+  // fixLoadStarter.ts:42-66: correlationId defaults to undefined; when omitted and fixType is
   // not passed, URLSearchParams does not omit the params - it stringifies them, so the API
   // receives literal `correlationId=undefined` and `pFixType=undefined` params.
   // This test asserts the ACTUAL (bogus-param) behavior; it intentionally does not fix the code.
