@@ -1,11 +1,42 @@
 import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
-import {createLogger, Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
+import {createLogger, Error as CommonsError, toAlephId} from '@natlibfi/melinda-commons';
+import type {Error as CommonsApiError} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
+import type {AmqpOperator, LogItem, MongoOperator} from '@natlibfi/melinda-rest-api-commons';
+import type {GetMessage, Message, MessagePropertyHeaders} from 'amqplib';
 import processOperatorFactory from './processPoll.ts';
+import type {LoadProcessReport, ProcessParamsData, ProcessPollResults} from './processPoll.ts';
 
-export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, error503WaitTime, keepLoadProcessReports, mongoUri}) {
+// The published commons .d.ts constructor requires two arguments (found in C4), but
+// the runtime constructor accepts one - separateMessages / handleProcessMessageError
+// below throw with a single argument. Boundary-cast per the utils.ts (C4) precedent.
+const ApiError = CommonsError as unknown as new (status: number, payload?: unknown) => InstanceType<typeof CommonsError>;
+
+// Structural union for any error the handleProcessMessage try block can throw
+// (an ApiError or a plain thrown Error); `message` is read in the unexpected branch.
+type HandledProcessMessageError = CommonsApiError | {status?: number; payload?: unknown; message?: string};
+
+// processParams as parsed from the AMQP PROCESS message content (H5)
+export interface ProcessParams {
+  data: ProcessParamsData;
+}
+
+// success shape of checkProcessQueue / handleProcessMessage
+export interface ProcessQueueResults {
+  processPollResults: ProcessPollResults;
+  processParams: ProcessParams;
+}
+
+export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, error503WaitTime, keepLoadProcessReports, mongoUri}: {
+  amqpOperator: AmqpOperator;
+  recordLoadApiKey: string;
+  recordLoadUrl: string;
+  error503WaitTime: number;
+  keepLoadProcessReports: string;
+  mongoUri: string;
+}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
   const processOperator = processOperatorFactory({recordLoadApiKey, recordLoadUrl});
@@ -13,7 +44,12 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   return {checkProcessQueueStart};
 
-  async function checkProcessQueueStart({correlationId, operation, mongoOperator, prio}) {
+  async function checkProcessQueueStart({correlationId, operation, mongoOperator, prio}: {
+    correlationId: string;
+    operation: string;
+    mongoOperator: MongoOperator;
+    prio: boolean;
+  }): Promise<boolean> {
 
     logger.silly(`loopCheck -> checkProcessQueue for ${operation} (${correlationId})`);
     const processQueueResults = await checkProcessQueue({correlationId, operation, mongoOperator, prio});
@@ -52,33 +88,53 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, `No messages in ${operation}.${correlationId}`);
   }
 
-  async function handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator}) {
+  async function handleProcessQueueResults({processQueueResults, correlationId, operation, mongoOperator}: {
+    processQueueResults: ProcessQueueResults;
+    correlationId: string;
+    operation: string;
+    mongoOperator: MongoOperator;
+  }): Promise<void> {
     logger.silly(`processQueueResults: ${JSON.stringify(processQueueResults)}`);
     const results = processQueueResults.processPollResults;
     logger.silly(`results: ${JSON.stringify(results)}`);
     const {processParams} = processQueueResults;
     logger.silly(`processParams: ${JSON.stringify(processParams)}`);
 
-    const {handledIds, rejectedIds, loadProcessReport, erroredAmount} = results.payloads;
+    const {handledIds, erroredAmount} = results.payloads;
+    // H3: the pollFix-shaped results lack rejectedIds / loadProcessReport; the
+    // CREATE/UPDATE (pollLoad) shape that reaches here (the FIX shape returns
+    // earlier) always has both. Boundary-cast at the poll boundary; the runtime
+    // values are unchanged.
+    const rejectedIds = results.payloads.rejectedIds as string[];
+    const loadProcessReport = results.payloads.loadProcessReport as LoadProcessReport;
     const {status} = results;
 
-    if ([OPERATIONS.FIX].includes(operation)) {
+    if (([OPERATIONS.FIX] as string[]).includes(operation)) {
       // DEVELOP: should we log process for FIXes too?
       logger.debug(`Status: ${status}`);
       return;
     }
 
-    if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+    if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)) {
       // Assume that all messages are for same correlation id, no need to pushId for every message
       logger.silly(`Pushing load process results to mongo for ${operation} ${correlationId}.`);
 
-      await mongoOperator.pushIds({correlationId, handledIds, rejectedIds, erroredAmount});
+      // The published PushIdsParams (6.2) does not declare erroredAmount (it is
+      // ignored by the runtime) - boundary-cast at the mongo edge.
+      await mongoOperator.pushIds({correlationId, handledIds, rejectedIds, erroredAmount} as {
+        correlationId: string;
+        handledIds: string[];
+        rejectedIds: string[];
+        erroredAmount?: number | undefined;
+      });
 
+      // The 6.2 LogItem type does not declare the loadProcessReport fields -
+      // boundary-cast at the mongo edge.
       const loadProcessLogItem = {
         logItemType: 'LOAD_PROCESS_LOG',
         correlationId,
         ...loadProcessReport
-      };
+      } as LogItem;
 
       logger.silly(`${inspect(loadProcessLogItem, {depth: 6})}`);
       const result = mongoLogOperator.addLogItem(loadProcessLogItem);
@@ -95,7 +151,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
   }
 
-  function checkLoadProcessReport(keepLoadProcessReports, loadProcessReport) {
+  function checkLoadProcessReport(keepLoadProcessReports: string, loadProcessReport: LoadProcessReport): boolean {
     logger.silly(`Checking if loadProcessReport should be kept.`);
 
     if (keepLoadProcessReports === 'ALL') {
@@ -114,13 +170,26 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return false;
   }
 
-  async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
+  async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}: {
+    correlationId: string;
+    operation: string;
+    mongoOperator: MongoOperator;
+    prio: boolean;
+    waited?: boolean;
+  }): Promise<ProcessQueueResults | false | undefined> {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
 
-    let processMessage;
+    let processMessage: GetMessage | false | undefined;
     try {
-      processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
+      const checkQueueResult = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
+      // H2: checkQueue returns CheckQueueResult = number | boolean |
+      // QueueItemMessagePayload | QueueItemRecordPayload | GetMessage. With
+      // style 'one' + toRecord: false the runtime returns the raw GetMessage or
+      // `false` (empty queue) - narrow via the `content` property, which only
+      // GetMessage has (the `typeof === 'object'` step drops the primitive
+      // members so the `in` check typechecks).
+      processMessage = checkQueueResult && typeof checkQueueResult === 'object' && 'content' in checkQueueResult ? checkQueueResult : false;
 
       if (processMessage) {
         logger.silly(`We have processMessage: ${processMessage}`);
@@ -165,18 +234,25 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       }
       // processMessage get un-(n)acked in this case?
       logger.debug(`Error is not ApiError, not sending error responses`);
+      // H6: intentional fallthrough - a non-ApiError error leaves the queueItem
+      // unerrored; make the `undefined` return explicit.
+      return undefined;
     }
   }
 
-  async function handleProcessMessage(operation, processMessage, correlationId, prio) {
+  async function handleProcessMessage(operation: string, processMessage: GetMessage, correlationId: string, prio: boolean): Promise<ProcessQueueResults | false> {
     logger.silly(`handleProcessMessage: ${JSON.stringify(processMessage)} for ${correlationId}`);
     try {
-      const processParams = await JSON.parse(processMessage.content.toString());
+      // H5: JSON.parse boundary - the AMQP PROCESS content is the serialized
+      // {data: ProcessParamsData} payload.
+      const processParams: ProcessParams = await JSON.parse(processMessage.content.toString());
       logger.silly(`handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
 
       // Ask aleph-record-load-api about the process
       // We should ask differently for loadProcess/vs fixProcess?
-      const processPollResults = await processOperator.poll({operation, params: processParams.data});
+      // H3: poll only returns undefined for an operation outside OPERATIONS;
+      // operation here is always one of OPERATIONS, so the results are present.
+      const processPollResults = (await processOperator.poll({operation, params: processParams.data})) as ProcessPollResults;
       logger.silly(`ProcessPoll results: ${JSON.stringify(processPollResults)}`);
       // should this check that results exist/are sane?
 
@@ -186,10 +262,17 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return {processPollResults, processParams};
     } catch (error) {
 
-      return handleProcessMessageError(error, processMessage, amqpOperator, prio);
+      // Boundary-cast at the catch: the try block only throws Error instances
+      // (JSON.parse SyntaxError, ApiError from the poll/ack, driver errors).
+      return handleProcessMessageError(error as HandledProcessMessageError, processMessage, amqpOperator, prio);
     }
 
-    async function handleProcessMessageError(error, processMessage, amqpOperator, prio) {
+    async function handleProcessMessageError(
+      error: HandledProcessMessageError,
+      processMessage: GetMessage,
+      amqpOperator: AmqpOperator,
+      prio: boolean
+    ): Promise<false> {
       if (error instanceof ApiError) {
         if (error.status === httpStatus.LOCKED) {
           // Nack message and loop back if process was ongoing
@@ -222,13 +305,29 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     }
   }
 
-  async function handleMessages({mongoOperator, operation, results, processParams, queue, prio}) {
+  async function handleMessages({mongoOperator, operation, results, processParams, queue, prio}: {
+    mongoOperator: MongoOperator;
+    operation: string;
+    results: ProcessPollResults;
+    processParams: ProcessParams;
+    queue: string;
+    prio: boolean;
+  }): Promise<boolean> {
     const {correlationId} = processParams.data;
     logger.debug(`handleMessages for ${operation} ${correlationId}`);
     logger.silly(`handleMessages for ${JSON.stringify(results)}, ${JSON.stringify(JSON.stringify(processParams))}, ${queue}, ${correlationId}`);
     logger.silly(`Check queue: ${JSON.stringify(queue)}`);
     // note: headers are headers for the first message in chunk
-    const {headers: firstMessageHeaders, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
+    const checkQueueResult = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
+    // H2: checkQueue returns CheckQueueResult = number | boolean |
+    // QueueItemMessagePayload | QueueItemRecordPayload | GetMessage. With
+    // style 'basic' + toRecord: false the runtime returns a
+    // QueueItemMessagePayload {headers, messages} (or false for an empty queue).
+    // The `typeof === 'object'` step drops the primitive members so the `in`
+    // check narrows to the payload (C8 precedent in sendErrorResponses.ts); the
+    // existing `if (!messages)` guard below stays the effective type guard.
+    const firstMessageHeaders = checkQueueResult && typeof checkQueueResult === 'object' && 'messages' in checkQueueResult ? checkQueueResult.headers : undefined;
+    const messages = checkQueueResult && typeof checkQueueResult === 'object' && 'messages' in checkQueueResult ? checkQueueResult.messages : undefined;
     // checkQueue returns plain false for an empty queue: guard before any use of messages
     if (!messages) {
       logger.verbose(`No messages in ${queue} to handle. Continuing the loop`);
@@ -253,7 +352,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
   }
 
-  async function separateMessages(messages, ackOnlyLength) {
+  async function separateMessages(messages: Message[], ackOnlyLength: number): Promise<Message[] | undefined> {
     //logger.silly(`We have ${messages.length} messages to separate`);
     //logger.silly(`We want to ack  ${ackOnlyLength} messages`);
     if (!ackOnlyLength || ackOnlyLength > messages.length) {
@@ -267,7 +366,16 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return ack;
   }
 
-  async function handleMessagesBoth({operation, messages, results, queue, correlationId, mongoOperator, amqpOperator, prio}) {
+  async function handleMessagesBoth({operation, messages, results, queue, correlationId, mongoOperator, amqpOperator, prio}: {
+    operation: string;
+    messages: Message[];
+    results: ProcessPollResults;
+    queue: string;
+    correlationId: string;
+    mongoOperator: MongoOperator;
+    amqpOperator: AmqpOperator;
+    prio: boolean;
+  }): Promise<boolean> {
     logger.debug(`Acking for ${messages.length} messages.`);
     logger.silly(JSON.stringify(results));
 
@@ -284,22 +392,25 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   }
 
-  function getPrioStatusAndPayloads(operation, results) {
+  function getPrioStatusAndPayloads(operation: string, results: ProcessPollResults): {prioStatus: number | string; prioPayloads: string} {
     const {handledIds, rejectedIds, erroredAmount} = results.payloads;
     // processPoll returns the record-load-api status as results.status
     const {status} = results;
     const prioStatus = getPrioStatus(operation, status, handledIds, erroredAmount);
-    const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds);
+    // H3: rejectedIds is optional on the pollFix-shaped results; only the
+    // CREATE/UPDATE branch inside reads it, and that branch always has it
+    // present. Boundary-cast; the runtime value is unchanged.
+    const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds as string[]);
 
     return {prioStatus, prioPayloads};
 
-    function getPrioStatus(operation, status, handledIds = undefined, erroredAmount = undefined) {
+    function getPrioStatus(operation: string, status: number | undefined, handledIds: string[] | undefined = undefined, erroredAmount: number | undefined = undefined): number | string {
       // OraErrors: return 503 so that the client can try again
-      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
+      if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
         return httpStatus.SERVICE_UNAVAILABLE;
       }
       // We did not get an id, probably rejected
-      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && handledIds !== undefined && handledIds.length < 1) {
+      if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation) && handledIds !== undefined && handledIds.length < 1) {
         return httpStatus.UNPROCESSABLE_ENTITY;
       }
 
@@ -318,8 +429,8 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation}.`);
     }
 
-    function getPrioPayloads(operation, handledIds, rejectedIds) {
-      if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+    function getPrioPayloads(operation: string, handledIds: string[], rejectedIds: string[]): string {
+      if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)) {
         return handledIds[0] || rejectedIds[0] || 'No loadProcess information for record';
       }
       return handledIds[0] || 'No loadProcess information for record';
@@ -327,22 +438,39 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   }
 
-  function createRecordResponses({messages, operation, mongoOperator, correlationId, results}) {
+  function createRecordResponses({messages, operation, mongoOperator, correlationId, results}: {
+    messages: Message[];
+    operation: string;
+    mongoOperator: MongoOperator;
+    correlationId: string;
+    results: ProcessPollResults;
+  }): Promise<void> | undefined {
     // separate handling of UPDATE/CREATE loadProcess and FIX fixProcessResults
-    if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+    if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)) {
       return createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results});
     }
-    if ([OPERATIONS.FIX].includes(operation)) {
+    if (([OPERATIONS.FIX] as string[]).includes(operation)) {
       return createRecordResponsesForFix({messages, rlaStatus: results.status, operation, mongoOperator, correlationId});
     }
+    // H6: intentional fallthrough - an unknown operation creates no record
+    // responses; make the `undefined` return explicit.
+    return undefined;
   }
 
-  async function createRecordResponsesForFix({messages, rlaStatus, operation, mongoOperator, correlationId}) {
+  async function createRecordResponsesForFix({messages, rlaStatus, operation, mongoOperator, correlationId}: {
+    messages: Message[];
+    rlaStatus: number | undefined;
+    operation: string;
+    mongoOperator: MongoOperator;
+    correlationId: string;
+  }): Promise<void> {
     logger.debug(`Creating recorResponses for FIX: ${messages.length}, ${rlaStatus}, ${operation}`);
     const status = rlaStatus === httpStatus.OK ? 'FIXED' : 'UNKNOWN';
     const recordResponseItems = await messages.map((message) => {
       logger.silly(JSON.stringify(message));
-      const {id, recordMetadata, notes} = message.properties.headers;
+      // AMQP headers are always set on these messages by the importer itself;
+      // boundary-cast amqplib's optional `headers`.
+      const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
       const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
       //DEVELOP: get here Removed / Recovered / Fixed depending on FIX-operations pFixType
       const responsePayload = rlaStatus === httpStatus.OK ? {message: `${notesString}Fixed record ${id}.`} : {message: `${notesString}Tried to fix record ${id}. Result unknown.`};
@@ -354,10 +482,20 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return;
   }
 
-  async function createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results}) {
+  async function createRecordResponsesForLoad({messages, operation, mongoOperator, correlationId, results}: {
+    messages: Message[];
+    operation: string;
+    mongoOperator: MongoOperator;
+    correlationId: string;
+    results: ProcessPollResults;
+  }): Promise<void> {
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
-    const {handledIds, rejectedIds, erroredAmount} = results.payloads;
-    const {handledAll} = results.payloads.loadProcessReport;
+    const {handledIds, erroredAmount} = results.payloads;
+    // H3: the pollFix-shaped results lack rejectedIds / loadProcessReport; this
+    // function only runs for the CREATE/UPDATE (pollLoad) shape, where both are
+    // always present. Boundary-cast; the runtime values are unchanged.
+    const rejectedIds = results.payloads.rejectedIds as string[];
+    const {handledAll} = results.payloads.loadProcessReport as LoadProcessReport;
 
     logger.silly(`${messages.length}, ${operation}, ${handledAll}, ${handledIds.length}, ${rejectedIds.length}, ${erroredAmount}`);
 
@@ -377,16 +515,25 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Unknown OPERATION: ${operation} in ${correlationId}`);
 
-    async function createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds}) {
+    async function createRecordResponsesForCreateOperationHandledAll({mongoOperator, correlationId, messages, handledIds}: {
+      mongoOperator: MongoOperator;
+      correlationId: string;
+      messages: Message[];
+      handledIds: string[];
+    }): Promise<void> {
       // CREATEs which have handledId for all records and no oraErrors
       logger.debug(`We have a CREATE operation which handled all records normally.`);
       const status = 'CREATED';
       const recordResponseItems = await messages.map((message, index) => {
         logger.silly(JSON.stringify(message));
-        const {id, recordMetadata, notes} = message.properties.headers;
+        // AMQP headers are always set on these messages by the importer itself;
+        // boundary-cast amqplib's optional `headers`.
+        const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
-        const idFromHandledIds = handledIds[index];
+        // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+        // record-load-api response) stringified as "undefined" before; keep that.
+        const idFromHandledIds: string | undefined = handledIds[index];
 
         logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
         const responsePayload = {message: `${notesString}Created record ${idFromHandledIds}.`};
@@ -398,7 +545,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
 
-    async function createRecordResponsesForCreateOperationNotHandledAll({mongoOperator, correlationId, messages, handledIds, rejectedIds, erroredAmount}) {
+    async function createRecordResponsesForCreateOperationNotHandledAll({mongoOperator, correlationId, messages, handledIds, rejectedIds, erroredAmount}: {
+      mongoOperator: MongoOperator;
+      correlationId: string;
+      messages: Message[];
+      handledIds: string[];
+      rejectedIds: string[];
+      erroredAmount?: number;
+    }): Promise<void> {
 
       // CREATEs which have a (possible) handled id for all records (and !handledAll because of oraErrors)
       if (handledIds.length === messages.length) {
@@ -406,10 +560,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         const status = 'CREATED';
         const recordResponseItems = await messages.map((message, index) => {
           logger.silly(JSON.stringify(message));
-          const {id, recordMetadata, notes} = message.properties.headers;
+          // AMQP headers are always set on these messages by the importer itself;
+          // boundary-cast amqplib's optional `headers`.
+          const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
           const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
-          const idFromHandledIds = handledIds[index];
+          // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+          // record-load-api response) stringified as "undefined" before; keep that.
+          const idFromHandledIds: string | undefined = handledIds[index];
           logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
 
           const errorRegex = /^ERROR-/u;
@@ -436,7 +594,9 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       // and the we could solve ids for cases where handledIds.length + rejectedIds.length === messages.length
 
       const recordResponseItems = await messages.map((message) => {
-        const {recordMetadata, notes} = message.properties.headers;
+        // AMQP headers are always set on these messages by the importer itself;
+        // boundary-cast amqplib's optional `headers`.
+        const {recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
         const {blobSequence} = recordMetadata;
         const alephSeqId = toAlephId(blobSequence.toString());
@@ -460,11 +620,20 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
 
-    async function createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds}) {
+    async function createRecordResponsesForUpdateOperation({mongoOperator, correlationId, messages, handledAll, handledIds, rejectedIds}: {
+      mongoOperator: MongoOperator;
+      correlationId: string;
+      messages: Message[];
+      handledAll: boolean;
+      handledIds: string[];
+      rejectedIds: string[];
+    }): Promise<void> {
 
       const recordResponseItems = await messages.map((message, index) => {
         logger.silly(`${index}: ${JSON.stringify(message)}`);
-        const {id, recordMetadata, notes} = message.properties.headers;
+        // AMQP headers are always set on these messages by the importer itself;
+        // boundary-cast amqplib's optional `headers`.
+        const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
         const paddedId = toAlephId(id);
 
@@ -483,7 +652,9 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
         if (handledAll) {
           const status = 'UNKNOWN';
-          const idFromHandledIds = handledIds[index];
+          // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+          // record-load-api response) stringified as "undefined" before; keep that.
+          const idFromHandledIds: string | undefined = handledIds[index];
           const ids = [idFromHandledIds];
           const responsePayload = {
             message: `${notesString}LoaderProcess did not return result for record ${paddedId}. It might have updated ${idFromHandledIds} instead.`,
@@ -501,7 +672,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       return;
     }
   }
-  async function prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator}) {
+  async function prioEnd({prioStatus, prioPayloads, correlationId, operation, mongoOperator, amqpOperator}: {
+    prioStatus: number | string;
+    prioPayloads: string;
+    correlationId: string;
+    operation: string;
+    mongoOperator: MongoOperator;
+    amqpOperator: AmqpOperator;
+  }): Promise<boolean> {
     logger.silly(`prioEnd`);
     // failed prios
     if (prioStatus !== 'UPDATED' && prioStatus !== 'CREATED' && prioStatus !== 'FIXED') {
@@ -520,10 +698,18 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return true;
   }
 
-  async function bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator}) {
+  async function bulkEnd({correlationId, operation, queue, mongoOperator, amqpOperator}: {
+    correlationId: string;
+    operation: string;
+    queue: string;
+    mongoOperator: MongoOperator;
+    amqpOperator: AmqpOperator;
+  }): Promise<boolean> {
     // If Bulk queue has more records/messages waiting in the queue resume to them.
     //logger.silly(`Checking remaining items in ${queue}`);
-    const queueMessagesCount = await amqpOperator.checkQueue({queue, style: 'messages'});
+    // H2: checkQueue with style 'messages' returns the raw queue messageCount
+    // (a number) - boundary-cast at the AMQP edge.
+    const queueMessagesCount = (await amqpOperator.checkQueue({queue, style: 'messages'})) as number;
     //logger.silly(`Remaining items in ${queue}: ${queueItemsCount}`);
 
     if (queueMessagesCount > 0) {
@@ -544,7 +730,11 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     return true;
   }
 
-  function removeImporterQueues({amqpOperator, operation, correlationId}) {
+  function removeImporterQueues({amqpOperator, operation, correlationId}: {
+    amqpOperator: AmqpOperator;
+    operation: string;
+    correlationId: string;
+  }): void {
     const operationQueue = `${operation}.${correlationId}`;
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.debug(`Removeing queues: ${operationQueue}, ${processQueue}`);

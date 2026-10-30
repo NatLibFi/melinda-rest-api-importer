@@ -2,7 +2,7 @@ import {createLogger, logWait, millisecondsToString, Error as ApiError} from '@n
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.js';
-import checkProcess from './interfaces/checkProcess.js';
+import checkProcess from './interfaces/checkProcess.ts';
 import recordFixFactory from './interfaces/fixLoadStarter.ts';
 import recordLoadFactory from './interfaces/loadStarter.ts';
 

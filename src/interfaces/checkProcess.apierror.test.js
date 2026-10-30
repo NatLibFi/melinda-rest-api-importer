@@ -27,7 +27,7 @@ import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoDriverError} from 'mongodb';
 import {mongoFactory} from '@natlibfi/melinda-rest-api-commons';
-import checkProcessFactory from './checkProcess.js';
+import checkProcessFactory from './checkProcess.ts';
 
 // One fake Mongo client per patched connect call. The fake db hands out a
 // recording fake collection for every requested collection name.

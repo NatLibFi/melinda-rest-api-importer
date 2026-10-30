@@ -3,7 +3,7 @@ import {strict as assert} from 'node:assert';
 import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient} from 'mongodb';
-import checkProcessFactory from './checkProcess.js';
+import checkProcessFactory from './checkProcess.ts';
 
 // checkProcess.js creates its processOperator internally (processPoll.js) and
 // calls mongoLogFactory(mongoUri) itself, so neither can be injected.
