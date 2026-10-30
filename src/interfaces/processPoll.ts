@@ -2,18 +2,56 @@ import httpStatus from 'http-status';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {buildQuery, checkStatus, handleConnectionError} from '../utils.ts';
+import type {Response} from 'undici-types';
 
-export default function ({recordLoadApiKey, recordLoadUrl}) {
+export interface LoadProcessReport {
+  status: number;
+  processId: number | undefined;
+  loaderProcessId: number | undefined;
+  processedAll: boolean;
+  recordAmount: number;
+  processedAmount: number;
+  handledAmount: number;
+  rejectedAmount: number;
+  rejectMessages: unknown[];
+  erroredAmount: number;
+  handledAll: boolean;
+}
+
+// unified return shape of pollLoad / pollFix:
+export interface ProcessPollResults {
+  payloads: {
+    handledIds: string[];
+    rejectedIds?: string[];
+    erroredAmount?: number;
+    loadProcessReport?: LoadProcessReport;
+  };
+  ackOnlyLength: number;
+  status?: number; // only present on the pollLoad shapes
+}
+
+// processParams.data as parsed from the AMQP PROCESS message
+export interface ProcessParamsData {
+  correlationId: string;
+  pActiveLibrary?: string;
+  processId?: number;
+  loaderProcessId?: number;
+  pLogFile?: string | null;
+  pRejectFile?: string | null;
+  recordAmount?: number;
+}
+
+export default function ({recordLoadApiKey, recordLoadUrl}: {recordLoadApiKey: string; recordLoadUrl: string}) {
   const logger = createLogger();
 
   return {poll, requestFileClear};
 
-  async function poll({operation, params}) {
+  async function poll({operation, params}: {operation: string; params: ProcessParamsData}): Promise<ProcessPollResults | undefined> {
 
     const {correlationId, pActiveLibrary, processId, loaderProcessId, pLogFile = null, pRejectFile = null} = params;
     logger.silly(`poll parameters: operation: ${JSON.stringify(operation)}, params: ${JSON.stringify(params)}`);
     logger.silly(`${JSON.stringify(OPERATIONS)}`);
-    if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+    if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)) {
       logger.silly(`We have loadProcess operation: ${operation}`);
       const query = buildQuery({
         correlationId,
@@ -26,35 +64,40 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
       const response = await pollQuery(query);
       logger.silly(`We got a loadProcess response.`);
-      return pollLoad({response, operation, ...params});
+      // params.pActiveLibrary/recordAmount are optional per ProcessParamsData but always present in PROCESS payloads; cast at the JSON boundary.
+      return pollLoad({response, operation, ...params, pActiveLibrary: params.pActiveLibrary as string, recordAmount: params.recordAmount as number});
     }
-    if ([OPERATIONS.FIX].includes(operation)) {
+    if (([OPERATIONS.FIX] as string[]).includes(operation)) {
       logger.silly(`We have fixProcess operation: ${operation}`);
+      // URLSearchParams init coerces numbers/undefined to strings; cast at the boundary.
       const query = new URLSearchParams({
         correlationId,
         pActiveLibrary,
         processId,
         loaderProcessId
-      });
+      } as unknown as Record<string, string>);
 
       const response = await pollQuery(query);
       logger.silly(`We got a fixProcess response.`);
-      return pollFix({response, operation, ...params});
+      // params.pActiveLibrary/recordAmount are optional per ProcessParamsData but always present in PROCESS payloads; cast at the JSON boundary.
+      return pollFix({response, operation, ...params, pActiveLibrary: params.pActiveLibrary as string, recordAmount: params.recordAmount as number});
     }
+    return undefined;
   }
 
 
-  async function pollQuery(query) {
+  async function pollQuery(query: URLSearchParams): Promise<Response> {
     const url = new URL(`${recordLoadUrl}?${query}`);
     logger.silly(`Polling recordLoadUrl: ${url.toString()}`);
 
-    const response = await fetch(url, {
+    // handleConnectionError always throws; the catch path never resolves to a value.
+    const response = (await fetch(url, {
       method: 'get',
       headers: {
         'Content-Type': 'text/plain',
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConnectionError(error));
+    }).catch(error => handleConnectionError(error))) as Response;
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
@@ -72,7 +115,14 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Unexpected');
   }
 
-  async function pollLoad({response, pActiveLibrary, processId, loaderProcessId, recordAmount}) {
+  async function pollLoad({response, pActiveLibrary, processId, loaderProcessId, recordAmount}: {
+    response: Response;
+    operation: string;
+    pActiveLibrary: string;
+    processId?: number;
+    loaderProcessId?: number;
+    recordAmount: number;
+  }): Promise<ProcessPollResults> {
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors
 
@@ -81,7 +131,12 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     // response: {"status":200,"payload":{"handledIds":[],"rejectedIds":["000000001"],"rejectMessages": []}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"],"rejectedIds":[],"rejectMessages": [], "errorIdCount": 1}}
 
-    const {handledIds, rejectedIds, rejectMessages, errorIdCount} = await response.json();
+    const {handledIds, rejectedIds, rejectMessages, errorIdCount} = (await response.json()) as {
+      handledIds: string[];
+      rejectedIds: string[];
+      rejectMessages: unknown[];
+      errorIdCount?: number;
+    };
     // errorIdCount: amount ids that didn't get created even if their id is listed as handledIds
     logger.silly(`processPoll/poll handledIds: ${handledIds} rejectedIds: ${rejectedIds} rejectMessages: ${rejectMessages}: errorIdCount: ${errorIdCount}`);
 
@@ -112,7 +167,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.silly(`handledAmount: ${handledAmount}, erroredAmount: ${erroredAmount}`);
 
-    const loadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, erroredAmount, handledAll};
+    const loadProcessReport: LoadProcessReport = {status: response.status, processId, loaderProcessId, processedAll, recordAmount, processedAmount, handledAmount, rejectedAmount, rejectMessages, erroredAmount, handledAll};
     const responseStatusString = response.status === httpStatus.OK ? '"OK" (200)' : '"CONFLICT" (409)';
     logger.silly(`processPoll/poll Created loadProcessReport: ${JSON.stringify(loadProcessReport)}`);
 
@@ -137,13 +192,18 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     return {payloads: {handledIds: handledIdListWithErrors, rejectedIds: rejectedIdList, erroredAmount, loadProcessReport}, ackOnlyLength: recordAmount};
   }
 
-  async function pollFix({response, operation, pActiveLibrary, recordAmount}) {
+  async function pollFix({response, operation, pActiveLibrary, recordAmount}: {
+    response: Response;
+    operation: string;
+    pActiveLibrary: string;
+    recordAmount: number;
+  }): Promise<ProcessPollResults | undefined> {
     logger.silly(`Got response for process poll (${operation})! Status: ${response.status}`);
 
     // response: {"status":200,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"]}}
     // response: {"status":409,"payload":{"handledIds":["000000001FIN01","000000002FIN01","000000004FIN01"]}}
 
-    const {handledIds} = await response.json();
+    const {handledIds} = (await response.json()) as {handledIds: string[]};
     logger.silly(`processPoll/pollFix handledIds: ${handledIds}`);
     const handledIdList = mapHandledIds(handledIds, pActiveLibrary);
 
@@ -160,33 +220,36 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
       return {payloads: {handledIds: handledIdList}, ackOnlyLength: recordAmount, status: response.status};
     }
 
+    return undefined;
   }
 
-  function mapHandledIds(handledIds, pActiveLibrary) {
+  function mapHandledIds(handledIds: string[], pActiveLibrary: string): string[] {
     // This should check that payloads make sense (ie. are arrays)
     return handledIds.map(id => formatRecordId(pActiveLibrary, id));
   }
 
   // Note that aleph-record-load-api doesn't currently do anything with delete requests!!!
-  async function requestFileClear({correlationId, pActiveLibrary, processId, loaderProcessId}) {
+  async function requestFileClear({correlationId, pActiveLibrary, processId, loaderProcessId}: {correlationId: string; pActiveLibrary?: string; processId?: number; loaderProcessId?: number}): Promise<void> {
     // Pass correlationId to record-load-api so it can use same name in log files
+    // URLSearchParams init coerces numbers/undefined to strings; cast at the boundary.
     const query = new URLSearchParams({
       correlationId,
       pActiveLibrary,
       processId,
       loaderProcessId
-    });
+    } as unknown as Record<string, string>);
     const url = new URL(`${recordLoadUrl}?${query}`);
 
     logger.silly(`Sending file clearing request: ${url.toString()}`);
 
-    const response = await fetch(url, {
+    // handleConnectionError always throws; the catch path never resolves to a value.
+    const response = (await fetch(url, {
       method: 'delete',
       headers: {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConnectionError(error));
+    }).catch(error => handleConnectionError(error))) as Response;
 
     logger.silly(`Got file clearing response ${JSON.stringify(response)}`);
 
@@ -194,7 +257,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     logger.silly(`Got response for file clear! Status: ${response.status}`);
   }
 
-  function formatRecordId(library, id) {
+  function formatRecordId(library: string, id: string) {
     const pattern = new RegExp(`${library.toUpperCase()}$`, 'u');
     return id.replace(pattern, '');
   }
