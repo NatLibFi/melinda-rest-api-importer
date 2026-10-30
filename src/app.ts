@@ -1,10 +1,48 @@
 import {createLogger, logWait, millisecondsToString, Error as ApiError} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
+import type {ImportJobStateValue} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.ts';
 import checkProcess from './interfaces/checkProcess.ts';
 import recordFixFactory from './interfaces/fixLoadStarter.ts';
 import recordLoadFactory from './interfaces/loadStarter.ts';
+
+export type Operation = (typeof OPERATIONS)[keyof typeof OPERATIONS];
+
+export interface StartAppOptions {
+  amqpUrl: string;
+  operation: Operation;
+  pollWaitTime: number;
+  error503WaitTime: number;
+  mongoUri: string;
+  recordLoadApiKey: string;
+  recordLoadLibrary: string;
+  recordLoadUrl: string;
+  recordLoadFixPath: string;
+  recordLoadLoadPath: string;
+  fixPrio: string;
+  fixBulk: string;
+  keepLoadProcessReports: string;
+}
+
+// Option objects of the recursive startCheck state machine
+export interface StartCheckOptions {
+  checkInProcessItems?: boolean;
+  // the pre-converted code defaults `wait` to `false` (any falsy value skips the wait block)
+  wait?: number | false;
+  waitSinceLastOp?: number;
+}
+
+export interface CheckOptions {
+  prio?: boolean;
+  waitSinceLastOp: number;
+}
+
+// The handler's record-load contract. The factories' inferred `loadRecord`
+// param types are not directly comparable to it (loadStarter's `records` is
+// required, the handler's is optional), so the pre-existing ternary result is
+// boundary-cast to it once at the createItemImportingHandler call site.
+type RecordLoadOperator = Parameters<typeof createItemImportingHandler>[2];
 
 // Containment of infrastructure errors (Mongo/AMQP driver rejections) in the
 // startCheck loop: retry with capped exponential backoff, and re-throw after
@@ -20,7 +58,7 @@ export default async function ({
   amqpUrl, operation, pollWaitTime, error503WaitTime, mongoUri,
   recordLoadApiKey, recordLoadLibrary, recordLoadUrl, recordLoadFixPath, recordLoadLoadPath, fixPrio, fixBulk,
   keepLoadProcessReports
-}) {
+}: StartAppOptions): Promise<void> {
 
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
@@ -36,31 +74,44 @@ export default async function ({
     bulk: await mongoFactory(mongoUri, 'bulk')
   };
 
-  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl: recordLoadUrlWithPath, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri});
+  // Boundary cast: the pre-converted call also passes `pollWaitTime` and
+  // `operation`, which checkProcess never reads (absent from its declared
+  // params); the existing object is asserted to the declared contract.
+  const processOperator = await checkProcess({amqpOperator, recordLoadApiKey, recordLoadUrl: recordLoadUrlWithPath, pollWaitTime, error503WaitTime, operation, keepLoadProcessReports, mongoUri} as Parameters<typeof checkProcess>[0]);
 
+  // string[] widening (boundary cast, no logic change): the literal constant
+  // arrays infer narrow literal element types, while `operation` is the
+  // broader `Operation` union
   const recordLoadOperator =
-    [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)
+    ([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)
       ? recordLoadFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath, fixPrio, fixBulk})
       : recordFixFactory({recordLoadApiKey, recordLoadLibrary, recordLoadUrl: recordLoadUrlWithPath});
 
-  const itemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator, {error503WaitTime, recordLoadLibrary});
+  const itemImportingHandler = createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator as unknown as RecordLoadOperator, {error503WaitTime, recordLoadLibrary});
 
   logger.info(`Started Melinda-rest-api-importer with operation ${operation}`);
 
   const server = await startCheck({});
   return server;
 
-  function getUrlWithPath({operation, recordLoadUrl, recordLoadLoadPath, recordLoadFixPath}) {
+  function getUrlWithPath({operation, recordLoadUrl, recordLoadLoadPath, recordLoadFixPath}: {
+    operation: Operation;
+    recordLoadUrl: string;
+    recordLoadLoadPath: string;
+    recordLoadFixPath: string;
+  }): string {
     logger.silly(`URL: ${recordLoadUrl}, paths: fix ${recordLoadFixPath}, load: ${recordLoadLoadPath}`);
     const recordLoadUrlWithPath = operation === OPERATIONS.FIX ? `${recordLoadUrl}${recordLoadFixPath}` : `${recordLoadUrl}${recordLoadLoadPath}`;
     logger.debug(`Using URL ${recordLoadUrlWithPath} for operation ${operation}`);
     return recordLoadUrlWithPath;
   }
 
-  async function startCheck({checkInProcessItems = true, wait = false, waitSinceLastOp = 0}) {
+  async function startCheck({checkInProcessItems = true, wait = false, waitSinceLastOp = 0}: StartCheckOptions): Promise<void> {
     if (wait) {
       await setTimeoutPromise(wait);
-      const nowWaited = parseInt(wait, 10) + parseInt(waitSinceLastOp, 10);
+      // Boundary cast: the pre-converted code passes numbers to parseInt (JS
+      // coerces them to strings); no logic change.
+      const nowWaited = parseInt(wait as unknown as string, 10) + parseInt(waitSinceLastOp as unknown as string, 10);
       logWait(logger, nowWaited);
       return startCheck({waitSinceLastOp: nowWaited});
     }
@@ -77,6 +128,11 @@ export default async function ({
         throw error;
       }
 
+      // Boundary cast: the catch-passed variable is unknown; the
+      // non-ApiError (infrastructure) path only reads `cause` (Error.cause,
+      // unknown). No logic change.
+      const infraError = error as {cause?: unknown};
+
       // Infrastructure (e.g. Mongo/AMQP driver) error: contain, log,
       // and re-schedule the next cycle with capped exponential backoff
       consecutiveInfraFailures += 1;
@@ -92,14 +148,14 @@ export default async function ({
         `app/startCheck: cycle failed with a non-ApiError (consecutive infrastructure failures: ${consecutiveInfraFailures}/${INFRA_ERROR_RETRY_MAX_CONSECUTIVE_FAILURES}), retrying in ${waitMs} ms:`,
         error
       );
-      if (error.cause) {
-        logger.error(`app/startCheck: cause of the cycle failure:`, error.cause);
+      if (infraError.cause) {
+        logger.error(`app/startCheck: cause of the cycle failure:`, infraError.cause);
       }
       return startCheck({checkInProcessItems: true, wait: waitMs, waitSinceLastOp});
     }
   }
 
-  async function checkInProcess({prio = true, waitSinceLastOp}) {
+  async function checkInProcess({prio = true, waitSinceLastOp}: CheckOptions): Promise<void> {
     const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
     // Items in aleph-record-load-api
 
@@ -131,7 +187,7 @@ export default async function ({
   }
 
   // eslint-disable-next-line max-lines-per-function
-  async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}) {
+  async function checkItemImportingAndInQueue({prio = true, waitSinceLastOp}: CheckOptions): Promise<void> {
     const mongoOperator = prio ? mongoOperators.prio : mongoOperators.bulk;
 
     // Items in importer to be send to aleph-record-load-api
@@ -166,9 +222,13 @@ export default async function ({
     }
 
     logger.silly(`app/checkItemImportingAndInQueue: Nothing found: BULK -> startCheck, waiting ${pollWaitTime} ms = ${pollWaitTime / 1000} s`);
-    return startCheck({checkInProcess: true, wait: pollWaitTime, waitSinceLastOp});
+    // Boundary cast: the pre-converted code passes a dead `checkInProcess`
+    // key (a typo of `checkInProcessItems`, whose default `true` it
+    // duplicates); the key is kept verbatim, so the literal is asserted to
+    // StartCheckOptions.
+    return startCheck({checkInProcess: true, wait: pollWaitTime, waitSinceLastOp} as StartCheckOptions);
 
-    async function checkImportJobStateIMPORTING({waitSinceLastOp}) {
+    async function checkImportJobStateIMPORTING({waitSinceLastOp}: CheckOptions): Promise<boolean> {
       const itemImportingImporting = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IMPORTING, true)});
 
       if (itemImportingImporting) {
@@ -179,7 +239,7 @@ export default async function ({
       return false;
     }
 
-    async function checkImportJobStateDONE({waitSinceLastOp}) {
+    async function checkImportJobStateDONE({waitSinceLastOp}: CheckOptions): Promise<boolean> {
       // We get queueItem, whose import job state for this importer is DONE
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.DONE, true)});
       if (queueItem) {
@@ -187,18 +247,18 @@ export default async function ({
         logger.silly(inspect(queueItem));
 
         // FIXes are DONE when ImportJobState.FIX is DONE
-        if ([OPERATIONS.FIX].includes(operation)) {
+        if (([OPERATIONS.FIX] as string[]).includes(operation)) {
           await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
           return true;
         }
 
         // Only CREATEs and UPDATEs can exist in the same queueItem, they are not DONE if the other job is not also done
-        if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
+        if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation)) {
           const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
           const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
           logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
 
-          if ([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
+          if (([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT] as string[]).includes(otherOperationImportJobStateResult)) {
             logger.debug(`Other importJob in not ongoing/pending, importing done`);
             await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
             return true;
@@ -210,7 +270,7 @@ export default async function ({
       return false;
     }
 
-    async function checkImportJobStateINQUEUE({waitSinceLastOp}) {
+    async function checkImportJobStateINQUEUE({waitSinceLastOp}: CheckOptions): Promise<boolean> {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, importJobState: createImportJobState(operation, IMPORT_JOB_STATE.IN_QUEUE, true)});
       if (queueItem) {
         logger.debug(`Found item in importing ${queueItem.correlationId}, ImportJobState: {${operation}: IN_QUEUE} ${waitTimePrint(waitSinceLastOp)}`);
@@ -222,19 +282,24 @@ export default async function ({
       return false;
     }
 
-    function waitTimePrint(waitTime) {
+    function waitTimePrint(waitTime: number): string {
       if (waitTime > 0) {
         return `after ${millisecondsToString(waitTime)} of waiting`;
       }
       return '';
     }
 
-    async function checkQueueItemStateINQUEUE({waitSinceLastOp}) {
+    async function checkQueueItemStateINQUEUE({waitSinceLastOp}: CheckOptions): Promise<boolean> {
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
       logger.silly(`checkQueueItemStateINQUEUE:  ${JSON.stringify(queueItem)}`);
 
-      if (queueItem && queueItem.operationSettings.noop === true) {
-        logger.verbose(`QueueItem ${queueItem.correlationId} has operationSettings.noop ${queueItem.operationSettings.noop} - not running importer for this job`);
+      // Boundary cast (H7): the published 6.2 `QueueItem.operationSettings`
+      // type has no `noop` member (only prio/noStream), but the validator
+      // writes it and this branch depends on it. Single cast, no logic change.
+      const operationSettingsNoop = queueItem ? (queueItem.operationSettings as {noop?: boolean}).noop : undefined;
+
+      if (queueItem && operationSettingsNoop === true) {
+        logger.verbose(`QueueItem ${queueItem.correlationId} has operationSettings.noop ${operationSettingsNoop} - not running importer for this job`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.ERROR, errorStatus: '500', errorMessage: `Noop for queueItem true, item in importer???`});
         await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.DONE});
         return true;
@@ -251,7 +316,7 @@ export default async function ({
         logger.silly(JSON.stringify(queueItem.importJobState));
         logger.debug(`QueueItem has operation: ${queueItem.operation}`);
 
-        if ([OPERATIONS.FIX].includes(operation) && [OPERATIONS.FIX].includes(queueItem.operation)) {
+        if (([OPERATIONS.FIX] as string[]).includes(operation) && ([OPERATIONS.FIX] as string[]).includes(queueItem.operation as string)) {
           logger.debug(`Fix process has just FIX importer, we shouldn't have empty import job state!`);
           // Should we error this?
           await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
@@ -259,13 +324,13 @@ export default async function ({
         }
 
         // Only CREATEs and UPDATEs can exist in the same queueItem
-        if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && [OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(queueItem.operation)) {
+        if (([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(operation) && ([OPERATIONS.CREATE, OPERATIONS.UPDATE] as string[]).includes(queueItem.operation as string)) {
           // check whether also the other queues are EMPTY or a final state
           const otherOperationImportJobState = operation === OPERATIONS.CREATE ? OPERATIONS.UPDATE : OPERATIONS.CREATE;
           const otherOperationImportJobStateResult = queueItem.importJobState[otherOperationImportJobState];
           logger.debug(`Checking importerJobState for other operation: ${otherOperationImportJobState}: ${otherOperationImportJobStateResult}`);
 
-          if ([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT].includes(otherOperationImportJobStateResult)) {
+          if (([IMPORT_JOB_STATE.EMPTY, IMPORT_JOB_STATE.DONE, IMPORT_JOB_STATE.ERROR, IMPORT_JOB_STATE.ABORT] as string[]).includes(otherOperationImportJobStateResult)) {
             logger.debug(`Other importJob (${otherOperationImportJobState}) in not ongoing/pending, importing done`);
             await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.DONE});
             return true;
@@ -283,7 +348,10 @@ export default async function ({
 
         // importJobState is a flat {operation: state} map; initialize a missing
         // FIX import-job state for a FIX item reaching this branch
-        if (operation === OPERATIONS.FIX && queueItem.importJobState[OPERATIONS.FIX] === undefined) {
+        // Boundary cast: the published type requires `importJobState.FIX`,
+        // but a FIX document may lack it - that missing state is exactly what
+        // this check initializes.
+        if (operation === OPERATIONS.FIX && (queueItem.importJobState as {FIX?: ImportJobStateValue})[OPERATIONS.FIX] === undefined) {
           await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
           return true;
         }

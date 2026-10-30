@@ -26,7 +26,7 @@ import {MongoClient} from 'mongodb';
 import amqplib from 'amqplib';
 import {OPERATIONS, IMPORT_JOB_STATE, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
 import {generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import startApp from './app.js';
+import startApp from './app.ts';
 
 process.env.LOG_LEVEL = 'error';
 
