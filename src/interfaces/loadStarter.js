@@ -3,7 +3,7 @@ import moment from 'moment';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {checkStatus, handleConectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}) {
   const logger = createLogger();
@@ -31,7 +31,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
 
     // Note: pRejectFile & pLogFile are combined reject and logFiles for whole batch of records
     // useLoaderProcessId: name aleph-record-load-api:s files by unique loaderProcessId instead of correlationId
-    const query = new URLSearchParams({
+    const query = buildQuery({
       correlationId,
       useLoaderProcessId: '1',
       pActiveLibrary: recordLoadParams.pActiveLibrary || recordLoadLibrary,
@@ -52,11 +52,11 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       },
       body: seqRecords
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got response for load record. Status: ${response.status}`);
 
-    checkStatus(response);
+    await checkStatus(response);
 
     if (response.status === httpStatus.OK) {
       const result = await response.json();

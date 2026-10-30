@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const logger = createLogger();
@@ -15,7 +15,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     logger.silly(`${JSON.stringify(OPERATIONS)}`);
     if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
       logger.silly(`We have loadProcess operation: ${operation}`);
-      const query = new URLSearchParams({
+      const query = buildQuery({
         correlationId,
         pActiveLibrary,
         processId,
@@ -54,12 +54,12 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
         'Content-Type': 'text/plain',
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
     // 400, 401, 403, 404, 406, 423, 503 responses from checkStatus
-    checkStatus(response);
+    await checkStatus(response);
 
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors
@@ -186,11 +186,11 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got file clearing response ${JSON.stringify(response)}`);
 
-    checkStatus(response);
+    await checkStatus(response);
     logger.silly(`Got response for file clear! Status: ${response.status}`);
   }
 

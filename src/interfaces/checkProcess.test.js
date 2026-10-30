@@ -160,10 +160,10 @@ function makeFetch({pollStatus = 200, pollBody = {}, fileClearStatus = 200} = {}
         // The record-load-api payload always has these arrays; pollLoad does
         // not guard against missing ones (missing rejectedIds crashes it).
         const body = {handledIds: [], rejectedIds: [], ...pollBody};
-        return {status: pollStatus, json: async () => body};
+        return {status: pollStatus, json: async () => body, text: async () => ''};
       }
       if (options.method === 'delete') {
-        return {status: fileClearStatus, json: async () => ({})};
+        return {status: fileClearStatus, json: async () => ({}), text: async () => ''};
       }
       throw new Error(`Unexpected fetch method: ${options.method}`);
     }
@@ -257,9 +257,10 @@ describe('checkProcess/handleProcessMessageError (process poll errors)', () => {
     assert.equal(query.get('pActiveLibrary'), 'FIN');
     assert.equal(query.get('processId'), '123');
     assert.equal(query.get('loaderProcessId'), '456');
-    // URLSearchParams stringifies the missing file params (null-coercion, see gap 6)
-    assert.equal(query.get('pLogFile'), 'null');
-    assert.equal(query.get('pRejectFile'), 'null');
+    // Missing file params are omitted from the query (buildQuery; the gap 6
+    // null-coercion that stringified them as literal "null" is fixed).
+    assert.ok(!query.has('pLogFile'));
+    assert.ok(!query.has('pRejectFile'));
   });
 
   test('503: nacks the process message, sleeps error503WaitTime, returns false', async () => {
