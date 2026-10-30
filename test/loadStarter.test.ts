@@ -4,7 +4,8 @@ import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import loadStarter from './loadStarter.js';
+import type {RequestInfo} from 'undici-types';
+import loadStarter from '../src/interfaces/loadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {
@@ -21,7 +22,7 @@ const LEADER = '00042cam a2200000 a 4500';
 // generateAuthorizationHeader(apiKey) encodes `apiKey:` (empty password) as Basic base64
 const EXPECTED_AUTH = `Basic ${Buffer.from(CONFIG.recordLoadApiKey + ':').toString('base64')}`;
 
-function makeMarcRecord({sysnum, title}) {
+function makeMarcRecord({sysnum, title}: {sysnum: string; title: string}) {
   return new MarcRecord({
     leader: LEADER,
     fields: [
@@ -37,11 +38,11 @@ const RECORDS = [
 ];
 
 // Mirrors createSeqRecords: AlephSequential serialization joined with the 001-fusion separator
-const EXPECTED_SEQ_BODY = RECORDS.map(record => AlephSequential.to(record, {subfieldValues: false}))
+const EXPECTED_SEQ_BODY = RECORDS.map(record => AlephSequential.to(record, {subfieldValues: false} as unknown as boolean))
   .join('000000000 000   L 0\n');
 
-let starter;
-let fetchCalls;
+let starter: ReturnType<typeof loadStarter>;
+let fetchCalls: {url: string; options: any}[];
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -58,14 +59,14 @@ afterEach(() => {
 });
 
 // Records every fetch call and resolves with the response produced by impl(url, options)
-function stubFetch(impl) {
-  globalThis.fetch = async (url, options) => {
+function stubFetch(impl: (url: RequestInfo | URL, options: RequestInit | undefined) => Promise<unknown>) {
+  globalThis.fetch = async (url: RequestInfo | URL, options?: RequestInit) => {
     fetchCalls.push({url: String(url), options});
-    return impl(url, options);
+    return impl(url, options) as Promise<Response>;
   };
 }
 
-function jsonResponse(status, body) {
+function jsonResponse(status: number, body: unknown) {
   return {
     status,
     json: async () => body,
@@ -73,19 +74,19 @@ function jsonResponse(status, body) {
   };
 }
 
-function queryOf(urlString) {
+function queryOf(urlString: string) {
   return new URL(urlString).searchParams;
 }
 
 // Captures the rejected ApiError (Node's assert.rejects resolves with undefined, so we
 // catch it manually) and fails the test if the promise resolved or rejected with another error
-async function expectApiError(promise) {
+async function expectApiError(promise: Promise<unknown>) {
   try {
     await promise;
     assert.fail('expected the promise to be rejected');
   } catch (err) {
     assert.ok(err instanceof ApiError, `expected ApiError, got: ${err}`);
-    return err;
+    return err as ApiError;
   }
 }
 
@@ -109,7 +110,7 @@ test('builds full URL, headers and seq body (CREATE, prio, all recordLoadParams 
 
   assert.equal(fetchCalls.length, 1);
   // URLSearchParams preserves insertion order, so the full URL string is deterministic
-  assert.equal(fetchCalls[0].url,
+  assert.equal(fetchCalls[0]!.url,
     'http://record-load-api:8080/load?'
     + 'correlationId=corr-1'
     + '&useLoaderProcessId=1'
@@ -120,15 +121,15 @@ test('builds full URL, headers and seq body (CREATE, prio, all recordLoadParams 
     + '&pZ07PriorityYear=1990'
     + '&pRejectFile=reject.log'
     + '&pLogFile=process.log');
-  assert.equal(fetchCalls[0].options.method, 'post');
-  assert.equal(fetchCalls[0].options.headers['Content-Type'], 'text/plain');
-  assert.equal(fetchCalls[0].options.headers.Authorization, EXPECTED_AUTH);
-  assert.equal(fetchCalls[0].options.body, EXPECTED_SEQ_BODY);
+  assert.equal(fetchCalls[0]!.options.method, 'post');
+  assert.equal(fetchCalls[0]!.options.headers['Content-Type'], 'text/plain');
+  assert.equal(fetchCalls[0]!.options.headers.Authorization, EXPECTED_AUTH);
+  assert.equal(fetchCalls[0]!.options.body, EXPECTED_SEQ_BODY);
   assert.deepEqual(returned, result);
 });
 
 test('omits null-valued file params; correlationId still stringified as "undefined" (out of scope for the file-param fix)', async () => {
-  // loadStarter.js:21-44: correlationId defaults to undefined and pRejectFile/pLogFile default to null.
+  // loadStarter.ts:21-44: correlationId defaults to undefined and pRejectFile/pLogFile default to null.
   // buildQuery omits the null-valued file params (pRejectFile/pLogFile). correlationId is left as-is:
   // its undefined value is still stringified by URLSearchParams (out of scope for the file-param fix).
   stubFetch(async () => jsonResponse(200, {ok: true}));
@@ -139,7 +140,7 @@ test('omits null-valued file params; correlationId still stringified as "undefin
     cataloger: 'cat2'
   });
 
-  const query = queryOf(fetchCalls[0].url);
+  const query = queryOf(fetchCalls[0]!.url);
   assert.equal(query.get('correlationId'), 'undefined');
   assert.equal(query.get('useLoaderProcessId'), '1');
   assert.equal(query.get('pActiveLibrary'), '201');
@@ -163,7 +164,7 @@ test('treats empty-string pCatalogerIn/pRejectFile/pLogFile as unset', async () 
     prio: false
   });
 
-  const query = queryOf(fetchCalls[0].url);
+  const query = queryOf(fetchCalls[0]!.url);
   assert.equal(query.get('pCatalogerIn'), 'CAT3');
   assert.equal(query.get('pRejectFile'), null);
   assert.equal(query.get('pLogFile'), null);
@@ -180,11 +181,11 @@ test('pZ07PriorityYear matrix: CREATE 1990/1992, UPDATE (HIGH) 1998/2099', async
 
   for (const {operation, prio, expected} of cases) {
     await starter.loadRecord({records: RECORDS, operation, cataloger: 'cat1', prio});
-    assert.equal(queryOf(fetchCalls.at(-1).url).get('pZ07PriorityYear'), expected);
+    assert.equal(queryOf(fetchCalls.at(-1)!.url).get('pZ07PriorityYear'), expected);
   }
 
   // Note: generateIndexingPriority's else branch (non-CREATE + non-HIGH indexingPriority,
-  // moment().add(1000, 'years')) is unreachable: loadRecord always passes INDEXING_PRIORITY.HIGH.
+  // new Date().getFullYear() + 1000) is unreachable: loadRecord always passes INDEXING_PRIORITY.HIGH.
   // It is deliberately left uncovered instead of stubbing the clock around dead code.
 });
 
@@ -193,7 +194,7 @@ test('createSeqRecords: MARC serialization joined with 000000000 fusion separato
 
   await starter.loadRecord({records: RECORDS, operation: OPERATIONS.CREATE, cataloger: 'cat1'});
 
-  const body = fetchCalls[0].options.body;
+  const body = fetchCalls[0]!.options.body;
   assert.equal(body, EXPECTED_SEQ_BODY);
   assert.ok(body.includes('000000000 000   L 0\n'), 'separator between the two serialized records');
 });
@@ -202,7 +203,7 @@ test('createSeqRecords: serialization failure throws ApiError(422) without calli
   // A plain object (no MarcRecord .get method) passes field validation but breaks in to()
   const badRecords = [{leader: LEADER, fields: [{tag: '001', value: '1'}]}];
   const error = await expectApiError(
-    starter.loadRecord({records: badRecords, operation: OPERATIONS.CREATE, cataloger: 'cat1'})
+    starter.loadRecord({records: badRecords as unknown as MarcRecord[], operation: OPERATIONS.CREATE, cataloger: 'cat1'})
   );
 
   assert.equal(error.status, 422);

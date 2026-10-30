@@ -4,14 +4,14 @@ import {spawn} from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 
-// This test runs src/index.js in a subprocess on purpose. Importing it
+// This test runs src/index.ts in a subprocess on purpose. Importing it
 // in-process would start the service (AMQP + Mongo connections and the
 // infinite startCheck loop) inside the test runner, so every assertion
-// below goes through a spawned `node src/index.js` child.
+// below goes through a spawned `node src/index.ts` child.
 //
 // Intentionally untested wiring: that `startApp(config)` is called with the
 // loaded module-level config. Verifying this requires a module mock or a src
-// refactor (no seam exists for src/index.js); the signal and rejection paths
+// refactor (no seam exists for src/index.ts); the signal and rejection paths
 // below prove the handler registration and the run() -> startApp() wiring
 // actually execute.
 //
@@ -19,10 +19,10 @@ import path from 'node:path';
 // 'No catch error!' before the real message; the assertions below use
 // 'No catch error!' as the signature of our termination handler.
 
-const INDEX_PATH = path.join(import.meta.dirname, 'index.js');
+const INDEX_PATH = path.join(import.meta.dirname, '..', 'src', 'index.ts');
 
 // RECORD_LOAD_URL, RECORD_LOAD_API_KEY, RECORD_LOAD_LIBRARY and OPERATION
-// are mandatory for importing src/config.js.
+// are mandatory for importing src/config.ts.
 const BASE_ENV = {
   RECORD_LOAD_URL: 'http://record-load.test',
   // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
@@ -31,17 +31,21 @@ const BASE_ENV = {
   OPERATION: 'FIX'
 };
 
-// Runs src/index.js in a subprocess and resolves with its exit code and
+// Runs src/index.ts in a subprocess and resolves with its exit code and
 // combined output. Optionally kills the child after a delay so signal
 // handlers can be exercised while the app connections are pending.
-const runIndex = (env, {signalAfterMs = null, signal = null, nodeArgs = []} = {}) =>
-  new Promise((resolve, reject) => {
+const runIndex = (env: Record<string, string>, {signalAfterMs = null, signal = null, nodeArgs = []}: {
+  signalAfterMs?: number | null;
+  signal?: NodeJS.Signals | null;
+  nodeArgs?: string[];
+} = {}) =>
+  new Promise<{exitCode: number | null; output: string}>((resolve, reject) => {
     const child = spawn(process.execPath, [...nodeArgs, INDEX_PATH], {env: {...process.env, ...env}});
     let output = '';
     child.stdout.on('data', (chunk) => {output += chunk;});
     child.stderr.on('data', (chunk) => {output += chunk;});
     if (signalAfterMs) {
-      const timer = setTimeout(() => child.kill(signal), signalAfterMs);
+      const timer = setTimeout(() => child.kill(signal as NodeJS.Signals), signalAfterMs);
       timer.unref();
     }
     // Hard-kill safety net: no test may ever orphan a child. Unref'd so it
@@ -62,9 +66,9 @@ describe('index (subprocess: process entry wiring)', () => {
   // amqplib.connect() and mongoFactory's client.connect() hang on it,
   // keeping the app alive so the signal and exception handlers can be
   // exercised. One server doubles as both the AMQP and the Mongo target.
-  let socketServer;
-  let dumbPort;
-  const liveSockets = new Set();
+  let socketServer: net.Server;
+  let dumbPort: number;
+  const liveSockets = new Set<net.Socket>();
 
   before(async () => {
     socketServer = net.createServer();
@@ -72,8 +76,8 @@ describe('index (subprocess: process entry wiring)', () => {
       liveSockets.add(socket);
       socket.on('close', () => liveSockets.delete(socket));
     });
-    await new Promise((resolve) => socketServer.listen(0, '127.0.0.1', resolve));
-    dumbPort = socketServer.address().port;
+    await new Promise<void>((resolve) => socketServer.listen(0, '127.0.0.1', resolve));
+    dumbPort = (socketServer.address() as net.AddressInfo).port;
   });
   after(() => new Promise((resolve) => {
     // A child killed mid-handshake leaves a half-open server socket behind
@@ -120,7 +124,7 @@ describe('index (subprocess: process entry wiring)', () => {
 
   it('exits with code 1 and logs the stack on an uncaught exception', async () => {
     // A --import data-URL module throws after a delay: the handler registered
-    // in index.js is in place by then (the app is pending on the dumb
+    // in index.ts is in place by then (the app is pending on the dumb
     // sockets), so the uncaughtException handler logs the stack and exits
     // with code 1.
     const dataUrl = `data:text/javascript,setTimeout(() => { throw new Error('Simulated uncaught exception'); }, 3000);`;

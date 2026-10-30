@@ -4,11 +4,11 @@ import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-const CONFIG_PATH = path.join(import.meta.dirname, 'config.js');
+const CONFIG_PATH = path.join(import.meta.dirname, '..', 'src', 'config.ts');
 
 // All config values are read at import time (module-scope exports), and the
 // exports are evaluated once per process. Each case is therefore run in its
-// own subprocess: the child imports src/config.js with a specific env and
+// own subprocess: the child imports src/config.ts with a specific env and
 // prints the selected exports as one JSON line, which the parent asserts on.
 const MANAGED_VARIABLES = [
   'RECORD_LOAD_URL',
@@ -26,7 +26,7 @@ const MANAGED_VARIABLES = [
   'KEEP_LOAD_PROCESS_RESULTS'
 ];
 
-// The variables without a default in config.js: without them the import throws.
+// The variables without a default in config.ts: without them the import throws.
 const MANDATORY_VARIABLES = {
   RECORD_LOAD_URL: 'http://record-load',
   // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
@@ -35,7 +35,7 @@ const MANDATORY_VARIABLES = {
   OPERATION: 'load'
 };
 
-const createChildEnv = (overrides) => {
+const createChildEnv = (overrides: Record<string, string>) => {
   const env = {...process.env};
   MANAGED_VARIABLES.forEach((variable) => delete env[variable]);
   return {...env, ...overrides};
@@ -62,7 +62,7 @@ console.log('CONFIG_DUMP ' + JSON.stringify({
 }));
 `;
 
-const runConfigDump = (overrides) => {
+const runConfigDump = (overrides: Record<string, string>) => {
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', CONFIG_DUMP_SCRIPT], {
     env: createChildEnv(overrides),
     encoding: 'utf8'
@@ -70,12 +70,12 @@ const runConfigDump = (overrides) => {
   if (result.status !== 0) {
     return {status: result.status, stdout: result.stdout, stderr: result.stderr, dump: null};
   }
-  const line = result.stdout.split('\n').find((line) => line.startsWith('CONFIG_DUMP '));
-  const dump = JSON.parse(line.slice('CONFIG_DUMP '.length));
+  const line: string | undefined = result.stdout.split('\n').find((line) => line.startsWith('CONFIG_DUMP '));
+  const dump = line ? JSON.parse(line.slice('CONFIG_DUMP '.length)) : null;
   return {status: result.status, stdout: result.stdout, stderr: result.stderr, dump};
 };
 
-const assertThrow = ({status, stderr}, message) => {
+const assertThrow = ({status, stderr}: {status: number | null; stderr: string}, message: string) => {
   assert.strictEqual(status, 1);
   assert.ok(stderr.includes(message), `expected stderr to include: ${message}`);
 };

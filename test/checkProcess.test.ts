@@ -3,9 +3,10 @@ import {strict as assert} from 'node:assert';
 import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient} from 'mongodb';
-import checkProcessFactory from './checkProcess.js';
+import type {AmqpOperator, MongoOperator} from '@natlibfi/melinda-rest-api-commons';
+import checkProcessFactory from '../src/interfaces/checkProcess.ts';
 
-// checkProcess.js creates its processOperator internally (processPoll.js) and
+// checkProcess.ts creates its processOperator internally (processPoll.ts) and
 // calls mongoLogFactory(mongoUri) itself, so neither can be injected.
 // The processOperator is driven through a stubbed globalThis.fetch (per test).
 // mongoLogFactory (rest-api-commons) opens a real Mongo connection via
@@ -13,21 +14,21 @@ import checkProcessFactory from './checkProcess.js';
 // suite (mongodb is an existing transitive dependency; node:test mock.module
 // would need --experimental-test-module-mocks, which test:base does not set).
 const originalMongoConnect = MongoClient.connect;
-const mongoConnectUris = [];
-const mongoLogItems = [];
+const mongoConnectUris: string[] = [];
+const mongoLogItems: any[] = [];
 
-MongoClient.connect = async (uri) => {
+MongoClient.connect = async (uri: string) => {
   mongoConnectUris.push(uri);
   return {
     db: () => ({
       collection: () => ({
-        insertOne: async (logItem) => {
+        insertOne: async (logItem: unknown) => {
           mongoLogItems.push(logItem);
           return {acknowledged: true};
         }
       })
     })
-  };
+  } as unknown as MongoClient;
 };
 
 after(() => {
@@ -56,7 +57,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function makeProcessParams(overrides = {}) {
+function makeProcessParams(overrides: Record<string, unknown> = {}) {
   return {
     correlationId: CORRELATION_ID,
     pActiveLibrary: 'FIN',
@@ -67,24 +68,24 @@ function makeProcessParams(overrides = {}) {
   };
 }
 
-function makeProcessMessage(data) {
+function makeProcessMessage(data: Record<string, unknown>) {
   return {content: Buffer.from(JSON.stringify({data}))};
 }
 
-function makeMessage({id = '000999999', blobSequence, notes} = {}) {
-  const recordMetadata = {};
+function makeMessage({id = '000999999', blobSequence, notes}: {id?: string; blobSequence?: number; notes?: string[]} = {}) {
+  const recordMetadata: Record<string, unknown> = {};
   if (blobSequence !== undefined) {
-    recordMetadata.blobSequence = blobSequence;
+    recordMetadata['blobSequence'] = blobSequence;
   }
-  const headers = {id, recordMetadata};
+  const headers: Record<string, unknown> = {id, recordMetadata};
   if (notes !== undefined) {
-    headers.notes = notes;
+    headers['notes'] = notes;
   }
   return {properties: {headers}, content: Buffer.from('{}')};
 }
 
 // The real amqpOperator.checkQueue (style 'basic') returns {headers, messages}.
-function makeOperationQueue(messages, headers = {}) {
+function makeOperationQueue(messages: any, headers: Record<string, unknown> = {}) {
   return {headers, messages};
 }
 
@@ -94,12 +95,18 @@ function makeAmqp({
   operationQueueResult,
   bulkRemaining = 0,
   processQueueError
+}: {
+  processMessage?: {content: Buffer};
+  processMessageOnFirstCall?: boolean;
+  operationQueueResult?: unknown;
+  bulkRemaining?: number;
+  processQueueError?: Error;
 } = {}) {
-  const calls = [];
+  const calls: any[] = [];
   let processQueueAttempts = 0;
   return {
     calls,
-    checkQueue({queue, style} = {}) {
+    checkQueue({queue = '', style}: {queue?: string; style?: string} = {}) {
       calls.push(['checkQueue', queue, style]);
       if (queue.startsWith('PROCESS.')) {
         processQueueAttempts += 1;
@@ -119,51 +126,55 @@ function makeAmqp({
       }
       throw new Error(`Unexpected checkQueue style: ${style}`);
     },
-    ackMessages(messages) {
+    ackMessages(messages: any) {
       calls.push(['ackMessages', messages]);
     },
-    nackMessages(messages) {
+    nackMessages(messages: any) {
       calls.push(['nackMessages', messages]);
     },
-    removeQueue(queue) {
+    removeQueue(queue: string) {
       calls.push(['removeQueue', queue]);
     }
   };
 }
 
 function makeMongoOperator() {
-  const calls = [];
+  const calls: any[] = [];
   return {
     calls,
-    pushIds(args) {
+    pushIds(args: any) {
       calls.push(['pushIds', args]);
     },
-    pushMessages(args) {
+    pushMessages(args: any) {
       calls.push(['pushMessages', args]);
     },
-    setImportJobState(args) {
+    setImportJobState(args: any) {
       calls.push(['setImportJobState', args]);
     },
-    setState(args) {
+    setState(args: any) {
       calls.push(['setState', args]);
     }
   };
 }
 
-function makeFetch({pollStatus = 200, pollBody = {}, fileClearStatus = 200} = {}) {
-  const calls = [];
+function makeFetch({pollStatus = 200, pollBody = {}, fileClearStatus = 200}: {
+  pollStatus?: number;
+  pollBody?: Record<string, unknown>;
+  fileClearStatus?: number;
+} = {}) {
+  const calls: {url: string; options: any}[] = [];
   return {
     calls,
-    async fetch(url, options) {
+    async fetch(url: any, options: any) {
       calls.push({url: String(url), options});
       if (options.method === 'get') {
         // The record-load-api payload always has these arrays; pollLoad does
         // not guard against missing ones (missing rejectedIds crashes it).
         const body = {handledIds: [], rejectedIds: [], ...pollBody};
-        return {status: pollStatus, json: async () => body, text: async () => ''};
+        return {status: pollStatus, json: async () => body, text: async () => ''} as Response;
       }
       if (options.method === 'delete') {
-        return {status: fileClearStatus, json: async () => ({}), text: async () => ''};
+        return {status: fileClearStatus, json: async () => ({}), text: async () => ''} as Response;
       }
       throw new Error(`Unexpected fetch method: ${options.method}`);
     }
@@ -186,6 +197,20 @@ function runCheckProcessQueueStart({
   error503WaitTime = 1,
   fileClearStatus = 200,
   processQueueError
+}: {
+  operation?: string;
+  prio?: boolean;
+  correlationId?: string;
+  pollStatus?: number;
+  pollBody?: Record<string, unknown>;
+  processMessage?: {content: Buffer};
+  processMessageOnFirstCall?: boolean;
+  operationQueueResult?: unknown;
+  bulkRemaining?: number;
+  keepLoadProcessReports?: string;
+  error503WaitTime?: number;
+  fileClearStatus?: number;
+  processQueueError?: Error;
 } = {}) {
   const amqp = makeAmqp({
     processMessage,
@@ -197,8 +222,12 @@ function runCheckProcessQueueStart({
   const fetchStub = makeFetch({pollStatus, pollBody, fileClearStatus});
   globalThis.fetch = fetchStub.fetch;
   const mongo = makeMongoOperator();
-  const run = checkProcessFactory({
-    amqpOperator: amqp,
+  const run: Promise<boolean> & {
+    amqp: ReturnType<typeof makeAmqp>;
+    mongo: ReturnType<typeof makeMongoOperator>;
+    fetchCalls: {url: string; options: any}[];
+  } = checkProcessFactory({
+    amqpOperator: amqp as unknown as AmqpOperator,
     recordLoadApiKey: API_KEY,
     recordLoadUrl: RECORD_LOAD_URL,
     error503WaitTime,
@@ -207,33 +236,37 @@ function runCheckProcessQueueStart({
   }).then((factory) => factory.checkProcessQueueStart({
     correlationId,
     operation,
-    mongoOperator: mongo,
-    prio
-  }));
+    mongoOperator: mongo as unknown as MongoOperator,
+    prio: prio as boolean
+  })) as Promise<boolean> & {
+    amqp: ReturnType<typeof makeAmqp>;
+    mongo: ReturnType<typeof makeMongoOperator>;
+    fetchCalls: {url: string; options: any}[];
+  };
   run.amqp = amqp;
   run.mongo = mongo;
   run.fetchCalls = fetchStub.calls;
   return run;
 }
 
-function fetchQuery(fetchCalls, index) {
-  return new URL(fetchCalls[index].url).searchParams;
+function fetchQuery(fetchCalls: {url: string; options: any}[], index: number) {
+  return new URL(fetchCalls[index]!.url).searchParams;
 }
 
-function ackCallsOf(amqp) {
-  return amqp.calls.filter((call) => call[0] === 'ackMessages');
+function ackCallsOf(amqp: ReturnType<typeof makeAmqp>) {
+  return amqp.calls.filter((call: any) => call[0] === 'ackMessages');
 }
 
-function recordResponseCalls(mongo) {
-  return mongo.calls.filter((call) => call[0] === 'pushMessages' && call[1].messageField === 'records');
+function recordResponseCalls(mongo: ReturnType<typeof makeMongoOperator>) {
+  return mongo.calls.filter((call: any) => call[0] === 'pushMessages' && call[1].messageField === 'records');
 }
 
-function nackCallsOf(amqp) {
-  return amqp.calls.filter((call) => call[0] === 'nackMessages');
+function nackCallsOf(amqp: ReturnType<typeof makeAmqp>) {
+  return amqp.calls.filter((call: any) => call[0] === 'nackMessages');
 }
 
-function reportCalls(mongo) {
-  const isReportPush = (call) =>
+function reportCalls(mongo: ReturnType<typeof makeMongoOperator>) {
+  const isReportPush = (call: any) =>
     call[0] === 'pushMessages' && call[1].messageField === 'loaderProcessReports';
   return mongo.calls.filter(isReportPush);
 }
@@ -250,8 +283,8 @@ describe('checkProcess/handleProcessMessageError (process poll errors)', () => {
     assert.equal(run.mongo.calls.length, 0);
     // One fetch: the load process poll. No file clearing for a false result.
     assert.equal(run.fetchCalls.length, 1);
-    assert.equal(run.fetchCalls[0].options.method, 'get');
-    assert.equal(run.fetchCalls[0].options.headers.Authorization, AUTH_HEADER);
+    assert.equal(run.fetchCalls[0]!.options.method, 'get');
+    assert.equal(run.fetchCalls[0]!.options.headers.Authorization, AUTH_HEADER);
     const query = fetchQuery(run.fetchCalls, 0);
     assert.equal(query.get('correlationId'), CORRELATION_ID);
     assert.equal(query.get('pActiveLibrary'), 'FIN');
@@ -291,7 +324,7 @@ describe('checkProcess/handleProcessMessageError (process poll errors)', () => {
       }]
     ]);
     assert.deepEqual(ackCallsOf(run.amqp), [['ackMessages', [processMessage]]]);
-    assert.equal(run.amqp.calls.filter((call) => call[0] === 'nackMessages').length, 0);
+    assert.equal(run.amqp.calls.filter((call: any) => call[0] === 'nackMessages').length, 0);
   });
 
   test('400 BAD_REQUEST in bulk: rethrows ApiError 400 with payload, errors, acks the message', async () => {
@@ -339,7 +372,7 @@ describe('checkProcess/handleProcessMessageError (process poll errors)', () => {
 
     assert.equal(result, false);
     assert.equal(run.fetchCalls.length, 0);
-    const setStateCall = run.mongo.calls.find((call) => call[0] === 'setState');
+    const setStateCall = run.mongo.calls.find((call: any) => call[0] === 'setState');
     assert.equal(setStateCall[1].state, 'ERROR');
     assert.equal(setStateCall[1].errorStatus, httpStatus.INTERNAL_SERVER_ERROR);
     assert.ok(typeof setStateCall[1].errorMessage === 'string' && setStateCall[1].errorMessage.length > 0);
@@ -382,18 +415,18 @@ describe('checkProcess/checkProcessQueue (empty PROCESS queue handling)', () => 
 
     assert.equal(result, true);
     const processQueueChecks = run.amqp.calls.filter(
-      (call) => call[0] === 'checkQueue' && call[1].startsWith('PROCESS.'));
+      (call: any) => call[0] === 'checkQueue' && call[1].startsWith('PROCESS.'));
     assert.equal(processQueueChecks.length, 2);
     // Success: import job DONE, importer queues removed, file clearing requested.
-    const setImportJobState = run.mongo.calls.filter((call) => call[0] === 'setImportJobState');
+    const setImportJobState = run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState');
     assert.deepEqual(setImportJobState, [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'CREATE', importJobState: 'DONE'}]
     ]);
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'removeQueue'), [
       ['removeQueue', `CREATE.${CORRELATION_ID}`],
       ['removeQueue', `PROCESS.CREATE.${CORRELATION_ID}`]
     ]);
-    const fileClear = run.fetchCalls[run.fetchCalls.length - 1];
+    const fileClear = run.fetchCalls[run.fetchCalls.length - 1]!;
     assert.equal(fileClear.options.method, 'delete');
     assert.equal(fileClear.options.headers.Authorization, AUTH_HEADER);
     assert.equal(fetchQuery(run.fetchCalls, run.fetchCalls.length - 1).get('correlationId'), CORRELATION_ID);
@@ -416,7 +449,7 @@ describe('checkProcess/checkProcessQueue (empty PROCESS queue handling)', () => 
     assert.equal(result, false);
     assert.equal(run.mongo.calls.length, 0);
     assert.equal(ackCallsOf(run.amqp).length, 0);
-    assert.equal(run.amqp.calls.filter((call) => call[0] === 'nackMessages').length, 0);
+    assert.equal(run.amqp.calls.filter((call: any) => call[0] === 'nackMessages').length, 0);
     assert.equal(run.fetchCalls.length, 0);
   });
 });
@@ -425,7 +458,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   // Poll result with processedAll: false and handledAmount (1) < recordAmount (2).
   const notProcessedAll = {handledIds: ['000999999FIN']};
 
-  function runReportFlow(keepLoadProcessReports, pollBody) {
+  function runReportFlow(keepLoadProcessReports: string, pollBody: Record<string, unknown>) {
     return runCheckProcessQueueStart({
       keepLoadProcessReports,
       pollStatus: 200,
@@ -460,7 +493,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
     assert.equal(mongoLogItems[0].correlationId, CORRELATION_ID);
     assert.equal(mongoLogItems[0].handledAmount, 1);
     // And the ids are pushed for the correlation.
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'pushIds'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'pushIds'), [
       ['pushIds', {
         correlationId: CORRELATION_ID,
         handledIds: ['000999999'],
@@ -471,7 +504,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSSED (the code value) with processedAll false: keeps the report', async () => {
-    // The code value (and the one documented in config.js and the README)
+    // The code value (and the one documented in config.ts and the README)
     // has THREE s's: NON_ + PROCESSED.
     const run = runReportFlow('NON_PROCESSSED', notProcessedAll);
     await run;
@@ -485,7 +518,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSED (undocumented two-s spelling): falls through and does not keep', async () => {
-    // The code (and config.js/README) compare against 'NON_PROCESSSED'
+    // The code (and config.ts/README) compare against 'NON_PROCESSSED'
     // (three s's). The two-s spelling 'NON_PROCESSED' is not accepted and
     // falls through to "not keeping".
     const run = runReportFlow('NON_PROCESSED', notProcessedAll);
@@ -527,7 +560,7 @@ describe('checkProcess/createRecordResponsesForLoad (CREATE)', () => {
 
     assert.equal(result, true);
     // ackOnlyLength (2) === messages.length (2): nothing to nack.
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'nackMessages'), [['nackMessages', []]]);
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'nackMessages'), [['nackMessages', []]]);
     // Both record messages are acked (after the earlier process message ack).
     const acks = ackCallsOf(run.amqp);
     assert.deepEqual(acks[acks.length - 1], ['ackMessages', [message0, message1]]);
@@ -672,7 +705,7 @@ describe('checkProcess/createRecordResponsesForLoad (UPDATE)', () => {
         message: 'Updated record 000999999'
       }
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'UPDATE', importJobState: 'DONE'}]
     ]);
   });
@@ -779,7 +812,7 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
 
     assert.equal(result, true);
     // FIX does not pushIds or add a load process log item
-    assert.equal(run.mongo.calls.filter((call) => call[0] === 'pushIds').length, 0);
+    assert.equal(run.mongo.calls.filter((call: any) => call[0] === 'pushIds').length, 0);
     assert.equal(mongoLogItems.length, 0);
     // Fix process poll query has no pLogFile/pRejectFile params
     assert.ok(!fetchQuery(run.fetchCalls, 0).has('pLogFile'));
@@ -794,7 +827,7 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
         message: 'note one - note two - Fixed record 000999999.'
       }
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'DONE'}]
     ]);
   });
@@ -828,13 +861,13 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
       }
     ]);
     // prioStatus 'UNKNOWN' is a failed prio: import job and queueItem ERROR
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'ERROR'}]
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setState'), [
       ['setState', {correlationId: CORRELATION_ID, state: 'ERROR', errorMessage: '000999999', errorStatus: 'UNKNOWN'}]
     ]);
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'removeQueue'), [
       ['removeQueue', `FIX.${CORRELATION_ID}`],
       ['removeQueue', `PROCESS.FIX.${CORRELATION_ID}`]
     ]);
@@ -864,13 +897,13 @@ describe('checkProcess/prioEnd', () => {
         message: 'Created record 000999999.'
       }
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'CREATE', importJobState: 'DONE'}]
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setState'), [
       ['setState', {correlationId: CORRELATION_ID, state: 'DONE'}]
     ]);
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'removeQueue'), [
       ['removeQueue', `CREATE.${CORRELATION_ID}`],
       ['removeQueue', `PROCESS.CREATE.${CORRELATION_ID}`]
     ]);
@@ -888,10 +921,10 @@ describe('checkProcess/prioEnd', () => {
     const result = await run;
 
     assert.equal(result, true);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'CREATE', importJobState: 'ERROR'}]
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setState'), [
       ['setState', {
         correlationId: CORRELATION_ID,
         state: 'ERROR',
@@ -899,7 +932,7 @@ describe('checkProcess/prioEnd', () => {
         errorStatus: httpStatus.SERVICE_UNAVAILABLE
       }]
     ]);
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'removeQueue'), [
       ['removeQueue', `CREATE.${CORRELATION_ID}`],
       ['removeQueue', `PROCESS.CREATE.${CORRELATION_ID}`]
     ]);
@@ -917,7 +950,7 @@ describe('checkProcess/prioEnd', () => {
     const result = await run;
 
     assert.equal(result, true);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setState'), [
       ['setState', {
         correlationId: CORRELATION_ID,
         state: 'ERROR',
@@ -944,18 +977,18 @@ describe('checkProcess/bulkEnd (remaining items in the bulk queue)', () => {
 
     assert.equal(result, true);
     // bulkEnd checks the remaining message count with style 'messages'
-    assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'checkQueue'), [
+    assert.deepEqual(run.amqp.calls.filter((call: any) => call[0] === 'checkQueue'), [
       ['checkQueue', `PROCESS.CREATE.${CORRELATION_ID}`, 'one'],
       ['checkQueue', `CREATE.${CORRELATION_ID}`, 'basic'],
       ['checkQueue', `CREATE.${CORRELATION_ID}`, 'messages']
     ]);
-    assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
+    assert.deepEqual(run.mongo.calls.filter((call: any) => call[0] === 'setImportJobState'), [
       ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'CREATE', importJobState: 'IMPORTING'}]
     ]);
     // No queue removal while there are remaining items
-    assert.equal(run.amqp.calls.filter((call) => call[0] === 'removeQueue').length, 0);
+    assert.equal(run.amqp.calls.filter((call: any) => call[0] === 'removeQueue').length, 0);
     // And the flow ends with a file clearing request
-    assert.equal(run.fetchCalls[run.fetchCalls.length - 1].options.method, 'delete');
+    assert.equal(run.fetchCalls[run.fetchCalls.length - 1]!.options.method, 'delete');
   });
 });
 
@@ -971,12 +1004,12 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
       pollBody: {handledIds: ['000999999FIN']},
       operationQueueResult: false
     });
-    const isUnprocessable = (error) =>
+    const isUnprocessable = (error: unknown) =>
       error instanceof ApiError && error.status === httpStatus.UNPROCESSABLE_ENTITY;
     await assert.rejects(run, isUnprocessable);
 
     // handleProcessQueueResults ran before handleMessages, so ids were already pushed
-    assert.equal(run.mongo.calls.filter((call) => call[0] === 'pushIds').length, 1);
+    assert.equal(run.mongo.calls.filter((call: any) => call[0] === 'pushIds').length, 1);
     assert.equal(recordResponseCalls(run.mongo).length, 0);
     assert.equal(run.fetchCalls.length, 1); // poll only, no file clearing
   });
@@ -991,7 +1024,7 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
       pollBody: {handledIds: ['000999999FIN']},
       operationQueueResult: {headers: null, messages: false}
     });
-    const isUnprocessable = (error) =>
+    const isUnprocessable = (error: unknown) =>
       error instanceof ApiError && error.status === httpStatus.UNPROCESSABLE_ENTITY;
     await assert.rejects(run, isUnprocessable);
 
@@ -1007,16 +1040,16 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
       // only 1 message in the queue
       operationQueueResult: makeOperationQueue([makeMessage({id: '000999999'})])
     });
-    const isInternalServerError = (error) =>
+    const isInternalServerError = (error: unknown) =>
       error instanceof ApiError && error.status === httpStatus.INTERNAL_SERVER_ERROR;
     await assert.rejects(run, isInternalServerError);
 
     // The throw happens before any (s)nack of record messages or record responses
-    assert.equal(run.amqp.calls.filter((call) => call[0] === 'nackMessages').length, 0);
+    assert.equal(run.amqp.calls.filter((call: any) => call[0] === 'nackMessages').length, 0);
     assert.equal(recordResponseCalls(run.mongo).length, 0);
   });
 
-  // Dead / unreachable code in checkProcess.js (documented, not tested):
+  // Dead / unreachable code in checkProcess.ts (documented, not tested):
   // - handleMessages: the `ackMessages === undefined || ackMessages.length < 1`
   //   fallback is unreachable: separateMessages throws ApiError(500) first
   //   whenever ackOnlyLength is 0/falsy or exceeds messages.length, so it can

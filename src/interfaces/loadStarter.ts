@@ -1,11 +1,13 @@
 import httpStatus from 'http-status';
-import moment from 'moment';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
-import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.ts';
+import type {Cataloger, LoadRecordResult, RecordLoadParams} from './fixLoadStarter.ts';
+import type {MarcRecord} from '@natlibfi/marc-record';
+import type {Response} from 'undici-types';
 
-export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}) {
+export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fixPrio, fixBulk}: {recordLoadApiKey: string; recordLoadLibrary: string; recordLoadUrl: string; fixPrio: string; fixBulk: string}) {
   const logger = createLogger();
   const INDEXING_PRIORITY = {
     HIGH: 1,
@@ -16,7 +18,14 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
 
   // -> loadRecord({correlationId, records, recordList, fixType, recordLoadParams, cataloger: headers.cataloger, prio})
   // -> recordList and fixType from parameters are not used but load-type loads, but are used for fix-type loads
-  async function loadRecord({correlationId = undefined, records, operation, recordLoadParams = {}, cataloger, prio}) {
+  async function loadRecord({correlationId = undefined, records, operation, recordLoadParams = {}, cataloger, prio}: {
+    correlationId?: string;
+    records: MarcRecord[];
+    operation?: string;
+    recordLoadParams?: RecordLoadParams;
+    cataloger: Cataloger;
+    prio?: boolean;
+  }): Promise<LoadRecordResult> {
     const recordCount = records.length;
     const seqRecords = createSeqRecords(records);
 
@@ -27,7 +36,10 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     // why we had here cataloger.toUpperCase - where have we made a change?
     // cataloger.id from prio, cataloger from bulk
 
-    const catalogerName = cataloger.id || cataloger;
+    // cataloger is a plain string in bulk and {id} in prio; the boundary casts keep the original
+    // `cataloger.id || cataloger` expression byte-identical: .id is undefined for strings at runtime,
+    // so the expression is a string either way.
+    const catalogerName: string = (cataloger as {id?: string}).id || (cataloger as string);
 
     // Note: pRejectFile & pLogFile are combined reject and logFiles for whole batch of records
     // useLoaderProcessId: name aleph-record-load-api:s files by unique loaderProcessId instead of correlationId
@@ -45,21 +57,22 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     const url = new URL(`${recordLoadUrl}?${query}`);
     logger.debug(`Loading ${recordCount} records to: ${url.toString()}`);
 
-    const response = await fetch(url, {
+    // handleConnectionError always throws; the catch path never resolves to a value.
+    const response = (await fetch(url, {
       method: 'post',
       headers: {
         'Content-Type': 'text/plain',
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       },
       body: seqRecords
-    }).catch(error => handleConnectionError(error));
+    }).catch(error => handleConnectionError(error))) as Response;
 
     logger.silly(`Got response for load record. Status: ${response.status}`);
 
     await checkStatus(response);
 
     if (response.status === httpStatus.OK) {
-      const result = await response.json();
+      const result = (await response.json()) as LoadRecordResult;
       logger.info(`Got "OK" (200) response from record-load-api. correlationId: ${result.correlationId}, loaderProcessId: ${result.loaderProcessId}`);
       logger.debug(`Response: ${JSON.stringify(result)}`);
       return result;
@@ -68,7 +81,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
     // Unexpected! Retry?
     throw new ApiError(response.status || httpStatus.INTERNAL_SERVER_ERROR, response ? await response.text() : 'Internal error');
 
-    function generateIndexingPriority(indexingPriority, operation, forPriority) {
+    function generateIndexingPriority(indexingPriority: number, operation?: string, forPriority?: boolean): string | number {
       if (operation === OPERATIONS.CREATE) {
         return forPriority ? '1990' : '1992';
       }
@@ -78,12 +91,11 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
         return forPriority ? '1998' : '2099';
       }
 
-      return moment().add(1000, 'years')
-        .year();
+      return new Date().getFullYear() + 1000;
     }
   }
 
-  function createSeqRecords(records) {
+  function createSeqRecords(records: MarcRecord[]) {
     // Note: we error the whole batch in bulkjob, if even one of them errors serialization
     // Note: errored batch of records is not getting a recordResponse currently
     // Validator tries conversion for single records, so they should not end up here
@@ -98,7 +110,8 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
       return seqRecords;
     } catch (err) {
       logger.debug(`createSeqRecords errored: ${err}`);
-      throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, err.message);
+      // The serializers throw Error; the cast keeps the original `err.message` read on the catch-passed unknown.
+      throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, (err as Error).message);
     }
   }
 }
