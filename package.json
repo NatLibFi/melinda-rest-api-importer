@@ -25,8 +25,8 @@
     "build": "rm -rf dist && tsc",
     "start": "node ./dist/index.js",
     "cli": "node ./dist/cli.js",
-    "lint": "eslint ./test",
-    "lint:dev": "eslint --fix ./test",
+    "lint": "eslint ./src ./test",
+    "lint:dev": "eslint ./src ./test --fix",
     "test:base": "node --test --test-force-exit --experimental-test-coverage --test-reporter=spec --test-coverage-include=src/** --test-coverage-lines=88 --test-coverage-branches=88 --test-coverage-functions=90 'test/*.test.ts'",
     "test": "npm run lint && npm run test:base",
     "watch:test": "cross-env DEBUG=@natlibfi/* NODE_ENV=test node --watch --test --experimental-test-coverage --test-reporter=spec 'test/*.test.ts'",
@@ -44,9 +44,11 @@
     "amqplib": "^2.2.0",
     "cross-env": "^10.1.0",
     "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
+    "eslint": "^10.13.0",
+    "jiti": "^2.7.0",
     "mongodb": "^7.7.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
     "undici-types": "^8.12.3"
   }
 }
