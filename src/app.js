@@ -4,7 +4,7 @@ import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.js';
 import checkProcess from './interfaces/checkProcess.js';
 import recordFixFactory from './interfaces/fixLoadStarter.ts';
-import recordLoadFactory from './interfaces/loadStarter.js';
+import recordLoadFactory from './interfaces/loadStarter.ts';
 
 // Containment of infrastructure errors (Mongo/AMQP driver rejections) in the
 // startCheck loop: retry with capped exponential backoff, and re-throw after

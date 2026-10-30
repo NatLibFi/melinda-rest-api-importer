@@ -4,7 +4,7 @@ import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import loadStarter from './loadStarter.js';
+import loadStarter from './loadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {
