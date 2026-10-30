@@ -2,7 +2,7 @@ import {afterEach, beforeEach, test} from 'node:test';
 import assert from 'node:assert/strict';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import fixLoadStarter from './fixLoadStarter.ts';
+import fixLoadStarter from '../src/interfaces/fixLoadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {

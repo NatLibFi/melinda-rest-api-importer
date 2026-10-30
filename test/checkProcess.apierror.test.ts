@@ -1,4 +1,4 @@
-// ApiError funneling in checkProcess.js, end-to-end against the REAL
+// ApiError funneling in checkProcess.ts, end-to-end against the REAL
 // rest-api-commons mongo layer (mongoFactory, with MongoClient.connect
 // patched) instead of a hand-rolled mongoOperator fake.
 //
@@ -15,7 +15,7 @@
 //      the ApiError escapes checkProcessQueueStart instead of the
 //      queueItem being left without a second error state.
 //
-// checkProcess.js creates its processOperator internally (processPoll.js)
+// checkProcess.ts creates its processOperator internally (processPoll.ts)
 // and calls mongoLogFactory(mongoUri) itself, so neither can be injected.
 // The processOperator is driven through a stubbed globalThis.fetch; both
 // MongoClient.connect users (mongoFactory and mongoLogFactory) are driven
@@ -27,7 +27,7 @@ import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoDriverError} from 'mongodb';
 import {mongoFactory} from '@natlibfi/melinda-rest-api-commons';
-import checkProcessFactory from './checkProcess.ts';
+import checkProcessFactory from '../src/interfaces/checkProcess.ts';
 
 // One fake Mongo client per patched connect call. The fake db hands out a
 // recording fake collection for every requested collection name.
@@ -130,7 +130,7 @@ function stubFetch(pollStatus) {
   };
 }
 
-// Creates the real mongo operator (the one the app.js loop would pass into
+// Creates the real mongo operator (the one the app.ts loop would pass into
 // checkProcessQueueStart) and runs checkProcessQueueStart with a 404 poll,
 // so handleProcessMessageError rethrows the ApiError(404) and the
 // checkProcessQueue catch is exercised. findOneAndUpdateError, when set,

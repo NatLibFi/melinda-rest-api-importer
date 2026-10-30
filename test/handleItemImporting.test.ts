@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {createItemImportingHandler} from './handleItemImporting.ts';
+import {createItemImportingHandler} from '../src/handleItemImporting.ts';
 
 // The module does not fetch anything itself (recordLoadOperator is injected)
 // and creates no MongoClient internally, so no fetch stub or mongodb patch is
@@ -89,7 +89,7 @@ function createMockMongoOperator(calls, name) {
 }
 
 function createHandler(operators) {
-  // Same construction options shape as src/app.js:
+  // Same construction options shape as src/app.ts:
   // createItemImportingHandler(amqpOperator, mongoOperators, recordLoadOperator,
   // {error503WaitTime, recordLoadLibrary})
   return createItemImportingHandler(
@@ -223,7 +223,7 @@ describe('createItemImportingHandler', () => {
 
     // Undefined recordLoadParams also pass through to loadRecord as-is.
     assert.equal(calls.loadRecord[0].recordLoadParams, undefined);
-    // pActiveLibrary is the constructor-level recordLoadLibrary (from config.js
+    // pActiveLibrary is the constructor-level recordLoadLibrary (from config.ts
     // RECORD_LOAD_LIBRARY) only when recordLoadParams is falsy.
     assert.equal(calls.sendToQueue[0].data.pActiveLibrary, RECORD_LOAD_LIBRARY);
   });

@@ -4,7 +4,7 @@ import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {MarcRecord} from '@natlibfi/marc-record';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
-import loadStarter from './loadStarter.ts';
+import loadStarter from '../src/interfaces/loadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {
@@ -128,7 +128,7 @@ test('builds full URL, headers and seq body (CREATE, prio, all recordLoadParams 
 });
 
 test('omits null-valued file params; correlationId still stringified as "undefined" (out of scope for the file-param fix)', async () => {
-  // loadStarter.js:21-44: correlationId defaults to undefined and pRejectFile/pLogFile default to null.
+  // loadStarter.ts:21-44: correlationId defaults to undefined and pRejectFile/pLogFile default to null.
   // buildQuery omits the null-valued file params (pRejectFile/pLogFile). correlationId is left as-is:
   // its undefined value is still stringified by URLSearchParams (out of scope for the file-param fix).
   stubFetch(async () => jsonResponse(200, {ok: true}));

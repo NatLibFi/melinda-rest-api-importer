@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-const CONFIG_PATH = path.join(import.meta.dirname, 'config.ts');
+const CONFIG_PATH = path.join(import.meta.dirname, '..', 'src', 'config.ts');
 
 // All config values are read at import time (module-scope exports), and the
 // exports are evaluated once per process. Each case is therefore run in its

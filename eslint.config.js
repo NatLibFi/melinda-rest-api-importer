@@ -1,7 +1,7 @@
 // Eslint configuration object for src
 const configSrc = {
   files: [
-    "src/*.js"
+    "test/**/*.ts"
   ],
   linterOptions: {
     reportUnusedDisableDirectives: true,

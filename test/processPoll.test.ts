@@ -2,7 +2,7 @@ import {after, test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import processPoll from './processPoll.ts';
+import processPoll from '../src/interfaces/processPoll.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const recordLoadApiKey = ['test', 'api', 'key'].join('-');

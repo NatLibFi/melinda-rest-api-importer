@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {sendErrorResponses} from './sendErrorResponses.ts';
+import {sendErrorResponses} from '../src/interfaces/sendErrorResponses.ts';
 
 // Plain mock matching the @natlibfi/melinda-rest-api-commons amqp factory:
 // checkQueue({queue, style, toRecord, purge}) -> {headers, messages} (or false when empty),

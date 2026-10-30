@@ -1,10 +1,10 @@
-// Tests for app.js: the startCheck recursive polling loop (loop control) and
+// Tests for app.ts: the startCheck recursive polling loop (loop control) and
 // the queueItem/importJobState transition checks.
 //
-// app.js creates its amqpOperator (amqpFactory), prio/bulk mongoOperators
+// app.ts creates its amqpOperator (amqpFactory), prio/bulk mongoOperators
 // (mongoFactory) and processOperator (checkProcess, which also creates
 // mongoLogFactory) internally, so none of them are injectable. Like
-// checkProcess.test.js, we patch the two client constructors (amqplib.connect
+// checkProcess.test.ts, we patch the two client constructors (amqplib.connect
 // and MongoClient.connect) for the duration of the suite and drive everything
 // through those fakes plus a per-test globalThis.fetch stub.
 //
@@ -26,7 +26,7 @@ import {MongoClient} from 'mongodb';
 import amqplib from 'amqplib';
 import {OPERATIONS, IMPORT_JOB_STATE, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
 import {generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import startApp from './app.ts';
+import startApp from '../src/app.ts';
 
 process.env.LOG_LEVEL = 'error';
 
@@ -255,7 +255,7 @@ function makeFetch(responses) {
   return {calls, fn};
 }
 
-// The getOne queries app.js builds (createImportJobState uses dotted keys)
+// The getOne queries app.ts builds (createImportJobState uses dotted keys)
 function importJobQuery(operation, jobState) {
   return {queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, [`importJobState.${operation}`]: jobState};
 }
@@ -263,10 +263,10 @@ function importJobQuery(operation, jobState) {
 const queueItemInQueueQuery = {queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE};
 
 function makeQueueItem(overrides = {}) {
-  // operationSettings is assumed to always exist by app.js:224
+  // operationSettings is assumed to always exist by app.ts:224
   // (`queueItem.operationSettings.noop`); real queueItems created by the
   // validator always carry it. Missing here would crash the loop like the
-  // app.js:249 bug below.
+  // app.ts:249 bug below.
   return {correlationId: CID, operationSettings: {}, ...overrides};
 }
 
@@ -398,7 +398,7 @@ describe('app/startCheck loop control', () => {
     fakes.park();
 
     assert.deepEqual(fakes.amqpUrls, [AMQP_URL]);
-    // prio and bulk from app.js, logs from checkProcess' mongoLogFactory
+    // prio and bulk from app.ts, logs from checkProcess' mongoLogFactory
     assert.deepEqual(fakes.mongoUris, [MONGO_URI, MONGO_URI, MONGO_URI]);
     assert.ok(fakes.collectionNames.includes('prio'));
     assert.ok(fakes.collectionNames.includes('bulk'));
@@ -908,7 +908,7 @@ describe('app/checkQueueItemStateINQUEUE (queueItem IN_QUEUE)', () => {
   test(
     'FIX importer + other job state without a FIX key: job initialized to IMPORTING, no crash',
     async () => {
-      // Regression test for the former app.js:249 bug, where this branch
+      // Regression test for the former app.ts:249 bug, where this branch
       // read `queueItem.importJobState.OPERATIONS.FIX` (importJobState is a
       // flat {operation: state} map, so .OPERATIONS was undefined ->
       // TypeError -> the whole service died). Now a missing FIX key

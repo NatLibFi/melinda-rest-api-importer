@@ -3,9 +3,9 @@ import {strict as assert} from 'node:assert';
 import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient} from 'mongodb';
-import checkProcessFactory from './checkProcess.ts';
+import checkProcessFactory from '../src/interfaces/checkProcess.ts';
 
-// checkProcess.js creates its processOperator internally (processPoll.js) and
+// checkProcess.ts creates its processOperator internally (processPoll.ts) and
 // calls mongoLogFactory(mongoUri) itself, so neither can be injected.
 // The processOperator is driven through a stubbed globalThis.fetch (per test).
 // mongoLogFactory (rest-api-commons) opens a real Mongo connection via
@@ -471,7 +471,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSSED (the code value) with processedAll false: keeps the report', async () => {
-    // The code value (and the one documented in config.js and the README)
+    // The code value (and the one documented in config.ts and the README)
     // has THREE s's: NON_ + PROCESSED.
     const run = runReportFlow('NON_PROCESSSED', notProcessedAll);
     await run;
@@ -485,7 +485,7 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSED (undocumented two-s spelling): falls through and does not keep', async () => {
-    // The code (and config.js/README) compare against 'NON_PROCESSSED'
+    // The code (and config.ts/README) compare against 'NON_PROCESSSED'
     // (three s's). The two-s spelling 'NON_PROCESSED' is not accepted and
     // falls through to "not keeping".
     const run = runReportFlow('NON_PROCESSED', notProcessedAll);
@@ -1016,7 +1016,7 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
     assert.equal(recordResponseCalls(run.mongo).length, 0);
   });
 
-  // Dead / unreachable code in checkProcess.js (documented, not tested):
+  // Dead / unreachable code in checkProcess.ts (documented, not tested):
   // - handleMessages: the `ackMessages === undefined || ackMessages.length < 1`
   //   fallback is unreachable: separateMessages throws ApiError(500) first
   //   whenever ackOnlyLength is 0/falsy or exceeds messages.length, so it can
