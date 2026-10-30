@@ -1,5 +1,4 @@
 import httpStatus from 'http-status';
-import moment from 'moment';
 import {AlephSequential} from '@natlibfi/marc-record-serializers';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
@@ -78,8 +77,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl, fi
         return forPriority ? '1998' : '2099';
       }
 
-      return moment().add(1000, 'years')
-        .year();
+      return new Date().getFullYear() + 1000;
     }
   }
 

@@ -184,7 +184,7 @@ test('pZ07PriorityYear matrix: CREATE 1990/1992, UPDATE (HIGH) 1998/2099', async
   }
 
   // Note: generateIndexingPriority's else branch (non-CREATE + non-HIGH indexingPriority,
-  // moment().add(1000, 'years')) is unreachable: loadRecord always passes INDEXING_PRIORITY.HIGH.
+  // new Date().getFullYear() + 1000) is unreachable: loadRecord always passes INDEXING_PRIORITY.HIGH.
   // It is deliberately left uncovered instead of stubbing the clock around dead code.
 });
 
