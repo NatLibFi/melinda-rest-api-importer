@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {buildQuery, checkStatus, handleConectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const logger = createLogger();
@@ -54,7 +54,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
         'Content-Type': 'text/plain',
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
@@ -186,7 +186,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
         'Content-Type': 'text/plain',
         Authorization: generateAuthorizationHeader(recordLoadApiKey)
       }
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got file clearing response ${JSON.stringify(response)}`);
 

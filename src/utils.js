@@ -70,13 +70,14 @@ export function buildQuery(params) {
   return searchParams;
 }
 
-export function handleConectionError(error) {
+export function handleConnectionError(error) {
   const logger = createLogger();
-  if (error.response) {
-    return error.response;
-  }
-
   logger.info('No connection to aleph-record-load-api.');
+  // Native fetch failures are TypeErrors whose .cause carries the undici reason
+  // (ENOTFOUND / ECONNREFUSED / timeout) - log it, it is currently discarded.
+  if (error.cause) {
+    logger.info(`Connection error cause: ${error.cause.code ?? 'no code'} ${error.cause.message ?? ''}`);
+  }
   logError(error);
   throw new ApiError(httpStatus.SERVICE_UNAVAILABLE, 'The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.');
 }

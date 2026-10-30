@@ -209,15 +209,6 @@ test('poll CREATE maps a fetch network failure to ApiError(503)', async () => {
   });
 });
 
-test('poll CREATE uses error.response when fetch rejects with an axios-style error', async () => {
-  const fakeResponse = {status: httpStatus.OK, json: async () => loadResponse(['000000001FIN01'])};
-  stubFetch({reject: Object.assign(new Error('boom'), {response: fakeResponse})});
-  const result = await poller.poll({operation: 'CREATE', params: loadParams({recordAmount: 1})});
-
-  assert.equal(result.ackOnlyLength, 1);
-  assert.deepEqual(result.payloads.handledIds, ['000000001']);
-});
-
 test('poll does not fetch for operations other than CREATE/UPDATE/FIX and returns undefined', async () => {
   stubFetch({});
   const result = await poller.poll({operation: 'DELETE', params: loadParams()});

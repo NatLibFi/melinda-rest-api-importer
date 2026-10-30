@@ -241,7 +241,7 @@ test('checkStatus error payloads: 404, 406, 423, 503', async () => {
   }
 });
 
-test('network failure (fetch rejects, no error.response): throws ApiError(503)', async () => {
+test('network failure (fetch rejects): throws ApiError(503)', async () => {
   stubFetch(async () => {
     throw new TypeError('fetch failed');
   });
@@ -253,19 +253,6 @@ test('network failure (fetch rejects, no error.response): throws ApiError(503)',
   assert.equal(error.status, 503);
   assert.equal(error.payload, 'The server is temporarily unable to service your request due to '
     + 'maintenance downtime or capacity problems. Please try again later.');
-});
-
-test('axios-style error.response recovery: the attached response is used as the fetch result', async () => {
-  const result = {correlationId: 'corr-1', loaderProcessId: 'lp-1'};
-  const error = new Error('Request failed with status code 200');
-  error.response = {status: 200, json: async () => result};
-  stubFetch(async () => {
-    throw error;
-  });
-
-  const returned = await starter.loadRecord({records: RECORDS, operation: OPERATIONS.CREATE, cataloger: 'cat1'});
-
-  assert.deepEqual(returned, result);
 });
 
 test('unexpected status (500): checkStatus passes through, loadRecord throws ApiError with response text', async () => {
@@ -290,5 +277,5 @@ test('falsy response.status: falls back to 500 via `response.status || INTERNAL_
   assert.equal(error.payload, 'weird');
   // Note: the `response ? await response.text() : 'Internal error'` ternary's false side is
   // unreachable: response is always an object (checkStatus would throw first, and
-  // handleConectionError either throws or returns error.response). Left uncovered deliberately.
+  // handleConnectionError always throws ApiError(503)). Left uncovered deliberately.
 });

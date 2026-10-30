@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {buildQuery, checkStatus, handleConectionError} from './utils.js';
+import {buildQuery, checkStatus, handleConnectionError} from './utils.js';
 
 test('checkStatus: throws ApiError 400 with the response body verbatim for 400', async () => {
   const response = {status: httpStatus.BAD_REQUEST, text: async () => 'Missing mandatory parameter: correlationId'};
@@ -127,19 +127,43 @@ test('checkStatus: falls through without throwing for any other status', async (
   }
 });
 
-test('handleConectionError: returns error.response when present', () => {
-  const errorResponse = {status: 500, data: 'boom'};
-  const error = {response: errorResponse};
-  assert.equal(handleConectionError(error), errorResponse);
-});
-
-test('handleConectionError: throws ApiError 503 when error has no response', () => {
+test('handleConnectionError: throws ApiError 503 for a plain Error (no cause)', () => {
   const error = new Error('network down');
   const expectedPayload = 'The server is temporarily unable to service your request'
     + ' due to maintenance downtime or capacity problems. Please try again later.';
   try {
-    handleConectionError(error);
-    assert.fail('Expected handleConectionError to throw');
+    handleConnectionError(error);
+    assert.fail('Expected handleConnectionError to throw');
+  } catch (thrown) {
+    assert.ok(thrown instanceof ApiError, 'error is an ApiError');
+    assert.equal(thrown.status, httpStatus.SERVICE_UNAVAILABLE);
+    assert.equal(thrown.payload, expectedPayload);
+  }
+});
+
+test('handleConnectionError: maps a fetch TypeError carrying an undici cause to ApiError(503) and logs the cause', () => {
+  const error = new TypeError('fetch failed');
+  error.cause = Object.assign(new Error('getaddrinfo ENOTFOUND record-load-api'), {code: 'ENOTFOUND'});
+  const expectedPayload = 'The server is temporarily unable to service your request'
+    + ' due to maintenance downtime or capacity problems. Please try again later.';
+  try {
+    handleConnectionError(error);
+    assert.fail('Expected handleConnectionError to throw');
+  } catch (thrown) {
+    assert.ok(thrown instanceof ApiError, 'error is an ApiError');
+    assert.equal(thrown.status, httpStatus.SERVICE_UNAVAILABLE);
+    assert.equal(thrown.payload, expectedPayload);
+  }
+});
+
+test('handleConnectionError: a cause without code or message still maps to ApiError(503)', () => {
+  const error = new TypeError('fetch failed');
+  error.cause = {};
+  const expectedPayload = 'The server is temporarily unable to service your request'
+    + ' due to maintenance downtime or capacity problems. Please try again later.';
+  try {
+    handleConnectionError(error);
+    assert.fail('Expected handleConnectionError to throw');
   } catch (thrown) {
     assert.ok(thrown instanceof ApiError, 'error is an ApiError');
     assert.equal(thrown.status, httpStatus.SERVICE_UNAVAILABLE);
