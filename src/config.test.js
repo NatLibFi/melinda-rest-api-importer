@@ -4,11 +4,11 @@ import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-const CONFIG_PATH = path.join(import.meta.dirname, 'config.js');
+const CONFIG_PATH = path.join(import.meta.dirname, 'config.ts');
 
 // All config values are read at import time (module-scope exports), and the
 // exports are evaluated once per process. Each case is therefore run in its
-// own subprocess: the child imports src/config.js with a specific env and
+// own subprocess: the child imports src/config.ts with a specific env and
 // prints the selected exports as one JSON line, which the parent asserts on.
 const MANAGED_VARIABLES = [
   'RECORD_LOAD_URL',
@@ -26,7 +26,7 @@ const MANAGED_VARIABLES = [
   'KEEP_LOAD_PROCESS_RESULTS'
 ];
 
-// The variables without a default in config.js: without them the import throws.
+// The variables without a default in config.ts: without them the import throws.
 const MANDATORY_VARIABLES = {
   RECORD_LOAD_URL: 'http://record-load',
   // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.

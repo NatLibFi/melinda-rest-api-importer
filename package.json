@@ -22,7 +22,7 @@
   },
   "private": true,
   "scripts": {
-    "build": "esbuild \"src/**/*.js\" --sourcemap --platform=node --outdir=dist",
+    "build": "rm -rf dist && tsc",
     "start": "node ./dist/index.js",
     "cli": "node ./dist/cli.js",
     "lint": "eslint ./src",
