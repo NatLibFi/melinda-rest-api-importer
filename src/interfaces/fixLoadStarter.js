@@ -1,7 +1,6 @@
 import httpStatus from 'http-status';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils.js';
+import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
+import {checkStatus, handleConnectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
   const logger = createLogger();
@@ -44,11 +43,11 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
         'Authorization': generateAuthorizationHeader(recordLoadApiKey)
       },
       body: recordSysList
-    }).catch(error => handleConectionError(error));
+    }).catch(error => handleConnectionError(error));
 
     logger.silly(`Got response for load record. Status: ${response.status}`);
 
-    checkStatus(response);
+    await checkStatus(response);
 
     if (response.status === httpStatus.OK) {
       const result = await response.json();

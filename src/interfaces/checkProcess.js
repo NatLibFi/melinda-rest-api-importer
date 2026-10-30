@@ -1,7 +1,6 @@
 import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
+import {createLogger, Error as ApiError, toAlephId} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 import processOperatorFactory from './processPoll.js';
@@ -118,9 +117,11 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   async function checkProcessQueue({correlationId, operation, mongoOperator, prio, waited = false}) {
     const processQueue = `PROCESS.${operation}.${correlationId}`;
     logger.silly(`Checking process queue: ${processQueue} for ${correlationId}`);
-    const processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
 
+    let processMessage;
     try {
+      processMessage = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
+
       if (processMessage) {
         logger.silly(`We have processMessage: ${processMessage}`);
         logger.silly(`checkProcessQueue -> handleProcessMessage`);
@@ -228,27 +229,28 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.silly(`Check queue: ${JSON.stringify(queue)}`);
     // note: headers are headers for the first message in chunk
     const {headers: firstMessageHeaders, messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
+    // checkQueue returns plain false for an empty queue: guard before any use of messages
+    if (!messages) {
+      logger.verbose(`No messages in ${queue} to handle. Continuing the loop`);
+      return false;
+    }
+
     logger.silly(`firstMessageHeaders: ${JSON.stringify(firstMessageHeaders)}, messages: ${messages.length}`);
     logger.silly(`messages: ${JSON.stringify(messages)}`);
 
-    if (messages) {
-      logger.verbose(`Handling ${operation}.${correlationId} messages (total: ${messages.length}) based on results got from process polling`);
-      logger.debug(`${JSON.stringify(results)}`);
-      logger.silly(`${JSON.stringify(results.ackOnlyLength)}`);
-      // Handle separation of all ready done records
-      const ackMessages = await separateMessages(messages, results.ackOnlyLength);
+    logger.verbose(`Handling ${operation}.${correlationId} messages (total: ${messages.length}) based on results got from process polling`);
+    logger.debug(`${JSON.stringify(results)}`);
+    logger.silly(`${JSON.stringify(results.ackOnlyLength)}`);
+    // Handle separation of all ready done records
+    const ackMessages = await separateMessages(messages, results.ackOnlyLength);
 
-      if (ackMessages === undefined || ackMessages.length < 1) {
-        // If there are no messages to ack, continue the loop
-        logger.verbose(`There was no messages to ack!!!`);
-        return false;
-      }
-
-      return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
+    if (ackMessages === undefined || ackMessages.length < 1) {
+      // If there are no messages to ack, continue the loop
+      logger.verbose(`There was no messages to ack!!!`);
+      return false;
     }
 
-    logger.verbose(`No messages in ${queue} to handle: ${messages}. Continuing the loop`);
-    return false;
+    return handleMessagesBoth({operation, messages: ackMessages, results, queue, correlationId, mongoOperator, amqpOperator, prio});
   }
 
   async function separateMessages(messages, ackOnlyLength) {
@@ -284,13 +286,14 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
   function getPrioStatusAndPayloads(operation, results) {
     const {handledIds, rejectedIds, erroredAmount} = results.payloads;
-    const {rlaStatus} = results;
-    const prioStatus = getPrioStatus(operation, rlaStatus, handledIds, erroredAmount);
+    // processPoll returns the record-load-api status as results.status
+    const {status} = results;
+    const prioStatus = getPrioStatus(operation, status, handledIds, erroredAmount);
     const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds);
 
     return {prioStatus, prioPayloads};
 
-    function getPrioStatus(operation, rlaStatus, handledIds = undefined, erroredAmount = undefined) {
+    function getPrioStatus(operation, status, handledIds = undefined, erroredAmount = undefined) {
       // OraErrors: return 503 so that the client can try again
       if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation) && erroredAmount !== undefined && erroredAmount > 0) {
         return httpStatus.SERVICE_UNAVAILABLE;
@@ -307,7 +310,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         return 'UPDATED';
       }
       if (operation === OPERATIONS.FIX) {
-        if (rlaStatus === httpStatus.CONFLICT) {
+        if (status === httpStatus.CONFLICT) {
           return 'UNKNOWN';
         }
         return 'FIXED';

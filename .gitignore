@@ -30,3 +30,7 @@ node_modules/
 .env.update
 
 
+
+# private scratch workspace (nested git repo, never publish)
+workspace/
+.issues/
