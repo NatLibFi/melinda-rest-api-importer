@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {createItemImportingHandler} from './handleItemImporting.js';
+import {createItemImportingHandler} from './handleItemImporting.ts';
 
 // The module does not fetch anything itself (recordLoadOperator is injected)
 // and creates no MongoClient internally, so no fetch stub or mongodb patch is
