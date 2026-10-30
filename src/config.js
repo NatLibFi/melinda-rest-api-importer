@@ -22,5 +22,5 @@ export const error503WaitTime = parseInt(readEnvironmentVariable('ERROR_503_WAIT
 export const operation = readEnvironmentVariable('OPERATION');
 
 // Reporting variables
-// keepLoadProcessReports: ALL/NONE/NON_PROCESSED/NON_HANDLED
+// keepLoadProcessReports: ALL/NONE/NON_PROCESSSED/NON_HANDLED
 export const keepLoadProcessReports = readEnvironmentVariable('KEEP_LOAD_PROCESS_RESULTS', {defaultValue: 'NON_HANDLED'});

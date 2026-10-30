@@ -1,4 +1,4 @@
-import {createLogger, logWait, millisecondsToString} from '@natlibfi/melinda-commons';
+import {createLogger, logWait, millisecondsToString, Error as ApiError} from '@natlibfi/melinda-commons';
 import {amqpFactory, mongoFactory, QUEUE_ITEM_STATE, IMPORT_JOB_STATE, OPERATIONS, createImportJobState} from '@natlibfi/melinda-rest-api-commons';
 import {inspect, promisify} from 'util';
 import {createItemImportingHandler} from './handleItemImporting.js';
@@ -6,6 +6,14 @@ import checkProcess from './interfaces/checkProcess.js';
 import recordFixFactory from './interfaces/fixLoadStarter.js';
 import recordLoadFactory from './interfaces/loadStarter.js';
 
+// Containment of infrastructure errors (Mongo/AMQP driver rejections) in the
+// startCheck loop: retry with capped exponential backoff, and re-throw after
+// too many consecutive failed cycles (the unhandledRejection handler in
+// index.js then exits the process so a supervisor can restart it).
+// Tuned values, revisit together with the stuck-423 safety-net work.
+const INFRA_ERROR_RETRY_BASE_WAIT_MS = 100;
+const INFRA_ERROR_RETRY_MAX_WAIT_MS = 30000;
+const INFRA_ERROR_RETRY_MAX_CONSECUTIVE_FAILURES = 30;
 
 // eslint-disable-next-line max-lines-per-function
 export default async function ({
@@ -16,6 +24,7 @@ export default async function ({
 
   const setTimeoutPromise = promisify(setTimeout);
   const logger = createLogger();
+  let consecutiveInfraFailures = 0;
 
   const recordLoadUrlWithPath = getUrlWithPath({operation, recordLoadUrl, recordLoadFixPath, recordLoadLoadPath});
 
@@ -56,11 +65,38 @@ export default async function ({
       return startCheck({waitSinceLastOp: nowWaited});
     }
 
-    if (checkInProcessItems) {
-      return checkInProcess({waitSinceLastOp});
-    }
+    try {
+      const result = checkInProcessItems
+        ? await checkInProcess({waitSinceLastOp})
+        : await checkItemImportingAndInQueue({waitSinceLastOp});
+      consecutiveInfraFailures = 0;
+      return result;
+    } catch (error) {
+      // ApiErrors keep the existing handling path: propagate unchanged
+      if (error instanceof ApiError) {
+        throw error;
+      }
 
-    return checkItemImportingAndInQueue({waitSinceLastOp});
+      // Infrastructure (e.g. Mongo/AMQP driver) error: contain, log,
+      // and re-schedule the next cycle with capped exponential backoff
+      consecutiveInfraFailures += 1;
+      if (consecutiveInfraFailures >= INFRA_ERROR_RETRY_MAX_CONSECUTIVE_FAILURES) {
+        logger.error(`app/startCheck: ${consecutiveInfraFailures} consecutive cycles failed, giving up:`, error);
+        throw error;
+      }
+      const waitMs = Math.min(
+        INFRA_ERROR_RETRY_BASE_WAIT_MS * 2 ** (consecutiveInfraFailures - 1),
+        INFRA_ERROR_RETRY_MAX_WAIT_MS
+      );
+      logger.error(
+        `app/startCheck: cycle failed with a non-ApiError (consecutive infrastructure failures: ${consecutiveInfraFailures}/${INFRA_ERROR_RETRY_MAX_CONSECUTIVE_FAILURES}), retrying in ${waitMs} ms:`,
+        error
+      );
+      if (error.cause) {
+        logger.error(`app/startCheck: cause of the cycle failure:`, error.cause);
+      }
+      return startCheck({checkInProcessItems: true, wait: waitMs, waitSinceLastOp});
+    }
   }
 
   async function checkInProcess({prio = true, waitSinceLastOp}) {
@@ -245,8 +281,9 @@ export default async function ({
         logger.debug(`Found item in queue to be imported ${queueItem.correlationId} ${waitTimePrint(waitSinceLastOp)}`);
         await mongoOperator.setState({correlationId: queueItem.correlationId, state: QUEUE_ITEM_STATE.IMPORTER.IMPORTING});
 
-        // Why we have this here?
-        if (operation === OPERATIONS.FIX && queueItem.importJobState.OPERATIONS.FIX === undefined) {
+        // importJobState is a flat {operation: state} map; initialize a missing
+        // FIX import-job state for a FIX item reaching this branch
+        if (operation === OPERATIONS.FIX && queueItem.importJobState[OPERATIONS.FIX] === undefined) {
           await mongoOperator.setImportJobState({correlationId: queueItem.correlationId, operation, importJobState: IMPORT_JOB_STATE.IMPORTING});
           return true;
         }

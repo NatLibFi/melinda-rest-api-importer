@@ -398,23 +398,21 @@ describe('checkProcess/checkProcessQueue (empty PROCESS queue handling)', () => 
     assert.equal(fetchQuery(run.fetchCalls, run.fetchCalls.length - 1).get('correlationId'), CORRELATION_ID);
   });
 
-  test('checkQueue throws a non-ApiError: it propagates (checkQueue is outside the try)', async () => {
-    // In checkProcessQueue the `amqpOperator.checkQueue` call happens BEFORE
-    // the try block, so a non-ApiError from it is never converted into an
-    // error state and escapes checkProcessQueueStart as-is (the source even
-    // has a "handle checkProcessQueue errors ???" comment about this).
-    // Note the non-ApiError catch branch further down (lines 165-167) can
-    // only ever be reached by a setTimeout rejection in practice, since
-    // handleProcessMessage wraps all its errors in ApiError and the real
-    // amqpOperator converts its errors to ApiError too - dead in practice.
+  test('checkQueue throws a non-ApiError: caught, logged, no error state, returns false', async () => {
+    // The `amqpOperator.checkQueue` call is INSIDE checkProcessQueue's try
+    // block, so a non-ApiError from it is caught, logged (not sent to the
+    // queueItem as an error state) and the function returns undefined;
+    // checkProcessQueueStart treats a falsy result as "not ready yet"
+    // and returns false, so the loop just re-polls.
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams()),
       pollStatus: 200,
       pollBody: {handledIds: []},
       processQueueError: new Error('simulated amqp connection error')
     });
-    await assert.rejects(run, (error) => error.message === 'simulated amqp connection error');
+    const result = await run;
 
+    assert.equal(result, false);
     assert.equal(run.mongo.calls.length, 0);
     assert.equal(ackCallsOf(run.amqp).length, 0);
     assert.equal(run.amqp.calls.filter((call) => call[0] === 'nackMessages').length, 0);
@@ -472,9 +470,8 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
   });
 
   test('NON_PROCESSSED (the code value) with processedAll false: keeps the report', async () => {
-    // The code value has THREE s's: NON_ + PROCESSED. The value documented
-    // in config.js (NON_ + PROCESSED, two s's) is different - see the
-    // "falls through" test below this block.
+    // The code value (and the one documented in config.js and the README)
+    // has THREE s's: NON_ + PROCESSED.
     const run = runReportFlow('NON_PROCESSSED', notProcessedAll);
     await run;
     assert.equal(reportCalls(run.mongo).length, 1);
@@ -486,10 +483,10 @@ describe('checkProcess/checkLoadProcessReport (keepLoadProcessReports config)', 
     assert.equal(reportCalls(run.mongo).length, 0);
   });
 
-  test('NON_PROCESSED (the config.js documented value): falls through and does not keep', async () => {
-    // config.js documents 'ALL/NONE/NON_PROCESSED/NON_HANDLED' (two s's).
-    // The code compares against 'NON_PROCESSSED' (three s's), so a
-    // deployment configured with the documented value never keeps a report.
+  test('NON_PROCESSED (undocumented two-s spelling): falls through and does not keep', async () => {
+    // The code (and config.js/README) compare against 'NON_PROCESSSED'
+    // (three s's). The two-s spelling 'NON_PROCESSED' is not accepted and
+    // falls through to "not keeping".
     const run = runReportFlow('NON_PROCESSED', notProcessedAll);
     await run;
     assert.equal(reportCalls(run.mongo).length, 0);
@@ -801,13 +798,11 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
     ]);
   });
 
-  test('409 CONFLICT: UNKNOWN record result, but prio end is DONE (rlaStatus bug)', async () => {
-    // Known bug: getPrioStatusAndPayloads reads results.rlaStatus, but
-    // processPoll's pollFix returns results.status. rlaStatus is always
-    // undefined, so the `rlaStatus === httpStatus.CONFLICT` branch of
-    // getPrioStatus is unreachable and FIX prio always ends 'FIXED'/DONE,
-    // even when the record-load-api answered 409. Tested as the code
-    // actually behaves.
+  test('409 CONFLICT: UNKNOWN record result, UNKNOWN prio end, queueItem errored', async () => {
+    // processPoll's pollFix returns results.status, so a 409 answer from
+    // record-load-api reaches the CONFLICT branch of getPrioStatus: FIX prio
+    // ends 'UNKNOWN', which prioEnd treats as a failed prio (ERROR states)
+    // even though the record responses were written as UNKNOWN.
     const run = runCheckProcessQueueStart({
       operation: 'FIX',
       prio: true,
@@ -831,11 +826,12 @@ describe('checkProcess/createRecordResponsesForFix (FIX)', () => {
         ids: []
       }
     ]);
+    // prioStatus 'UNKNOWN' is a failed prio: import job and queueItem ERROR
     assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setImportJobState'), [
-      ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'DONE'}]
+      ['setImportJobState', {correlationId: CORRELATION_ID, operation: 'FIX', importJobState: 'ERROR'}]
     ]);
     assert.deepEqual(run.mongo.calls.filter((call) => call[0] === 'setState'), [
-      ['setState', {correlationId: CORRELATION_ID, state: 'DONE'}]
+      ['setState', {correlationId: CORRELATION_ID, state: 'ERROR', errorMessage: '000999999', errorStatus: 'UNKNOWN'}]
     ]);
     assert.deepEqual(run.amqp.calls.filter((call) => call[0] === 'removeQueue'), [
       ['removeQueue', `FIX.${CORRELATION_ID}`],
@@ -963,31 +959,31 @@ describe('checkProcess/bulkEnd (remaining items in the bulk queue)', () => {
 });
 
 describe('checkProcess/handleMessages and separateMessages edge cases', () => {
-  test('operation queue empty (checkQueue returns false): handleMessages crashes before guard', async () => {
-    // Known bug: line 231 logs `messages.length` before the `if (messages)`
-    // guard on line 234. The real amqpOperator.checkQueue returns `false`
-    // for an empty queue, so messages is undefined and `.length` throws a
-    // TypeError. The guard (and the 422 path below it) can therefore never
-    // protect the real empty-queue case. Tested as the code actually behaves.
+  test('operation queue empty (checkQueue returns false): handleMessages returns false -> ApiError 422', async () => {
+    // The real amqpOperator.checkQueue (style 'basic') returns plain false
+    // for an empty queue, so `messages` is undefined. handleMessages guards
+    // for that before any use of messages and returns false, and
+    // checkProcessQueueStart then throws the "No messages" ApiError (422).
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams({recordAmount: 1})),
       pollStatus: 200,
       pollBody: {handledIds: ['000999999FIN']},
       operationQueueResult: false
     });
-    await assert.rejects(run, (error) => error instanceof TypeError);
+    const isUnprocessable = (error) =>
+      error instanceof ApiError && error.status === httpStatus.UNPROCESSABLE_ENTITY;
+    await assert.rejects(run, isUnprocessable);
 
-    // handleProcessQueueResults ran before the crash, so ids were already pushed
+    // handleProcessQueueResults ran before handleMessages, so ids were already pushed
     assert.equal(run.mongo.calls.filter((call) => call[0] === 'pushIds').length, 1);
     assert.equal(recordResponseCalls(run.mongo).length, 0);
     assert.equal(run.fetchCalls.length, 1); // poll only, no file clearing
   });
 
   test('operation queue with falsy messages: handleMessages returns false -> ApiError 422', async () => {
-    // The only way to reach the `if (messages)` guard (line 234) is a
-    // truthy checkQueue result whose `messages` property is falsy; with
-    // `messages: false` the guard returns false and checkProcessQueueStart
-    // throws the "No messages" ApiError.
+    // A truthy checkQueue result whose `messages` property is falsy hits
+    // the same `if (!messages)` guard and returns false, and
+    // checkProcessQueueStart throws the "No messages" ApiError.
     const run = runCheckProcessQueueStart({
       processMessage: makeProcessMessage(makeProcessParams({recordAmount: 1})),
       pollStatus: 200,
@@ -1023,17 +1019,12 @@ describe('checkProcess/handleMessages and separateMessages edge cases', () => {
   // - handleMessages: the `ackMessages === undefined || ackMessages.length < 1`
   //   fallback is unreachable: separateMessages throws ApiError(500) first
   //   whenever ackOnlyLength is 0/falsy or exceeds messages.length, so it can
-  //   never return an empty array. (The `messages.length` log on line 231
-  //   crashes before the `if (messages)` guard - see the dedicated test.)
+  //   never return an empty array.
   // - handleProcessQueueResults / createRecordResponsesForLoad /
   //   getPrioStatus: the `Unknown OPERATION` throws are defensive dead code -
   //   the only operations that ever reach them (CREATE/UPDATE/FIX) are exactly
   //   the ones poll supports, so operation can never be anything else.
-  // - getPrioStatus: the `rlaStatus === httpStatus.CONFLICT` branch is
-  //   unreachable - results has `status`, never `rlaStatus` (see the FIX 409
-  //   test), so FIX prio never ends 'UNKNOWN'.
-  // - checkProcessQueue: the non-ApiError catch branch is unreachable in
-  //   practice (checkQueue errors escape before the try; everything inside
-  //   the try either throws ApiError or could only fail via a setTimeout
-  //   rejection).
+  // - checkProcessQueue: the non-ApiError catch branch does not error the
+  //   queueItem and returns undefined; checkProcessQueueStart treats that as
+  //   "not ready yet" (see the checkQueue non-ApiError test above).
 });

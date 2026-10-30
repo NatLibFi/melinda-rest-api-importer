@@ -18,11 +18,6 @@
 //      promise. No timers remain, so the test process exits naturally.
 // A test that fails to reach its expectation fails via the waitFor timeout
 // (and parks on the way out) - it never hangs into --test-force-exit.
-//
-// Known bug pinned below (app.js:249): for a FIX importer, any IN_QUEUE
-// queueItem whose importJobState.<operation> is neither IN_QUEUE nor EMPTY
-// reaches `queueItem.importJobState.OPERATIONS.FIX`, and importJobState.
-// OPERATIONS is undefined -> TypeError -> the whole service dies.
 
 import {test, describe, after, afterEach, beforeEach} from 'node:test';
 import {strict as assert} from 'node:assert';
@@ -366,6 +361,35 @@ const idleCycleQueries = operation => [
 const nulls = count => Array.from({length: count}, () => null);
 
 describe('app/startCheck loop control', () => {
+  test('transient Mongo error mid-cycle: survives with backoff, keeps polling', async () => {
+    // Non-ApiError rejections (e.g. a Mongo/AMQP driver error) are contained:
+    // logged, counted, and the next cycle is re-scheduled with capped
+    // exponential backoff (100 ms base). The service does not exit.
+    // (The backoff waits themselves are not observable through the fakes -
+    // findOne does not record timestamps - so this asserts survival and
+    // continued polling only.)
+    const makeInfraError = () => new Error('simulated Mongo connection error');
+    const reject1 = Promise.reject(makeInfraError());
+    const reject2 = Promise.reject(makeInfraError());
+    // Attach no-op handlers so the rejections can never surface as
+    // unhandledRejection before the loop awaits them
+    reject1.catch(() => {});
+    reject2.catch(() => {});
+    fakes.scriptFor('prio').push(reject1, reject2, null, ...nulls(14));
+    fakes.scriptFor('bulk').push(...nulls(15));
+    const {rejections} = runApp();
+
+    // After the two failed cycles the loop runs normal idle cycles again:
+    // 2 failing findOnes + a full 3rd cycle (prio) + part of a 4th
+    await waitFor('the loop to keep polling after two failed cycles', () =>
+      findOnes('prio').length >= 11 && findOnes('bulk').length >= 5);
+
+    // The catch handler on appPromise records any rejection immediately;
+    // the loop ran (including the two backoff waits) without crashing
+    assert.equal(rejections.length, 0);
+    fakes.park();
+  });
+
   test('starts, cascades prio -> bulk over all checks, idle loop with pollWaitTime', async () => {
     const {rejections} = runApp();
 
@@ -847,8 +871,10 @@ describe('app/checkQueueItemStateINQUEUE (queueItem IN_QUEUE)', () => {
     assert.equal(rejections.length, 0);
   });
 
-  test('job in some other state, FIX importer with importJobState.OPERATIONS: job -> IMPORTING', async () => {
-    const item = makeQueueItem({importJobState: {[FIX]: IMPORT_JOB_STATE.QUEUING, OPERATIONS: {}}});
+  test('job in some other state, FIX importer without a FIX job state key: job -> IMPORTING', async () => {
+    // importJobState is a flat {operation: state} map; a missing FIX key
+    // (another operation's key present) gets the FIX job state initialized
+    const item = makeQueueItem({importJobState: {[UPDATE]: IMPORT_JOB_STATE.DONE, OPERATIONS: {}}});
     fakes.scriptFor('prio').push(null, null, null, null, item, ...nulls(4));
     fakes.scriptFor('bulk').push(...nulls(5));
     const {rejections} = runApp({operation: FIX});
@@ -858,10 +884,11 @@ describe('app/checkQueueItemStateINQUEUE (queueItem IN_QUEUE)', () => {
     fakes.park();
 
     assert.equal(setStateCalls('prio')[0][2].$set.queueItemState, QUEUE_ITEM_STATE.IMPORTER.IMPORTING);
+    assert.equal(setJobStateCalls('prio')[0][2].$set[`importJobState.${FIX}`], IMPORT_JOB_STATE.IMPORTING);
     assert.equal(rejections.length, 0);
   });
 
-  test('job in some other state, FIX importer, OPERATIONS.FIX set: no job state change', async () => {
+  test('job in some other state, FIX importer with importJobState.FIX set: no job state change', async () => {
     const item = makeQueueItem({importJobState: {
       [FIX]: IMPORT_JOB_STATE.QUEUING,
       OPERATIONS: {FIX: IMPORT_JOB_STATE.IMPORTING}
@@ -879,23 +906,30 @@ describe('app/checkQueueItemStateINQUEUE (queueItem IN_QUEUE)', () => {
   });
 
   test(
-    'KNOWN BUG (app.js:249): FIX importer + other job state without OPERATIONS crashes the service',
+    'FIX importer + other job state without a FIX key: job initialized to IMPORTING, no crash',
     async () => {
-      // queueItem.importJobState.OPERATIONS is undefined, so
-      // `queueItem.importJobState.OPERATIONS.FIX` throws a TypeError and the
-      // uncaught rejection kills the whole service (in production the
-      // uncaughtException handler exits the process). Pinned, not fixed.
-      const item = makeQueueItem({importJobState: {[FIX]: IMPORT_JOB_STATE.QUEUING}});
+      // Regression test for the former app.js:249 bug, where this branch
+      // read `queueItem.importJobState.OPERATIONS.FIX` (importJobState is a
+      // flat {operation: state} map, so .OPERATIONS was undefined ->
+      // TypeError -> the whole service died). Now a missing FIX key
+      // initializes the FIX job state to IMPORTING and the loop continues.
+      const item = makeQueueItem({importJobState: {[UPDATE]: IMPORT_JOB_STATE.DONE}});
       fakes.scriptFor('prio').push(null, null, null, null, item);
       fakes.scriptFor('bulk').push(...nulls(5));
-      const {appPromise, rejections} = runApp({operation: FIX});
+      const {rejections} = runApp({operation: FIX});
 
-      await waitFor('queueItem IMPORTING right before the crash', () =>
-        stateChanged('prio', QUEUE_ITEM_STATE.IMPORTER.IMPORTING));
+      // The job state gets initialized AND the loop keeps running (cycle 2)
+      await waitFor('job IMPORTING and the loop in cycle 2', () =>
+        jobStateChanged('prio', FIX, IMPORT_JOB_STATE.IMPORTING)
+        && findOnes('prio').length >= 6);
       fakes.park();
 
-      await assert.rejects(appPromise, {name: 'TypeError', message: /reading 'FIX'/u});
-      assert.equal(rejections.length, 1);
+      assert.equal(setStateCalls('prio')[0][2].$set.queueItemState, QUEUE_ITEM_STATE.IMPORTER.IMPORTING);
+      assert.equal(setJobStateCalls('prio')[0][2].$set[`importJobState.${FIX}`], IMPORT_JOB_STATE.IMPORTING);
+      // The app promise never rejected (no crash); it is still pending and
+      // the loop parked mid-cycle 2, so a crash would have shown up in the
+      // rejections array
+      assert.equal(rejections.length, 0);
     }
   );
 });
