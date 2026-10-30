@@ -257,9 +257,10 @@ describe('checkProcess/handleProcessMessageError (process poll errors)', () => {
     assert.equal(query.get('pActiveLibrary'), 'FIN');
     assert.equal(query.get('processId'), '123');
     assert.equal(query.get('loaderProcessId'), '456');
-    // URLSearchParams stringifies the missing file params (null-coercion, see gap 6)
-    assert.equal(query.get('pLogFile'), 'null');
-    assert.equal(query.get('pRejectFile'), 'null');
+    // Missing file params are omitted from the query (buildQuery; the gap 6
+    // null-coercion that stringified them as literal "null" is fixed).
+    assert.ok(!query.has('pLogFile'));
+    assert.ok(!query.has('pRejectFile'));
   });
 
   test('503: nacks the process message, sleeps error503WaitTime, returns false', async () => {

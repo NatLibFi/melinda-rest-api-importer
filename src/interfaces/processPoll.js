@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger, Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from '../utils.js';
+import {buildQuery, checkStatus, handleConectionError} from '../utils.js';
 
 export default function ({recordLoadApiKey, recordLoadUrl}) {
   const logger = createLogger();
@@ -15,7 +15,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     logger.silly(`${JSON.stringify(OPERATIONS)}`);
     if ([OPERATIONS.CREATE, OPERATIONS.UPDATE].includes(operation)) {
       logger.silly(`We have loadProcess operation: ${operation}`);
-      const query = new URLSearchParams({
+      const query = buildQuery({
         correlationId,
         pActiveLibrary,
         processId,

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import httpStatus from 'http-status';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import {checkStatus, handleConectionError} from './utils.js';
+import {buildQuery, checkStatus, handleConectionError} from './utils.js';
 
 test('checkStatus: throws ApiError 400 with no payload for 400', () => {
   const response = {status: httpStatus.BAD_REQUEST};
@@ -116,4 +116,9 @@ test('handleConectionError: throws ApiError 503 when error has no response', () 
     assert.equal(thrown.status, httpStatus.SERVICE_UNAVAILABLE);
     assert.equal(thrown.payload, expectedPayload);
   }
+});
+
+test('buildQuery: omits null, empty string and literal "null" values, keeps everything else in order', () => {
+  const query = buildQuery({a: '1', pLogFile: null, pRejectFile: '', other: 'null', zero: '0', u: undefined});
+  assert.equal(query.toString(), 'a=1&zero=0&u=undefined');
 });

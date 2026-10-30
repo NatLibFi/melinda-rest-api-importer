@@ -78,14 +78,24 @@ test('poll CREATE sends a GET with all six query parameters set to their values'
   assert.equal(queryParam('pRejectFile'), 'reject.txt');
 });
 
-test('poll CREATE sends the literal string "null" for missing pLogFile and pRejectFile', async () => {
-  // Documented behavior: URLSearchParams stringifies the null coerced by
-  // `pLogFile || null` instead of omitting the parameter.
+test('poll CREATE omits missing pLogFile and pRejectFile', async () => {
+  // buildQuery omits the null coerced by `pLogFile || null` instead of
+  // stringifying it (the old URLSearchParams literal "null" behavior).
   stubFetch({json: loadResponse([])});
   await poller.poll({operation: 'CREATE', params: loadParams()});
 
-  assert.equal(queryParam('pLogFile'), 'null');
-  assert.equal(queryParam('pRejectFile'), 'null');
+  const searchParams = new URL(lastCall().url).searchParams;
+  assert.equal(searchParams.has('pLogFile'), false);
+  assert.equal(searchParams.has('pRejectFile'), false);
+});
+
+test('poll CREATE omits pLogFile/pRejectFile values carried as the literal "null" string (in-flight jobs from API < 4.1.0)', async () => {
+  stubFetch({json: loadResponse([])});
+  await poller.poll({operation: 'CREATE', params: loadParams({pLogFile: 'null', pRejectFile: 'null'})});
+
+  const searchParams = new URL(lastCall().url).searchParams;
+  assert.equal(searchParams.has('pLogFile'), false);
+  assert.equal(searchParams.has('pRejectFile'), false);
 });
 
 test('poll UPDATE is treated like a load poll', async () => {
@@ -94,7 +104,7 @@ test('poll UPDATE is treated like a load poll', async () => {
 
   assert.equal(result.status, 200);
   assert.equal(result.ackOnlyLength, 1);
-  assert.equal(queryParam('pLogFile'), 'null');
+  assert.equal(queryParam('pLogFile'), null);
 });
 
 test('poll FIX queries only the four base parameters, omitting pLogFile and pRejectFile', async () => {

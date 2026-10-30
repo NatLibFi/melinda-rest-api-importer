@@ -127,11 +127,10 @@ test('builds full URL, headers and seq body (CREATE, prio, all recordLoadParams 
   assert.deepEqual(returned, result);
 });
 
-test('stringifies unset params as literal "undefined"/"null" (documented URLSearchParams coercion, not a fix)', async () => {
+test('omits null-valued file params; correlationId still stringified as "undefined" (out of scope for the file-param fix)', async () => {
   // loadStarter.js:21-44: correlationId defaults to undefined and pRejectFile/pLogFile default to null.
-  // URLSearchParams does not omit undefined/null values - it stringifies them, so the record-load API
-  // receives literal `correlationId=undefined`, `pRejectFile=null` and `pLogFile=null` params.
-  // This test asserts the ACTUAL (bogus-param) behavior; it intentionally does not fix the code.
+  // buildQuery omits the null-valued file params (pRejectFile/pLogFile). correlationId is left as-is:
+  // its undefined value is still stringified by URLSearchParams (out of scope for the file-param fix).
   stubFetch(async () => jsonResponse(200, {ok: true}));
 
   await starter.loadRecord({
@@ -148,8 +147,8 @@ test('stringifies unset params as literal "undefined"/"null" (documented URLSear
   assert.equal(query.get('pFixType'), 'INSB');
   assert.equal(query.get('pCatalogerIn'), 'CAT2');
   assert.equal(query.get('pZ07PriorityYear'), '2099');
-  assert.equal(query.get('pRejectFile'), 'null');
-  assert.equal(query.get('pLogFile'), 'null');
+  assert.equal(query.get('pRejectFile'), null);
+  assert.equal(query.get('pLogFile'), null);
 });
 
 test('treats empty-string pCatalogerIn/pRejectFile/pLogFile as unset', async () => {
@@ -166,8 +165,8 @@ test('treats empty-string pCatalogerIn/pRejectFile/pLogFile as unset', async () 
 
   const query = queryOf(fetchCalls[0].url);
   assert.equal(query.get('pCatalogerIn'), 'CAT3');
-  assert.equal(query.get('pRejectFile'), 'null');
-  assert.equal(query.get('pLogFile'), 'null');
+  assert.equal(query.get('pRejectFile'), null);
+  assert.equal(query.get('pLogFile'), null);
 });
 
 test('pZ07PriorityYear matrix: CREATE 1990/1992, UPDATE (HIGH) 1998/2099', async () => {

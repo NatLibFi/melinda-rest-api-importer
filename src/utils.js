@@ -49,6 +49,24 @@ export function checkStatus(response) {
   }
 }
 
+// URLSearchParams stringifies null/undefined instead of omitting keys. Omit the
+// values the record-load API treats as "no file" (null, '', and the literal
+// 'null' string echoed by API < 4.1.0 in in-flight AMQP messages).
+// Values are compared explicitly - never use a truthiness test, so '0' survives.
+// undefined values are kept on purpose: the API tolerates the string
+// "undefined" only for the ids (handleId shim); for pFixType an absent
+// value silently falls back to the default "API" fixroutine, which would
+// mask a missing fixPrio/fixBulk config that currently 400s loudly.
+export function buildQuery(params) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== '' && value !== 'null') {
+      searchParams.set(key, value);
+    }
+  }
+  return searchParams;
+}
+
 export function handleConectionError(error) {
   const logger = createLogger();
   if (error.response) {
