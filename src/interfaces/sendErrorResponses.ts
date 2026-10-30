@@ -1,9 +1,22 @@
 import httpStatus from 'http-status';
 import {QUEUE_ITEM_STATE, IMPORT_JOB_STATE} from '@natlibfi/melinda-rest-api-commons';
+import type {AmqpOperator, MongoOperator} from '@natlibfi/melinda-rest-api-commons';
 import {createLogger} from '@natlibfi/melinda-commons';
+import type {Error as ApiError} from '@natlibfi/melinda-commons';
 import {promisify} from 'util';
 
-export async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio, error503WaitTime, amqpOperator, operation}) {
+export async function sendErrorResponses({error, correlationId, queue, mongoOperator, prio, error503WaitTime, amqpOperator, operation}: {
+  // The caller (handleItemImporting) forwards any caught error: an ApiError, or a
+  // plain thrown Error. Keep the `error.status` number comparisons as-is.
+  error: ApiError | {status?: number; payload?: unknown; message?: string};
+  correlationId: string;
+  queue: string;
+  mongoOperator: MongoOperator;
+  prio: boolean;
+  error503WaitTime: number;
+  amqpOperator: AmqpOperator;
+  operation: string;
+}) {
   const logger = createLogger();
   const setTimeoutPromise = promisify(setTimeout);
 
@@ -13,7 +26,21 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
 
   // get next chunk of 100 messages {headers, messages} where cataloger is the same
   // no need for transforming messages to records
-  const {messages} = await amqpOperator.checkQueue({queue, style: 'basic', toRecords: false, purge: false});
+  // NOTE: `toRecords` (not the published `toRecord`) is a pre-existing typo at this
+  // call site. The runtime ignores `toRecords` and falls back to `toRecord`'s default
+  // (true), so the messages DO get transformed to records despite the comment. The
+  // published CheckQueueParams only declares `toRecord`, so `toRecords` is an excess
+  // property — boundary-cast (below) and keep the literal key verbatim to preserve the
+  // exact current (buggy) behavior; do not "fix".
+  const checkQueueParams = {queue, style: 'basic', toRecords: false, purge: false} as {queue: string; style: string; toRecord?: boolean; purge?: boolean};
+
+  // H2: checkQueue returns CheckQueueResult = number | boolean | QueueItemMessagePayload
+  // | QueueItemRecordPayload | GetMessage. `messages` only exists on the payload
+  // objects, so narrow before reading it (the existing falsy guard below becomes the
+  // effective type guard; control flow is unchanged). `typeof result === 'object'`
+  // drops the primitive (number/boolean) members so the `in` check typechecks.
+  const result = await amqpOperator.checkQueue(checkQueueParams);
+  const messages = result && typeof result === 'object' && 'messages' in result ? result.messages : undefined;
 
   if (messages) {
     logger.debug(`Got back messages (${messages.length}) for ${correlationId} from ${queue}`);
