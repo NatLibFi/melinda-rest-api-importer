@@ -160,10 +160,10 @@ function makeFetch({pollStatus = 200, pollBody = {}, fileClearStatus = 200} = {}
         // The record-load-api payload always has these arrays; pollLoad does
         // not guard against missing ones (missing rejectedIds crashes it).
         const body = {handledIds: [], rejectedIds: [], ...pollBody};
-        return {status: pollStatus, json: async () => body};
+        return {status: pollStatus, json: async () => body, text: async () => ''};
       }
       if (options.method === 'delete') {
-        return {status: fileClearStatus, json: async () => ({})};
+        return {status: fileClearStatus, json: async () => ({}), text: async () => ''};
       }
       throw new Error(`Unexpected fetch method: ${options.method}`);
     }

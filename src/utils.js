@@ -2,13 +2,16 @@ import httpStatus from 'http-status';
 import {createLogger, Error as ApiError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
-export function checkStatus(response) {
+export async function checkStatus(response) {
   const logger = createLogger();
 
   // Bad Request (400)
   if (response.status === httpStatus.BAD_REQUEST) {
-    logger.info('Got "BAD_REQUEST" (400) response from record-load-api.');
-    throw new ApiError(httpStatus.BAD_REQUEST);
+    // The API sends 400 bodies as quoted bare-JSON strings (res.json(string)) -
+    // store verbatim, do NOT JSON.parse.
+    const body = await response.text();
+    logger.info(`Got "BAD_REQUEST" (400) response from record-load-api: ${body}`);
+    throw new ApiError(httpStatus.BAD_REQUEST, body || '400 BAD_REQUEST with empty body');
   }
 
   // Unauthorized (401)

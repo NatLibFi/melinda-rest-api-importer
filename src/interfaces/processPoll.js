@@ -59,7 +59,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
     logger.silly(`Got response for process poll! Status: ${response.status}`);
 
     // 400, 401, 403, 404, 406, 423, 503 responses from checkStatus
-    checkStatus(response);
+    await checkStatus(response);
 
     // OK (200)
     // R-L-A has crashed (409) or encountered one or more oraErrors
@@ -190,7 +190,7 @@ export default function ({recordLoadApiKey, recordLoadUrl}) {
 
     logger.silly(`Got file clearing response ${JSON.stringify(response)}`);
 
-    checkStatus(response);
+    await checkStatus(response);
     logger.silly(`Got response for file clear! Status: ${response.status}`);
   }
 

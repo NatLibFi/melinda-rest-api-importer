@@ -47,7 +47,7 @@ export default function ({recordLoadApiKey, recordLoadLibrary, recordLoadUrl}) {
 
     logger.silly(`Got response for load record. Status: ${response.status}`);
 
-    checkStatus(response);
+    await checkStatus(response);
 
     if (response.status === httpStatus.OK) {
       const result = await response.json();

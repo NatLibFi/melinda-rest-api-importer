@@ -18,14 +18,14 @@ const originalFetch = globalThis.fetch;
 
 let fetchCalls = [];
 
-function stubFetch({status = httpStatus.OK, json = {}, reject = null} = {}) {
+function stubFetch({status = httpStatus.OK, json = {}, text = '', reject = null} = {}) {
   fetchCalls = [];
   globalThis.fetch = async (url, options) => {
     fetchCalls.push({url, options});
     if (reject) {
       throw reject;
     }
-    return {status, json: async () => json};
+    return {status, json: async () => json, text: async () => text};
   };
 }
 
@@ -157,7 +157,7 @@ test('poll CREATE resolves on 409 (CONFLICT) and reports status 409 in the load 
 
 test('poll CREATE rejects with checkStatus ApiErrors for 400/401/403/404/406/423/503', async (t) => {
   const cases = [
-    {status: httpStatus.BAD_REQUEST, expectedStatus: httpStatus.BAD_REQUEST, payload: undefined},
+    {status: httpStatus.BAD_REQUEST, expectedStatus: httpStatus.BAD_REQUEST, payload: '400 BAD_REQUEST with empty body'},
     {status: httpStatus.UNAUTHORIZED, expectedStatus: httpStatus.INTERNAL_SERVER_ERROR, payload: undefined},
     {status: httpStatus.FORBIDDEN, expectedStatus: httpStatus.INTERNAL_SERVER_ERROR, payload: undefined},
     {status: httpStatus.NOT_FOUND, expectedStatus: httpStatus.NOT_FOUND, payload: 'Process log not found!'},
@@ -177,6 +177,16 @@ test('poll CREATE rejects with checkStatus ApiErrors for 400/401/403/404/406/423
       });
     });
   }
+});
+
+test('poll CREATE 400 with body: the ApiError payload is the body verbatim', async () => {
+  stubFetch({status: httpStatus.BAD_REQUEST, text: 'Missing mandatory parameter: processId'});
+  await assert.rejects(poller.poll({operation: 'CREATE', params: loadParams()}), (error) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.status, httpStatus.BAD_REQUEST);
+    assert.equal(error.payload, 'Missing mandatory parameter: processId');
+    return true;
+  });
 });
 
 test('poll CREATE throws ApiError(500, "Unexpected") for statuses that checkStatus ignores', async () => {
