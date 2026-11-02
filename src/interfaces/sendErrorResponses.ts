@@ -34,7 +34,7 @@ export async function sendErrorResponses({error, correlationId, queue, mongoOper
   // exact current (buggy) behavior; do not "fix".
   const checkQueueParams = {queue, style: 'basic', toRecords: false, purge: false} as {queue: string; style: string; toRecord?: boolean; purge?: boolean};
 
-  // H2: checkQueue returns CheckQueueResult = number | boolean | QueueItemMessagePayload
+  // checkQueue returns CheckQueueResult = number | boolean | QueueItemMessagePayload
   // | QueueItemRecordPayload | GetMessage. `messages` only exists on the payload
   // objects, so narrow before reading it (the existing falsy guard below becomes the
   // effective type guard; control flow is unchanged). `typeof result === 'object'`

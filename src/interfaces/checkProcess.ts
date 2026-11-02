@@ -18,7 +18,7 @@ const ApiError = CommonsError as unknown as new (status: number, payload?: unkno
 // (an ApiError or a plain thrown Error); `message` is read in the unexpected branch.
 type HandledProcessMessageError = CommonsApiError | {status?: number; payload?: unknown; message?: string};
 
-// processParams as parsed from the AMQP PROCESS message content (H5)
+// processParams as parsed from the AMQP PROCESS message content
 export interface ProcessParams {
   data: ProcessParamsData;
 }
@@ -101,7 +101,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.silly(`processParams: ${JSON.stringify(processParams)}`);
 
     const {handledIds, erroredAmount} = results.payloads;
-    // H3: the pollFix-shaped results lack rejectedIds / loadProcessReport; the
+    // the pollFix-shaped results lack rejectedIds / loadProcessReport; the
     // CREATE/UPDATE (pollLoad) shape that reaches here (the FIX shape returns
     // earlier) always has both. Boundary-cast at the poll boundary; the runtime
     // values are unchanged.
@@ -183,7 +183,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     let processMessage: GetMessage | false | undefined;
     try {
       const checkQueueResult = await amqpOperator.checkQueue({queue: processQueue, style: 'one', toRecord: false, purge: false});
-      // H2: checkQueue returns CheckQueueResult = number | boolean |
+      // checkQueue returns CheckQueueResult = number | boolean |
       // QueueItemMessagePayload | QueueItemRecordPayload | GetMessage. With
       // style 'one' + toRecord: false the runtime returns the raw GetMessage or
       // `false` (empty queue) - narrow via the `content` property, which only
@@ -234,7 +234,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
       }
       // processMessage get un-(n)acked in this case?
       logger.debug(`Error is not ApiError, not sending error responses`);
-      // H6: intentional fallthrough - a non-ApiError error leaves the queueItem
+      // intentional fallthrough - a non-ApiError error leaves the queueItem
       // unerrored; make the `undefined` return explicit.
       return undefined;
     }
@@ -243,7 +243,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   async function handleProcessMessage(operation: string, processMessage: GetMessage, correlationId: string, prio: boolean): Promise<ProcessQueueResults | false> {
     logger.silly(`handleProcessMessage: ${JSON.stringify(processMessage)} for ${correlationId}`);
     try {
-      // H5: JSON.parse boundary - the AMQP PROCESS content is the serialized
+      // JSON.parse boundary - the AMQP PROCESS content is the serialized
       // {data: ProcessParamsData} payload.
       const processParams: ProcessParams = await JSON.parse(processMessage.content.toString());
       logger.silly(`handleProcessMessage:processParams: ${JSON.stringify(processParams)}`);
@@ -320,7 +320,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     logger.silly(`Check queue: ${JSON.stringify(queue)}`);
     // note: headers are headers for the first message in chunk
     const checkQueueResult = await amqpOperator.checkQueue({queue, style: 'basic', toRecord: false, purge: false});
-    // H2: checkQueue returns CheckQueueResult = number | boolean |
+    // checkQueue returns CheckQueueResult = number | boolean |
     // QueueItemMessagePayload | QueueItemRecordPayload | GetMessage. With
     // style 'basic' + toRecord: false the runtime returns a
     // QueueItemMessagePayload {headers, messages} (or false for an empty queue).
@@ -398,7 +398,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     // processPoll returns the record-load-api status as results.status
     const {status} = results;
     const prioStatus = getPrioStatus(operation, status, handledIds, erroredAmount);
-    // H3: rejectedIds is optional on the pollFix-shaped results; only the
+    // rejectedIds is optional on the pollFix-shaped results; only the
     // CREATE/UPDATE branch inside reads it, and that branch always has it
     // present. Boundary-cast; the runtime value is unchanged.
     const prioPayloads = getPrioPayloads(operation, handledIds, rejectedIds as string[]);
@@ -453,7 +453,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     if (([OPERATIONS.FIX] as string[]).includes(operation)) {
       return createRecordResponsesForFix({messages, rlaStatus: results.status, operation, mongoOperator, correlationId});
     }
-    // H6: intentional fallthrough - an unknown operation creates no record
+    // intentional fallthrough - an unknown operation creates no record
     // responses; make the `undefined` return explicit.
     return undefined;
   }
@@ -492,7 +492,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   }): Promise<void> {
     //{"payloads":{"handledIds":["000999999"],"rejectedIds":[],"loadProcessReport":{"status":200,"processId":31930,"processedAll":false,"recordAmount":2,"processedAmount":1,"handledAmount":1,"rejectedAmount":0,"rejectMessages":[]}},"ackOnlyLength":2, "handledAll": false}
     const {handledIds, erroredAmount} = results.payloads;
-    // H3: the pollFix-shaped results lack rejectedIds / loadProcessReport; this
+    // the pollFix-shaped results lack rejectedIds / loadProcessReport; this
     // function only runs for the CREATE/UPDATE (pollLoad) shape, where both are
     // always present. Boundary-cast; the runtime values are unchanged.
     const rejectedIds = results.payloads.rejectedIds as string[];
@@ -532,7 +532,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
         const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
         const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
-        // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+        // noUncheckedIndexedAccess - a real undefined here (malformed
         // record-load-api response) stringified as "undefined" before; keep that.
         const idFromHandledIds: string | undefined = handledIds[index];
 
@@ -566,7 +566,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
           const {id, recordMetadata, notes} = message.properties.headers as MessagePropertyHeaders;
           const notesString = notes && Array.isArray(notes) && notes.length > 0 ? `${notes.join(' - ')} - ` : '';
 
-          // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+          // noUncheckedIndexedAccess - a real undefined here (malformed
           // record-load-api response) stringified as "undefined" before; keep that.
           const idFromHandledIds: string | undefined = handledIds[index];
           logger.debug(`headers.id: ${id} got handledId for ${index}: ${idFromHandledIds}`);
@@ -653,7 +653,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
         if (handledAll) {
           const status = 'UNKNOWN';
-          // H4: noUncheckedIndexedAccess - a real undefined here (malformed
+          // noUncheckedIndexedAccess - a real undefined here (malformed
           // record-load-api response) stringified as "undefined" before; keep that.
           const idFromHandledIds: string | undefined = handledIds[index];
           const ids = [idFromHandledIds];
@@ -708,7 +708,7 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
   }): Promise<boolean> {
     // If Bulk queue has more records/messages waiting in the queue resume to them.
     //logger.silly(`Checking remaining items in ${queue}`);
-    // H2: checkQueue with style 'messages' returns the raw queue messageCount
+    // checkQueue with style 'messages' returns the raw queue messageCount
     // (a number) - boundary-cast at the AMQP edge.
     const queueMessagesCount = (await amqpOperator.checkQueue({queue, style: 'messages'})) as number;
     //logger.silly(`Remaining items in ${queue}: ${queueItemsCount}`);

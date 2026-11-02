@@ -293,7 +293,7 @@ export default async function ({
       const queueItem = await mongoOperator.getOne({queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE});
       logger.silly(`checkQueueItemStateINQUEUE:  ${JSON.stringify(queueItem)}`);
 
-      // Boundary cast (H7): the published 6.2 `QueueItem.operationSettings`
+      // Boundary cast: the published 6.2 `QueueItem.operationSettings`
       // type has no `noop` member (only prio/noStream), but the validator
       // writes it and this branch depends on it. Single cast, no logic change.
       const operationSettingsNoop = queueItem ? (queueItem.operationSettings as {noop?: boolean}).noop : undefined;

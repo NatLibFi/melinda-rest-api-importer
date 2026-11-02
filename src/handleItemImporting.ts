@@ -58,7 +58,7 @@ export function createItemImportingHandler(amqpOperator: AmqpOperator, mongoOper
 
       // basic: get next chunk of 100 messages {headers, records, messages}
       const checkQueueResult = await amqpOperator.checkQueue({queue: `${operation}.${correlationId}`, style: 'basic', toRecord: toRecords, purge: purgeQueues});
-      // H2: checkQueue returns CheckQueueResult = number | boolean |
+      // checkQueue returns CheckQueueResult = number | boolean |
       // QueueItemRecordPayload | QueueItemMessagePayload | GetMessage. With
       // style 'basic' the runtime returns a QueueItemRecordPayload
       // {headers, records, messages} when toRecord is true (CREATE/UPDATE), a
