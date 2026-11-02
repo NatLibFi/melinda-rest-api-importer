@@ -67,7 +67,7 @@ export function createItemImportingHandler(amqpOperator: AmqpOperator, mongoOper
       // payload objects and `records` only on the record payload.
       // `typeof === 'object'` drops the primitive (number/boolean) members so
       // the `in` checks typecheck, and the existing `if (headers && messages)`
-      // guard below stays the effective type guard (C8/C9 precedent in
+      // guard below stays the effective type guard (same narrowing as in
       // sendErrorResponses.ts / checkProcess.ts). `headers` is the chunk's
       // first-message headers, so it is cast once here to the MessageHeaders
       // boundary type; everything downstream then typechecks.
