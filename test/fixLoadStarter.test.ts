@@ -2,7 +2,8 @@ import {afterEach, beforeEach, test} from 'node:test';
 import assert from 'node:assert/strict';
 import {OPERATIONS} from '@natlibfi/melinda-rest-api-commons';
 import {Error as ApiError} from '@natlibfi/melinda-commons';
-import fixLoadStarter from './fixLoadStarter.js';
+import type {RequestInfo} from 'undici-types';
+import fixLoadStarter from '../src/interfaces/fixLoadStarter.ts';
 
 // Built from parts so secret scanners (njsscan) do not flag a hardcoded key.
 const CONFIG = {
@@ -14,8 +15,8 @@ const CONFIG = {
 // generateAuthorizationHeader(apiKey) encodes `apiKey:` (empty password) as Basic base64
 const EXPECTED_AUTH = `Basic ${Buffer.from(CONFIG.recordLoadApiKey + ':').toString('base64')}`;
 
-let starter;
-let fetchCalls;
+let starter: ReturnType<typeof fixLoadStarter>;
+let fetchCalls: {url: string; options: any}[];
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -32,14 +33,14 @@ afterEach(() => {
 });
 
 // Records every fetch call and resolves with the response produced by impl(url, options)
-function stubFetch(impl) {
-  globalThis.fetch = async (url, options) => {
+function stubFetch(impl: (url: RequestInfo | URL, options: RequestInit | undefined) => Promise<unknown>) {
+  globalThis.fetch = async (url: RequestInfo | URL, options?: RequestInit) => {
     fetchCalls.push({url: String(url), options});
-    return impl(url, options);
+    return impl(url, options) as Promise<Response>;
   };
 }
 
-function jsonResponse(status, body) {
+function jsonResponse(status: number, body: unknown) {
   return {
     status,
     json: async () => body,
@@ -47,19 +48,19 @@ function jsonResponse(status, body) {
   };
 }
 
-function queryOf(urlString) {
+function queryOf(urlString: string) {
   return new URL(urlString).searchParams;
 }
 
 // Captures the rejected ApiError (Node's assert.rejects resolves with undefined, so we
 // catch it manually) and fails the test if the promise resolved or rejected with another error
-async function expectApiError(promise) {
+async function expectApiError(promise: Promise<unknown>) {
   try {
     await promise;
     assert.fail('expected the promise to be rejected');
   } catch (err) {
     assert.ok(err instanceof ApiError, `expected ApiError, got: ${err}`);
-    return err;
+    return err as ApiError;
   }
 }
 
@@ -79,23 +80,23 @@ test('builds full URL, headers and sys-list body (all params set, library upperc
 
   assert.equal(fetchCalls.length, 1);
   // URLSearchParams preserves insertion order, so the full URL string is deterministic
-  assert.equal(fetchCalls[0].url,
+  assert.equal(fetchCalls[0]!.url,
     'http://record-load-api:8080/fix?'
     + 'correlationId=corr-1'
     + '&useLoaderProcessId=1'
     + '&pActiveLibrary=2a'
     + '&pFixType=INSB'
     + '&pCatalogerIn=ABC');
-  assert.equal(fetchCalls[0].options.method, 'post');
-  assert.equal(fetchCalls[0].options.headers['Content-Type'], 'text/plain');
-  assert.equal(fetchCalls[0].options.headers.Authorization, EXPECTED_AUTH);
+  assert.equal(fetchCalls[0]!.options.method, 'post');
+  assert.equal(fetchCalls[0]!.options.headers['Content-Type'], 'text/plain');
+  assert.equal(fetchCalls[0]!.options.headers.Authorization, EXPECTED_AUTH);
   // createRecordSysListString: `${record}${pActiveLibrary.toUpperCase()}` joined with newlines
-  assert.equal(fetchCalls[0].options.body, '123452A\n678902A');
+  assert.equal(fetchCalls[0]!.options.body, '123452A\n678902A');
   assert.deepEqual(returned, result);
 });
 
 test('stringifies unset params as literal "undefined" (documented URLSearchParams coercion, not a fix)', async () => {
-  // fixLoadStarter.js:17-36: correlationId defaults to undefined; when omitted and fixType is
+  // fixLoadStarter.ts:42-66: correlationId defaults to undefined; when omitted and fixType is
   // not passed, URLSearchParams does not omit the params - it stringifies them, so the API
   // receives literal `correlationId=undefined` and `pFixType=undefined` params.
   // This test asserts the ACTUAL (bogus-param) behavior; it intentionally does not fix the code.
@@ -106,7 +107,7 @@ test('stringifies unset params as literal "undefined" (documented URLSearchParam
     cataloger: 'cat2'
   });
 
-  const query = queryOf(fetchCalls[0].url);
+  const query = queryOf(fetchCalls[0]!.url);
   assert.equal(query.get('correlationId'), 'undefined');
   assert.equal(query.get('useLoaderProcessId'), '1');
   // recordLoadParams omitted -> defaults to {}; pActiveLibrary falls back to recordLoadLibrary
@@ -114,7 +115,7 @@ test('stringifies unset params as literal "undefined" (documented URLSearchParam
   assert.equal(query.get('pFixType'), 'undefined');
   // no pCatalogerIn -> catalogerName (string cataloger) uppercased
   assert.equal(query.get('pCatalogerIn'), 'CAT2');
-  assert.equal(fetchCalls[0].options.body, '12345201');
+  assert.equal(fetchCalls[0]!.options.body, '12345201');
 });
 
 test('pCatalogerIn present wins over cataloger; pActiveLibrary falls back to recordLoadLibrary', async () => {
@@ -129,7 +130,7 @@ test('pCatalogerIn present wins over cataloger; pActiveLibrary falls back to rec
     cataloger: {id: 'ignored'}
   });
 
-  const query = queryOf(fetchCalls[0].url);
+  const query = queryOf(fetchCalls[0]!.url);
   assert.equal(query.get('pActiveLibrary'), '201');
   assert.equal(query.get('pCatalogerIn'), 'XYZ');
 });

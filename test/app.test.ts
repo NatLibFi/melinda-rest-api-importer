@@ -1,10 +1,10 @@
-// Tests for app.js: the startCheck recursive polling loop (loop control) and
+// Tests for app.ts: the startCheck recursive polling loop (loop control) and
 // the queueItem/importJobState transition checks.
 //
-// app.js creates its amqpOperator (amqpFactory), prio/bulk mongoOperators
+// app.ts creates its amqpOperator (amqpFactory), prio/bulk mongoOperators
 // (mongoFactory) and processOperator (checkProcess, which also creates
 // mongoLogFactory) internally, so none of them are injectable. Like
-// checkProcess.test.js, we patch the two client constructors (amqplib.connect
+// checkProcess.test.ts, we patch the two client constructors (amqplib.connect
 // and MongoClient.connect) for the duration of the suite and drive everything
 // through those fakes plus a per-test globalThis.fetch stub.
 //
@@ -26,9 +26,11 @@ import {MongoClient} from 'mongodb';
 import amqplib from 'amqplib';
 import {OPERATIONS, IMPORT_JOB_STATE, QUEUE_ITEM_STATE} from '@natlibfi/melinda-rest-api-commons';
 import {generateAuthorizationHeader} from '@natlibfi/melinda-commons';
-import startApp from './app.js';
+import type {RequestInfo} from 'undici-types';
+import startApp from '../src/app.ts';
+import type {StartAppOptions} from '../src/app.ts';
 
-process.env.LOG_LEVEL = 'error';
+process.env['LOG_LEVEL'] = 'error';
 
 const AMQP_URL = 'amqp://test:5672/';
 const MONGO_URI = 'mongodb://test/db';
@@ -48,31 +50,31 @@ const originalMongoConnect = MongoClient.connect;
 const originalAmqpConnect = amqplib.connect;
 const originalFetch = globalThis.fetch;
 
-MongoClient.connect = async (uri) => {
+MongoClient.connect = async (uri: string) => {
   fakes.mongoUris.push(uri);
-  return {db: () => fakes.db, close: async () => {}};
+  return {db: () => fakes.db, close: async () => {}} as unknown as MongoClient;
 };
 
-amqplib.connect = async (url) => {
+amqplib.connect = async (url: Parameters<typeof amqplib.connect>[0]) => {
   fakes.amqpUrls.push(url);
   return fakes.connection;
 };
 
-let fakes = null;
+let fakes: any = null;
 
 function makeFakes() {
-  const amqpCalls = [];
-  const findOneCalls = [];
-  const findOneScripts = {};
-  const findOneAndUpdateCalls = [];
-  const updateOneCalls = [];
-  const insertOneCalls = [];
-  const collectionNames = [];
-  const queues = {};
+  const amqpCalls: any[] = [];
+  const findOneCalls: any[] = [];
+  const findOneScripts: any = {};
+  const findOneAndUpdateCalls: any[] = [];
+  const updateOneCalls: any[] = [];
+  const insertOneCalls: any[] = [];
+  const collectionNames: string[] = [];
+  const queues: any = {};
   let parked = false;
 
-  const makeCollection = (name) => ({
-    findOne: async (query) => {
+  const makeCollection = (name: string) => ({
+    findOne: async (query: unknown) => {
       if (parked) {
         return new Promise(() => {});
       }
@@ -82,23 +84,23 @@ function makeFakes() {
       }
       return findOneScripts[name].length > 0 ? findOneScripts[name].shift() : null;
     },
-    findOneAndUpdate: async (filter, update) => {
+    findOneAndUpdate: async (filter: unknown, update: unknown) => {
       findOneAndUpdateCalls.push([name, filter, update]);
       return null;
     },
-    updateOne: async (filter, update) => {
+    updateOne: async (filter: unknown, update: unknown) => {
       updateOneCalls.push([name, filter, update]);
       return {acknowledged: true};
     },
-    insertOne: async (doc) => {
+    insertOne: async (doc: unknown) => {
       insertOneCalls.push([name, doc]);
       return {acknowledged: true};
     }
   });
 
-  const collections = {};
+  const collections: any = {};
   const db = {
-    collection: (name) => {
+    collection: (name: string) => {
       collectionNames.push(name);
       if (!collections[name]) {
         collections[name] = makeCollection(name);
@@ -110,7 +112,7 @@ function makeFakes() {
   const channel = {
     // rest-api-commons 6 attaches error/close listeners to the channel
     on: () => {},
-    assertQueue: (name) => {
+    assertQueue: (name: string) => {
       if (name === 'HEALTHCHECK') {
         // Park the commons amqp healthCheck recursion (it would otherwise
         // schedule a 200 ms timer forever and block natural process exit)
@@ -119,18 +121,18 @@ function makeFakes() {
       amqpCalls.push(['assertQueue', name]);
       return Promise.resolve({messageCount: (queues[name] || []).length});
     },
-    get: (name) => {
+    get: (name: string) => {
       amqpCalls.push(['get', name]);
       return Promise.resolve((queues[name] || []).shift() ?? null);
     },
-    checkQueue: (name) => Promise.resolve({messageCount: (queues[name] || []).length}),
-    ack: (message) => {
+    checkQueue: (name: string) => Promise.resolve({messageCount: (queues[name] || []).length}),
+    ack: (message: any) => {
       amqpCalls.push(['ack', message]);
     },
-    nack: (message) => {
+    nack: (message: any) => {
       amqpCalls.push(['nack', message]);
     },
-    sendToQueue: (name, content, options) => {
+    sendToQueue: (name: string, content: any, options: any) => {
       amqpCalls.push(['sendToQueue', name, JSON.parse(content.toString()).data, options]);
       (queues[name] = queues[name] || []).push({
         properties: {correlationId: options.correlationId, headers: options.headers},
@@ -138,7 +140,7 @@ function makeFakes() {
       });
       return Promise.resolve();
     },
-    deleteQueue: (name) => {
+    deleteQueue: (name: string) => {
       amqpCalls.push(['deleteQueue', name]);
       return Promise.resolve();
     },
@@ -165,7 +167,7 @@ function makeFakes() {
     queues,
     db,
     connection,
-    scriptFor: (name) => {
+    scriptFor: (name: string) => {
       if (!findOneScripts[name]) {
         findOneScripts[name] = [];
       }
@@ -195,7 +197,7 @@ after(() => {
   amqplib.connect = originalAmqpConnect;
 });
 
-function makeAppConfig(overrides = {}) {
+function makeAppConfig(overrides: Partial<StartAppOptions> = {}) {
   return {
     amqpUrl: AMQP_URL,
     operation: CREATE,
@@ -218,14 +220,14 @@ function makeAppConfig(overrides = {}) {
 // itself crashes, in which case it rejects. The .catch handler must be
 // attached immediately: an unobserved rejection would surface as an
 // unhandledRejection and crash the whole test process.
-function runApp(overrides) {
+function runApp(overrides: Partial<StartAppOptions> = {}) {
   const appPromise = startApp(makeAppConfig(overrides));
-  const rejections = [];
+  const rejections: unknown[] = [];
   appPromise.catch(error => rejections.push(error));
   return {appPromise, rejections};
 }
 
-async function waitFor(what, predicate) {
+async function waitFor(what: string, predicate: () => boolean) {
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   while (!predicate()) {
     if (Date.now() > deadline) {
@@ -235,42 +237,42 @@ async function waitFor(what, predicate) {
         `findOne: ${JSON.stringify(fakes.findOneCalls)}\n` +
         `findOneAndUpdate: ${JSON.stringify(fakes.findOneAndUpdateCalls)}\n` +
         `updateOne: ${JSON.stringify(fakes.updateOneCalls)}\n` +
-        `amqp: ${JSON.stringify(fakes.amqpCalls.map(call => call.slice(0, 2)))}`
+        `amqp: ${JSON.stringify(fakes.amqpCalls.map((call: any) => call.slice(0, 2)))}`
       );
     }
     await new Promise(resolve => setTimeout(resolve, 5));
   }
 }
 
-function makeFetch(responses) {
-  const calls = [];
-  const fn = async (url, options) => {
+function makeFetch(responses: {status: number; body?: unknown}[]) {
+  const calls: {url: string; options: any}[] = [];
+  const fn = async (url: RequestInfo | URL, options?: RequestInit) => {
     calls.push({url: String(url), options});
     const next = responses.shift();
     if (!next) {
       throw new Error(`fetch called with no response left: ${url}`);
     }
-    return {status: next.status, json: async () => next.body || {}};
+    return {status: next.status, json: async () => next.body || {}} as Response;
   };
   return {calls, fn};
 }
 
-// The getOne queries app.js builds (createImportJobState uses dotted keys)
-function importJobQuery(operation, jobState) {
+// The getOne queries app.ts builds (createImportJobState uses dotted keys)
+function importJobQuery(operation: string, jobState: string) {
   return {queueItemState: QUEUE_ITEM_STATE.IMPORTER.IMPORTING, [`importJobState.${operation}`]: jobState};
 }
 
 const queueItemInQueueQuery = {queueItemState: QUEUE_ITEM_STATE.IMPORTER.IN_QUEUE};
 
-function makeQueueItem(overrides = {}) {
-  // operationSettings is assumed to always exist by app.js:224
+function makeQueueItem(overrides: Record<string, unknown> = {}) {
+  // operationSettings is assumed to always exist by app.ts:224
   // (`queueItem.operationSettings.noop`); real queueItems created by the
   // validator always carry it. Missing here would crash the loop like the
-  // app.js:249 bug below.
+  // app.ts:249 bug below.
   return {correlationId: CID, operationSettings: {}, ...overrides};
 }
 
-function makeProcessData(overrides = {}) {
+function makeProcessData(overrides: Record<string, unknown> = {}) {
   return {
     correlationId: CID,
     pActiveLibrary: 'FIN',
@@ -285,7 +287,7 @@ function makeProcessData(overrides = {}) {
 
 let deliveryTag = 0;
 
-function makeProcessMessage(data) {
+function makeProcessMessage(data: Record<string, unknown>) {
   deliveryTag += 1;
   return {
     properties: {headers: {id: 'process-message'}, correlationId: CID},
@@ -294,7 +296,7 @@ function makeProcessMessage(data) {
   };
 }
 
-function makeMarcContent(id) {
+function makeMarcContent(id: string) {
   return JSON.stringify({
     data: {
       fields: [
@@ -305,7 +307,7 @@ function makeMarcContent(id) {
   });
 }
 
-function makeMessage({id = '000999999', operationSettings = {}} = {}) {
+function makeMessage({id = '000999999', operationSettings = {}}: {id?: string; operationSettings?: Record<string, unknown>} = {}) {
   deliveryTag += 1;
   // fields.deliveryTag is read by commons' getData pump (message dedup)
   return {
@@ -318,37 +320,37 @@ function makeMessage({id = '000999999', operationSettings = {}} = {}) {
   };
 }
 
-function findOnes(name) {
-  return fakes.findOneCalls.filter(call => call[0] === name);
+function findOnes(name: string) {
+  return fakes.findOneCalls.filter((call: any) => call[0] === name);
 }
 
-function setStateCalls(name) {
+function setStateCalls(name: string) {
   return fakes.findOneAndUpdateCalls.filter(
-    call => call[0] === name && call[2].$set.queueItemState !== undefined
+    (call: any) => call[0] === name && call[2].$set.queueItemState !== undefined
   );
 }
 
-function setJobStateCalls(name) {
+function setJobStateCalls(name: string) {
   return fakes.findOneAndUpdateCalls.filter(
-    call => call[0] === name && Object.keys(call[2].$set).some(key => key.startsWith('importJobState.'))
+    (call: any) => call[0] === name && Object.keys(call[2].$set).some(key => key.startsWith('importJobState.'))
   );
 }
 
-function amqpCount(name) {
-  return fakes.amqpCalls.filter(call => call[0] === name).length;
+function amqpCount(name: string) {
+  return fakes.amqpCalls.filter((call: any) => call[0] === name).length;
 }
 
-function jobStateChanged(name, operation, state) {
-  return setJobStateCalls(name).some(call => call[2].$set[`importJobState.${operation}`] === state);
+function jobStateChanged(name: string, operation: string, state: string) {
+  return setJobStateCalls(name).some((call: any) => call[2].$set[`importJobState.${operation}`] === state);
 }
 
-function stateChanged(name, state) {
-  return setStateCalls(name).some(call => call[2].$set.queueItemState === state);
+function stateChanged(name: string, state: string) {
+  return setStateCalls(name).some((call: any) => call[2].$set.queueItemState === state);
 }
 
 // One idle cycle = prio in-process, then (nothing found) bulk in-process,
 // then 4 IMPORTER.IMPORTING/IN_QUEUE getOnes per operator
-const idleCycleQueries = operation => [
+const idleCycleQueries = (operation: string) => [
   importJobQuery(operation, IMPORT_JOB_STATE.PROCESSING),
   importJobQuery(operation, IMPORT_JOB_STATE.IMPORTING),
   importJobQuery(operation, IMPORT_JOB_STATE.DONE),
@@ -358,7 +360,7 @@ const idleCycleQueries = operation => [
 
 // nulls for the rest of the cycle after the scripted doc, so the loop walks
 // on until the test parks it
-const nulls = count => Array.from({length: count}, () => null);
+const nulls = (count: number) => Array.from({length: count}, () => null);
 
 describe('app/startCheck loop control', () => {
   test('transient Mongo error mid-cycle: survives with backoff, keeps polling', async () => {
@@ -398,14 +400,14 @@ describe('app/startCheck loop control', () => {
     fakes.park();
 
     assert.deepEqual(fakes.amqpUrls, [AMQP_URL]);
-    // prio and bulk from app.js, logs from checkProcess' mongoLogFactory
+    // prio and bulk from app.ts, logs from checkProcess' mongoLogFactory
     assert.deepEqual(fakes.mongoUris, [MONGO_URI, MONGO_URI, MONGO_URI]);
     assert.ok(fakes.collectionNames.includes('prio'));
     assert.ok(fakes.collectionNames.includes('bulk'));
 
     const cycle = idleCycleQueries(CREATE);
-    assert.deepEqual(findOnes('prio').slice(0, 10).map(call => call[1]), [...cycle, ...cycle]);
-    assert.deepEqual(findOnes('bulk').slice(0, 10).map(call => call[1]), [...cycle, ...cycle]);
+    assert.deepEqual(findOnes('prio').slice(0, 10).map((call: any) => call[1]), [...cycle, ...cycle]);
+    assert.deepEqual(findOnes('bulk').slice(0, 10).map((call: any) => call[1]), [...cycle, ...cycle]);
     assert.equal(fakes.findOneAndUpdateCalls.length, 0);
     assert.equal(rejections.length, 0);
   });
@@ -424,7 +426,7 @@ describe('app/startCheck loop control', () => {
 
     // Poll goes through the LOAD path (CREATE operation) with the API key
     assert.equal(fetchStub.calls.length, 1);
-    const {url, options} = fetchStub.calls[0];
+    const {url, options} = fetchStub.calls[0]!;
     assert.equal(options.method, 'get');
     assert.equal(options.headers.Authorization, AUTH_HEADER);
     const parsed = new URL(url);
@@ -434,7 +436,7 @@ describe('app/startCheck loop control', () => {
     assert.equal(parsed.searchParams.get('processId'), '123');
     // 423: process ongoing - the queueItem must NOT get an error state
     assert.equal(fakes.findOneAndUpdateCalls.length, 0);
-    assert.ok(!fakes.amqpCalls.some(call => call[0] === 'ack'));
+    assert.ok(!fakes.amqpCalls.some((call: any) => call[0] === 'ack'));
     assert.equal(rejections.length, 0);
   });
 
@@ -474,16 +476,16 @@ describe('app/startCheck loop control', () => {
       && findOnes('prio').length >= 6);
     fakes.park();
 
-    const pushedIds = fakes.updateOneCalls.find(call => call[0] === 'prio' && call[2].$push.handledIds);
+    const pushedIds = fakes.updateOneCalls.find((call: any) => call[0] === 'prio' && call[2].$push.handledIds);
     assert.deepEqual(pushedIds[2].$push.handledIds, {$each: ['000999999']});
     assert.deepEqual(pushedIds[2].$push.rejectedIds, {$each: []});
-    const recordResponses = fakes.updateOneCalls.find(call => call[0] === 'prio' && call[2].$push.records);
+    const recordResponses = fakes.updateOneCalls.find((call: any) => call[0] === 'prio' && call[2].$push.records);
     assert.equal(recordResponses[2].$push.records.$each.length, 1);
     assert.equal(recordResponses[2].$push.records.$each[0].databaseId, '000999999');
 
     assert.equal(setJobStateCalls('prio')[0][2].$set[`importJobState.${CREATE}`], IMPORT_JOB_STATE.DONE);
     const doneState = setStateCalls('prio').find(
-      call => call[2].$set.queueItemState === QUEUE_ITEM_STATE.DONE
+      (call: any) => call[2].$set.queueItemState === QUEUE_ITEM_STATE.DONE
     );
     assert.ok(doneState);
     assert.deepEqual(doneState[1], {correlationId: CID});
@@ -491,16 +493,16 @@ describe('app/startCheck loop control', () => {
     assert.equal(amqpCount('ack'), 2); // process message + record message
     assert.equal(amqpCount('nack'), 0); // ackOnlyLength 1 of 1: nothing to nack
     assert.deepEqual(
-      fakes.amqpCalls.filter(call => call[0] === 'deleteQueue').map(call => call[1]),
+      fakes.amqpCalls.filter((call: any) => call[0] === 'deleteQueue').map((call: any) => call[1]),
       [`CREATE.${CID}`, `PROCESS.${CREATE}.${CID}`]
     );
-    const logItem = fakes.insertOneCalls.find(call => call[0] === 'logs');
+    const logItem = fakes.insertOneCalls.find((call: any) => call[0] === 'logs');
     assert.equal(logItem[1].logItemType, 'LOAD_PROCESS_LOG');
     assert.equal(logItem[1].correlationId, CID);
     // Second fetch: file clearing request after successful handling
     assert.equal(fetchStub.calls.length, 2);
-    assert.equal(fetchStub.calls[1].options.method, 'delete');
-    assert.equal(new URL(fetchStub.calls[1].url).searchParams.get('correlationId'), CID);
+    assert.equal(fetchStub.calls[1]!.options.method, 'delete');
+    assert.equal(new URL(fetchStub.calls[1]!.url).searchParams.get('correlationId'), CID);
     assert.equal(rejections.length, 0);
   });
 
@@ -548,7 +550,7 @@ describe('app/checkImportJobStateIMPORTING (item in importer)', () => {
 
     assert.equal(amqpCount('nack'), 1); // record message nacked to wait for results
     assert.equal(fetchStub.calls.length, 1);
-    const {url, options} = fetchStub.calls[0];
+    const {url, options} = fetchStub.calls[0]!;
     assert.equal(options.method, 'post');
     assert.equal(options.headers.Authorization, AUTH_HEADER);
     assert.ok(options.body.includes('000999999 001'));
@@ -587,14 +589,14 @@ describe('app/checkImportJobStateIMPORTING (item in importer)', () => {
 
     // The queue was checked, waited 200 ms, checked again, then the item
     // errored; sendErrorResponses checked it a third time (empty: no ack)
-    const operationQueueChecks = fakes.amqpCalls.filter(call =>
+    const operationQueueChecks = fakes.amqpCalls.filter((call: any) =>
       call[0] === 'assertQueue' && call[1] === `CREATE.${CID}`).length;
     assert.equal(operationQueueChecks, 3);
-    const erroredJob = setJobStateCalls('prio').find(call =>
+    const erroredJob = setJobStateCalls('prio').find((call: any) =>
       call[2].$set[`importJobState.${CREATE}`] === IMPORT_JOB_STATE.ERROR);
     assert.ok(erroredJob);
     const erroredState = setStateCalls('prio').find(
-      call => call[2].$set.queueItemState === QUEUE_ITEM_STATE.ERROR
+      (call: any) => call[2].$set.queueItemState === QUEUE_ITEM_STATE.ERROR
     );
     assert.equal(erroredState[2].$set.errorStatus, '500');
     assert.equal(erroredState[2].$set.errorMessage, `Importer: empty queue: ${CREATE}.${CID}`);
@@ -618,7 +620,7 @@ describe('app/checkImportJobStateIMPORTING (item in importer)', () => {
       jobStateChanged('prio', FIX, IMPORT_JOB_STATE.PROCESSING));
     fakes.park();
 
-    const {url, options} = fetchStub.calls[0];
+    const {url, options} = fetchStub.calls[0]!;
     assert.equal(options.method, 'post');
     // FIX: fix path, recordList as syslist body, fixType from the queue item headers
     assert.equal(new URL(url).pathname, RECORD_LOAD_FIX_PATH);
@@ -908,7 +910,7 @@ describe('app/checkQueueItemStateINQUEUE (queueItem IN_QUEUE)', () => {
   test(
     'FIX importer + other job state without a FIX key: job initialized to IMPORTING, no crash',
     async () => {
-      // Regression test for the former app.js:249 bug, where this branch
+      // Regression test for the former app.ts:249 bug, where this branch
       // read `queueItem.importJobState.OPERATIONS.FIX` (importJobState is a
       // flat {operation: state} map, so .OPERATIONS was undefined ->
       // TypeError -> the whole service died). Now a missing FIX key

@@ -1,24 +1,25 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {sendErrorResponses} from './sendErrorResponses.js';
+import type {AmqpOperator, MongoOperator} from '@natlibfi/melinda-rest-api-commons';
+import {sendErrorResponses} from '../src/interfaces/sendErrorResponses.ts';
 
 // Plain mock matching the @natlibfi/melinda-rest-api-commons amqp factory:
 // checkQueue({queue, style, toRecord, purge}) -> {headers, messages} (or false when empty),
 // ackMessages(messages) / nackMessages(messages) receive the raw message array.
 // Every call is recorded as [methodName, ...args] so call order and arguments
 // can be asserted, not just return values.
-function createAmqpOperator({queueResult}) {
-  const calls = [];
+function createAmqpOperator({queueResult}: {queueResult: unknown}) {
+  const calls: [string, unknown][] = [];
   return {
     calls,
-    checkQueue: async (params) => {
+    checkQueue: async (params: unknown) => {
       calls.push(['checkQueue', params]);
       return queueResult;
     },
-    ackMessages: async (messages) => {
+    ackMessages: async (messages: unknown) => {
       calls.push(['ackMessages', messages]);
     },
-    nackMessages: async (messages) => {
+    nackMessages: async (messages: unknown) => {
       calls.push(['nackMessages', messages]);
     }
   };
@@ -28,13 +29,13 @@ function createAmqpOperator({queueResult}) {
 // setImportJobState({correlationId, operation, importJobState}),
 // setState({correlationId, state, errorMessage, errorStatus})
 function createMongoOperator() {
-  const calls = [];
+  const calls: [string, unknown][] = [];
   return {
     calls,
-    setImportJobState: async (params) => {
+    setImportJobState: async (params: unknown) => {
       calls.push(['setImportJobState', params]);
     },
-    setState: async (params) => {
+    setState: async (params: unknown) => {
       calls.push(['setState', params]);
     }
   };
@@ -46,15 +47,24 @@ const OPERATION = 'CREATE';
 const messages = [{id: 'msg-1'}, {id: 'msg-2'}];
 const CHECK_QUEUE_PARAMS = {queue: QUEUE, style: 'basic', toRecords: false, purge: false};
 
-async function send({amqpOperator, mongoOperator, error, prio, error503WaitTime = 30}) {
+type AmqpOperatorMock = ReturnType<typeof createAmqpOperator>;
+type MongoOperatorMock = ReturnType<typeof createMongoOperator>;
+
+async function send({amqpOperator, mongoOperator, error, prio, error503WaitTime = 30}: {
+  amqpOperator: AmqpOperatorMock;
+  mongoOperator: MongoOperatorMock;
+  error: {status?: number; payload?: string};
+  prio: boolean;
+  error503WaitTime?: number;
+}) {
   return sendErrorResponses({
     error,
     correlationId: CORRELATION_ID,
     queue: QUEUE,
-    mongoOperator,
+    mongoOperator: mongoOperator as unknown as MongoOperator,
     prio,
     error503WaitTime,
-    amqpOperator,
+    amqpOperator: amqpOperator as unknown as AmqpOperator,
     operation: OPERATION
   });
 }

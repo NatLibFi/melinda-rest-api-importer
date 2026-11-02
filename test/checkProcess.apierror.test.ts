@@ -1,4 +1,4 @@
-// ApiError funneling in checkProcess.js, end-to-end against the REAL
+// ApiError funneling in checkProcess.ts, end-to-end against the REAL
 // rest-api-commons mongo layer (mongoFactory, with MongoClient.connect
 // patched) instead of a hand-rolled mongoOperator fake.
 //
@@ -15,7 +15,7 @@
 //      the ApiError escapes checkProcessQueueStart instead of the
 //      queueItem being left without a second error state.
 //
-// checkProcess.js creates its processOperator internally (processPoll.js)
+// checkProcess.ts creates its processOperator internally (processPoll.ts)
 // and calls mongoLogFactory(mongoUri) itself, so neither can be injected.
 // The processOperator is driven through a stubbed globalThis.fetch; both
 // MongoClient.connect users (mongoFactory and mongoLogFactory) are driven
@@ -27,21 +27,23 @@ import httpStatus from 'http-status';
 import {Error as ApiError, generateAuthorizationHeader} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoDriverError} from 'mongodb';
 import {mongoFactory} from '@natlibfi/melinda-rest-api-commons';
-import checkProcessFactory from './checkProcess.js';
+import type {AmqpOperator} from '@natlibfi/melinda-rest-api-commons';
+import type {RequestInfo} from 'undici-types';
+import checkProcessFactory from '../src/interfaces/checkProcess.ts';
 
 // One fake Mongo client per patched connect call. The fake db hands out a
 // recording fake collection for every requested collection name.
 const originalMongoConnect = MongoClient.connect;
-let collectionFakes = null;
+let collectionFakes: any = null;
 
 MongoClient.connect = async () => ({
   db: () => ({
-    collection: (name) => {
+    collection: (name: string) => {
       if (!collectionFakes[name]) {
         collectionFakes[name] = {
           findOneAndUpdateCalls: [],
           findOneAndUpdateError: null,
-          findOneAndUpdate: async (filter, update) => {
+          findOneAndUpdate: async (filter: unknown, update: unknown) => {
             collectionFakes[name].findOneAndUpdateCalls.push([name, filter, update]);
             if (collectionFakes[name].findOneAndUpdateError) {
               throw collectionFakes[name].findOneAndUpdateError;
@@ -54,7 +56,7 @@ MongoClient.connect = async () => ({
       return collectionFakes[name];
     }
   })
-});
+} as unknown as MongoClient);
 
 after(() => {
   MongoClient.connect = originalMongoConnect;
@@ -80,7 +82,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function makeProcessParams(overrides = {}) {
+function makeProcessParams(overrides: Record<string, unknown> = {}) {
   return {
     correlationId: CORRELATION_ID,
     pActiveLibrary: 'FIN',
@@ -91,57 +93,57 @@ function makeProcessParams(overrides = {}) {
   };
 }
 
-function makeProcessMessage(data) {
+function makeProcessMessage(data: Record<string, unknown>) {
   return {content: Buffer.from(JSON.stringify({data}))};
 }
 
 // Minimal amqp operator: the process message on the PROCESS queue, then
 // nothing else is needed - the flow ends in the checkProcessQueue catch
 // before any operation queue handling.
-function makeAmqp(processMessage) {
-  const calls = [];
+function makeAmqp(processMessage: {content: Buffer}) {
+  const calls: [string, unknown][] = [];
   return {
     calls,
-    checkQueue({queue} = {}) {
+    checkQueue({queue = ''}: {queue?: string} = {}) {
       calls.push(['checkQueue', queue]);
       return queue.startsWith('PROCESS.') ? processMessage : false;
     },
-    ackMessages(messages) {
+    ackMessages(messages: unknown) {
       calls.push(['ackMessages', messages]);
     },
-    nackMessages(messages) {
+    nackMessages(messages: unknown) {
       calls.push(['nackMessages', messages]);
     },
-    removeQueue(queue) {
+    removeQueue(queue: string) {
       calls.push(['removeQueue', queue]);
     }
   };
 }
 
 // Fetch stub answering the record-load-api poll with the given status.
-function stubFetch(pollStatus) {
-  globalThis.fetch = async (url, options) => {
-    assert.equal(options.method, 'get');
-    assert.equal(options.headers.Authorization, generateAuthorizationHeader(API_KEY));
+function stubFetch(pollStatus: number) {
+  globalThis.fetch = async (_url: RequestInfo | URL, options?: RequestInit) => {
+    assert.equal((options as {method: string}).method, 'get');
+    assert.equal((options as {headers: Record<string, string>}).headers['Authorization'], generateAuthorizationHeader(API_KEY));
     return {
       status: pollStatus,
       json: async () => ({handledIds: [], rejectedIds: []})
-    };
+    } as Response;
   };
 }
 
-// Creates the real mongo operator (the one the app.js loop would pass into
+// Creates the real mongo operator (the one the app.ts loop would pass into
 // checkProcessQueueStart) and runs checkProcessQueueStart with a 404 poll,
 // so handleProcessMessageError rethrows the ApiError(404) and the
 // checkProcessQueue catch is exercised. findOneAndUpdateError, when set,
 // is thrown by the operator collection's findOneAndUpdate (a real
 // MongoDriverError in the driver-error test).
-async function runWithErroringPoll({findOneAndUpdateError = null} = {}) {
+async function runWithErroringPoll({findOneAndUpdateError = null}: {findOneAndUpdateError?: Error | null} = {}) {
   const amqp = makeAmqp(makeProcessMessage(makeProcessParams()));
   stubFetch(httpStatus.NOT_FOUND);
 
   const factoryPromise = checkProcessFactory({
-    amqpOperator: amqp,
+    amqpOperator: amqp as unknown as AmqpOperator,
     recordLoadApiKey: API_KEY,
     recordLoadUrl: RECORD_LOAD_URL,
     error503WaitTime: 1,
@@ -193,7 +195,7 @@ describe('checkProcess ApiError funneling against the real mongo layer', () => {
     // The process message is acked (no nack on the way out).
     const acks = amqp.calls.filter((call) => call[0] === 'ackMessages');
     assert.equal(acks.length, 1);
-    assert.equal(acks[0][1].length, 1);
+    assert.equal((acks[0] as [string, {length: number}])[1].length, 1);
     assert.deepEqual(amqp.calls.filter((call) => call[0] === 'nackMessages'), []);
   });
 
@@ -202,9 +204,9 @@ describe('checkProcess ApiError funneling against the real mongo layer', () => {
       findOneAndUpdateError: new MongoDriverError('simulated driver failure')
     });
     await assert.rejects(run, (error) => {
-      assert.ok(error instanceof ApiError, `expected ApiError, got ${error.constructor.name}`);
-      assert.equal(error.status, httpStatus.INTERNAL_SERVER_ERROR);
-      assert.equal(error.payload, 'Mongo errored: simulated driver failure');
+      assert.ok(error instanceof ApiError, `expected ApiError, got ${error instanceof ApiError ? error.constructor.name : error}`);
+      assert.equal((error as ApiError).status, httpStatus.INTERNAL_SERVER_ERROR);
+      assert.equal((error as ApiError).payload, 'Mongo errored: simulated driver failure');
       return true;
     });
     // The driver error fires on the FIRST error-state write

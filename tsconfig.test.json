@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src",
+    "test"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "compilerOptions": {
+    // Typechecking only — never emits. The build config (tsconfig.json)
+    // keeps rootDir ./src so `npm run build` still emits only src/ -> dist/.
+    "noEmit": true,
+    "rootDir": "."
+  }
+}
