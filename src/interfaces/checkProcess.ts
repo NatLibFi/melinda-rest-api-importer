@@ -250,8 +250,9 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
 
       // Ask aleph-record-load-api about the process
       // We should ask differently for loadProcess/vs fixProcess?
-      // H3: poll only returns undefined for an operation outside OPERATIONS;
-      // operation here is always one of OPERATIONS, so the results are present.
+      // poll returns undefined only for an operation outside OPERATIONS, or via
+      // pollFix's non-200/409 fallback; pollQuery throws for every other status, so
+      // neither path is reachable and the results are always present. The cast is safe.
       const processPollResults = (await processOperator.poll({operation, params: processParams.data})) as ProcessPollResults;
       logger.silly(`ProcessPoll results: ${JSON.stringify(processPollResults)}`);
       // should this check that results exist/are sane?

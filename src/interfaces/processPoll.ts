@@ -27,7 +27,7 @@ export interface ProcessPollResults {
     loadProcessReport?: LoadProcessReport;
   };
   ackOnlyLength: number;
-  status?: number; // only present on the pollLoad shapes
+  status?: number; // present on pollLoad's all-processed branch and both pollFix (200/409) branches; absent on pollLoad's partial branch
 }
 
 // processParams.data as parsed from the AMQP PROCESS message
