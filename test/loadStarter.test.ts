@@ -32,13 +32,37 @@ function makeMarcRecord({sysnum, title}: {sysnum: string; title: string}) {
   }, {subfieldValues: false});
 }
 
+// Continuing-resource record (leader l6='a', l7='s'), inlined from the
+// @natlibfi/marc-record-serializers aleph-sequential `to7` fixture
+function makeContinuingResourceRecord() {
+  return new MarcRecord({
+    leader: '     cas a22002894i 4500',
+    fields: [
+      {tag: '001', value: '001789950'},
+      {tag: '005', value: '20150730081102.0'},
+      {tag: '008', value: '970625d19651969xxka|||| ||||||||||0eng||'},
+      {tag: '022', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: '0579-3122'}]},
+      {tag: '035', ind1: ' ', ind2: ' ', subfields: [{code: 'z', value: '(FI-MELINDA)004273165'}]},
+      {tag: '035', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: '(FI-MELINDA)001789950'}]},
+      {tag: '041', ind1: '0', ind2: ' ', subfields: [{code: 'a', value: 'eng'}]},
+      {tag: '245', ind1: '0', ind2: '0', subfields: [{code: 'a', value: 'Annual review /'}, {code: 'c', value: 'Eley Game Advisory Station.'}]},
+      {tag: '246', ind1: '1', ind2: '1', subfields: [{code: 'a', value: 'Annual report / Eley Game Advisory Station.'}]},
+      {tag: '260', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: 'Fordingbridge,'}, {code: 'c', value: '1965-1969.'}]},
+      {tag: '336', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: 'teksti'}, {code: 'b', value: 'txt'}, {code: '2', value: 'rdacontent'}]},
+      {tag: '337', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: 'käytettävissä ilman laitetta'}, {code: 'b', value: 'n'}, {code: '2', value: 'rdamedia'}]},
+      {tag: '338', ind1: ' ', ind2: ' ', subfields: [{code: 'a', value: 'nide'}, {code: 'b', value: 'nc'}, {code: '2', value: 'rdacarrier'}]}
+    ]
+  }, {subfieldValues: false});
+}
+
 const RECORDS = [
   makeMarcRecord({sysnum: '123', title: 'First record'}),
-  makeMarcRecord({sysnum: '456', title: 'Second record'})
+  makeMarcRecord({sysnum: '456', title: 'Second record'}),
+  makeContinuingResourceRecord()
 ];
 
 // Mirrors createSeqRecords: AlephSequential serialization joined with the 001-fusion separator
-const EXPECTED_SEQ_BODY = RECORDS.map(record => AlephSequential.to(record, {subfieldValues: false} as unknown as boolean))
+const EXPECTED_SEQ_BODY = RECORDS.map(record => AlephSequential.to(record))
   .join('000000000 000   L 0\n');
 
 let starter: ReturnType<typeof loadStarter>;
@@ -196,7 +220,11 @@ test('createSeqRecords: MARC serialization joined with 000000000 fusion separato
 
   const body = fetchCalls[0]!.options.body;
   assert.equal(body, EXPECTED_SEQ_BODY);
-  assert.ok(body.includes('000000000 000   L 0\n'), 'separator between the two serialized records');
+  assert.ok(body.includes('000000000 000   L 0\n'), 'separator between the serialized records');
+  // useCrForContinuingResource is left at its production default (falsy):
+  // a continuing-resource record (leader l6='a', l7='s') still gets FMT SE, not CR
+  assert.ok(body.includes('FMT   L SE'), 'continuing-resource record serializes with FMT SE (flag falsy)');
+  assert.ok(!body.includes('FMT   L CR'), 'no record serializes with FMT CR under the production call');
 });
 
 test('createSeqRecords: serialization failure throws ApiError(422) without calling fetch', async () => {
