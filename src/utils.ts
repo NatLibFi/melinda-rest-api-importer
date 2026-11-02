@@ -3,8 +3,8 @@ import httpStatus from 'http-status';
 import {createLogger, Error as CommonsError} from '@natlibfi/melinda-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
 
-// The published .d.ts constructor requires (status, payload); the runtime constructor accepts one argument (payload undefined).
-const ApiError = CommonsError as unknown as new (status: number, payload?: unknown) => InstanceType<typeof CommonsError>;
+// Single shared boundary cast for the commons ApiError: the published .d.ts constructor requires (status, payload), but the runtime constructor accepts one argument (payload undefined). An upstream fix (commons shipping a correct 1-arg constructor type) would retire this entirely.
+export const ApiError = CommonsError as unknown as new (status: number, payload?: unknown) => InstanceType<typeof CommonsError>;
 
 export async function checkStatus(response: Response) {
   const logger = createLogger();

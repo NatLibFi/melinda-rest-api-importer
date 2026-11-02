@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
 import {promisify, inspect} from 'util';
-import {createLogger, Error as CommonsError, toAlephId} from '@natlibfi/melinda-commons';
+import {createLogger, toAlephId} from '@natlibfi/melinda-commons';
 import type {Error as CommonsApiError} from '@natlibfi/melinda-commons';
 import {IMPORT_JOB_STATE, OPERATIONS, QUEUE_ITEM_STATE, createRecordResponseItem, addRecordResponseItems, mongoLogFactory} from '@natlibfi/melinda-rest-api-commons';
 import {logError} from '@natlibfi/melinda-rest-api-commons';
@@ -8,11 +8,7 @@ import type {AmqpOperator, LogItem, MongoOperator} from '@natlibfi/melinda-rest-
 import type {GetMessage, Message, MessagePropertyHeaders} from 'amqplib';
 import processOperatorFactory from './processPoll.ts';
 import type {LoadProcessReport, ProcessParamsData, ProcessPollResults} from './processPoll.ts';
-
-// The published commons .d.ts constructor requires two arguments (found in C4), but
-// the runtime constructor accepts one - separateMessages / handleProcessMessageError
-// below throw with a single argument. Boundary-cast per the utils.ts (C4) precedent.
-const ApiError = CommonsError as unknown as new (status: number, payload?: unknown) => InstanceType<typeof CommonsError>;
+import {ApiError} from '../utils.ts';
 
 // Structural union for any error the handleProcessMessage try block can throw
 // (an ApiError or a plain thrown Error); `message` is read in the unexpected branch.
@@ -325,8 +321,8 @@ export default async function ({amqpOperator, recordLoadApiKey, recordLoadUrl, e
     // style 'basic' + toRecord: false the runtime returns a
     // QueueItemMessagePayload {headers, messages} (or false for an empty queue).
     // The `typeof === 'object'` step drops the primitive members so the `in`
-    // check narrows to the payload (C8 precedent in sendErrorResponses.ts); the
-    // existing `if (!messages)` guard below stays the effective type guard.
+    // check narrows to the payload (same narrowing as in sendErrorResponses.ts);
+    // the existing `if (!messages)` guard below stays the effective type guard.
     const firstMessageHeaders = checkQueueResult && typeof checkQueueResult === 'object' && 'messages' in checkQueueResult ? checkQueueResult.headers : undefined;
     const messages = checkQueueResult && typeof checkQueueResult === 'object' && 'messages' in checkQueueResult ? checkQueueResult.messages : undefined;
     // checkQueue returns plain false for an empty queue: guard before any use of messages
