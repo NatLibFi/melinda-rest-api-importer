@@ -39,7 +39,7 @@
     "@natlibfi/melinda-commons": "^14.0.2",
     "@natlibfi/melinda-rest-api-commons": "^5.0.4",
     "http-status": "^2.1.0",
-    "moment": "^2.30.1"
+    "moment": "^2.31.0"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
